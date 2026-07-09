@@ -1,0 +1,50 @@
+{
+  "name": "ecommerce-backend",
+  "version": "1.0.0",
+  "description": "TypeScript PostgreSQL API for the e-commerce app",
+  "main": "dist/server.js",
+  "scripts": {
+    "dev": "node scripts/with-env.mjs tsx watch src/server.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node scripts/with-env.mjs node dist/server.js",
+    "lint": "eslint \"src/**/*.ts\" \"prisma/**/*.ts\"",
+    "test": "node scripts/with-env.mjs vitest run",
+    "db:generate": "node scripts/with-env.mjs prisma generate",
+    "db:migrate": "node scripts/with-env.mjs prisma migrate dev",
+    "db:deploy": "node scripts/with-env.mjs prisma migrate deploy",
+    "db:seed": "node scripts/with-env.mjs tsx prisma/seed.ts"
+  },
+  "keywords": [
+    "ecommerce",
+    "postgresql",
+    "fastify"
+  ],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "@fastify/cookie": "^11.0.2",
+    "@fastify/cors": "^11.2.0",
+    "@fastify/helmet": "^13.0.2",
+    "@fastify/rate-limit": "^10.3.0",
+    "@fastify/swagger": "^9.6.1",
+    "@fastify/swagger-ui": "^5.2.3",
+    "@prisma/client": "^6.19.0",
+    "argon2": "^0.44.0",
+    "bullmq": "^5.64.1",
+    "dotenv": "^17.2.3",
+    "fastify": "^5.6.2",
+    "ioredis": "^5.8.2",
+    "zod": "^4.3.5"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "@typescript-eslint/eslint-plugin": "^8.46.4",
+    "@typescript-eslint/parser": "^8.46.4",
+    "eslint": "^9.39.1",
+    "prisma": "^6.19.0",
+    "tsx": "^4.21.0",
+    "typescript": "~5.9.3",
+    "vitest": "^4.0.15"
+  }
+}
