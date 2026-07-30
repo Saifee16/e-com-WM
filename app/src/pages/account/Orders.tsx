@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -9,55 +9,74 @@ import {
 import { products } from '../../data/products';
 import { formatPrice, formatDate } from '../../utils/format';
 
+interface AccountOrderItem {
+  name: string;
+  image: string;
+  price: number;
+  quantity: number;
+}
+
+interface AccountOrder {
+  _id: string;
+  orderNumber: string;
+  status: string;
+  total: number;
+  createdAt: string;
+  items: AccountOrderItem[];
+  shippingAddress: {
+    street: string;
+    city: string;
+    state: string;
+    zipCode: string;
+  };
+}
+
+const mockOrders: AccountOrder[] = [
+  {
+    _id: '1',
+    orderNumber: 'WAH-ABC123',
+    status: 'delivered',
+    total: 599999,
+    createdAt: '2025-02-15T10:30:00',
+    items: [
+      { name: products[0].name, image: products[0].images[0], price: 599999, quantity: 1 },
+    ],
+    shippingAddress: { street: '123 Main St', city: 'Lahore', state: 'Punjab', zipCode: '54000' },
+  },
+  {
+    _id: '2',
+    orderNumber: 'WAH-DEF456',
+    status: 'processing',
+    total: 349999,
+    createdAt: '2025-02-18T14:20:00',
+    items: [
+      { name: products[4].name, image: products[4].images[0], price: 349999, quantity: 1 },
+    ],
+    shippingAddress: { street: '456 Park Ave', city: 'Karachi', state: 'Sindh', zipCode: '74000' },
+  },
+  {
+    _id: '3',
+    orderNumber: 'WAH-GHI789',
+    status: 'shipped',
+    total: 429999,
+    createdAt: '2025-02-20T09:15:00',
+    items: [
+      { name: products[3].name, image: products[3].images[0], price: 429999, quantity: 1 },
+    ],
+    shippingAddress: { street: '789 Garden Rd', city: 'Islamabad', state: 'ICT', zipCode: '44000' },
+  },
+];
+
 const Orders = () => {
-  const [orders, setOrders] = useState<any[]>([]);
+  const [orders] = useState<AccountOrder[]>(mockOrders);
   const [filter, setFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
-
-  useEffect(() => {
-    // Mock orders data
-    setOrders([
-      {
-        _id: '1',
-        orderNumber: 'WAH-ABC123',
-        status: 'delivered',
-        total: 599999,
-        createdAt: '2025-02-15T10:30:00',
-        items: [
-          { product: products[0], name: products[0].name, image: products[0].images[0], price: 599999, quantity: 1 },
-        ],
-        shippingAddress: { street: '123 Main St', city: 'Lahore', state: 'Punjab', zipCode: '54000' },
-      },
-      {
-        _id: '2',
-        orderNumber: 'WAH-DEF456',
-        status: 'processing',
-        total: 349999,
-        createdAt: '2025-02-18T14:20:00',
-        items: [
-          { product: products[4], name: products[4].name, image: products[4].images[0], price: 349999, quantity: 1 },
-        ],
-        shippingAddress: { street: '456 Park Ave', city: 'Karachi', state: 'Sindh', zipCode: '74000' },
-      },
-      {
-        _id: '3',
-        orderNumber: 'WAH-GHI789',
-        status: 'shipped',
-        total: 429999,
-        createdAt: '2025-02-20T09:15:00',
-        items: [
-          { product: products[3], name: products[3].name, image: products[3].images[0], price: 429999, quantity: 1 },
-        ],
-        shippingAddress: { street: '789 Garden Rd', city: 'Islamabad', state: 'ICT', zipCode: '44000' },
-      },
-    ]);
-  }, []);
 
   const filteredOrders = orders.filter((order) => {
     const matchesFilter = filter === 'all' || order.status === filter;
     const matchesSearch =
       order.orderNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      order.items.some((item: { name: string }) => item.name.toLowerCase().includes(searchQuery.toLowerCase()));
+      order.items.some((item) => item.name.toLowerCase().includes(searchQuery.toLowerCase()));
     return matchesFilter && matchesSearch;
   });
 
@@ -183,7 +202,7 @@ const Orders = () => {
 
               {/* Order Items */}
               <div className="p-4 sm:p-6">
-                {order.items.map((item: { image: string; name: string; quantity: number; price: number }, itemIndex: number) => (
+                {order.items.map((item, itemIndex) => (
                   <div key={itemIndex} className="flex items-center gap-4">
                     <div className="w-20 h-20 bg-gray-100 rounded-xl overflow-hidden flex-shrink-0">
                       <img

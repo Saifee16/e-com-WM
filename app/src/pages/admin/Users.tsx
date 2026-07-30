@@ -8,8 +8,19 @@ import {
 } from 'lucide-react';
 import { formatDate } from '../../utils/format';
 
+interface AdminUserRow {
+  _id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  isAdmin: boolean;
+  createdAt: string;
+  orders: number;
+}
+
 const AdminUsers = () => {
-  const [users, setUsers] = useState<any[]>([
+  const [users, setUsers] = useState<AdminUserRow[]>([
     { _id: '1', firstName: 'John', lastName: 'Doe', email: 'john@example.com', phone: '+92 300 1234567', isAdmin: false, createdAt: '2025-01-15', orders: 5 },
     { _id: '2', firstName: 'Jane', lastName: 'Smith', email: 'jane@example.com', phone: '+92 300 7654321', isAdmin: false, createdAt: '2025-01-20', orders: 3 },
     { _id: '3', firstName: 'Wahab', lastName: 'Ahmad', email: 'wahab@example.com', phone: '+92 300 1111111', isAdmin: true, createdAt: '2024-12-01', orders: 0 },

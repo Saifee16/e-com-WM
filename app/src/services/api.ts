@@ -2,12 +2,9 @@ import axios, { AxiosError } from 'axios';
 import type { AxiosInstance, AxiosResponse } from 'axios';
 
 type JsonObject = Record<string, unknown>;
-type AddressPayload = unknown;
 type ProductPayload = JsonObject;
 type ProductQueryParams = JsonObject;
 type OrderPayload = JsonObject;
-type UserPreferencesPayload = JsonObject;
-type UserPayload = JsonObject;
 type ContactPayload = { name: string; email: string; subject: string; message: string };
 
 export const GUEST_CART_ID_KEY = 'guestCartId';
@@ -72,7 +69,7 @@ export const authAPI = {
     api.post('/auth/google/callback', { code, mode }),
   getProfile: () => api.get('/auth/profile'),
   logout: () => api.post('/auth/logout'),
-  updateProfile: (data: Partial<{ firstName: string; lastName: string; phone: string; address: AddressPayload }>) =>
+  updateProfile: (data: Partial<{ firstName: string; lastName: string; phone: string }>) =>
     api.put('/auth/profile', data),
   changePassword: (currentPassword: string, newPassword: string) =>
     api.put('/auth/password', { currentPassword, newPassword }),
@@ -86,8 +83,6 @@ export const productsAPI = {
   getProductsByBrand: (brand: string) => api.get(`/products/brand/${brand}`),
   getBrands: () => api.get('/products/brands'),
   getCategories: () => api.get('/products/categories'),
-  addReview: (id: string, rating: number, comment: string) =>
-    api.post(`/products/${id}/reviews`, { rating, comment }),
   // Admin only
   createProduct: (data: ProductPayload) => api.post('/products', data),
   updateProduct: (id: string, data: ProductPayload) => api.put(`/products/${id}`, data),
@@ -112,25 +107,11 @@ export const ordersAPI = {
   createOrder: (data: OrderPayload) => api.post('/orders', data),
   getMyOrders: () => api.get('/orders/my-orders'),
   getOrderById: (id: string) => api.get(`/orders/${id}`),
-  cancelOrder: (id: string) => api.put(`/orders/${id}/cancel`),
   // Admin only
   getAllOrders: (params?: JsonObject) => api.get('/orders', { params }),
   updateOrderStatus: (id: string, status: string, note?: string) =>
     api.put(`/orders/${id}/status`, { status, note }),
   getOrderStats: () => api.get('/orders/stats/overview'),
-};
-
-// User API
-export const userAPI = {
-  getWishlist: () => api.get('/users/wishlist'),
-  addToWishlist: (productId: string) => api.post(`/users/wishlist/${productId}`),
-  removeFromWishlist: (productId: string) => api.delete(`/users/wishlist/${productId}`),
-  updatePreferences: (preferences: UserPreferencesPayload) => api.put('/users/preferences', preferences),
-  // Admin only
-  getAllUsers: (params?: JsonObject) => api.get('/users', { params }),
-  getUserById: (id: string) => api.get(`/users/${id}`),
-  updateUser: (id: string, data: UserPayload) => api.put(`/users/${id}`, data),
-  deleteUser: (id: string) => api.delete(`/users/${id}`),
 };
 
 // Admin API

@@ -27,9 +27,27 @@ export const buildApp = async () => {
   await app.register(requestIdPlugin);
   await app.register(helmet);
   await app.register(cookie);
+
+  const allowedOrigins = new Set([
+    env.FRONTEND_URL,
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+  ]);
+
   await app.register(cors, {
-    origin: env.FRONTEND_URL,
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.has(origin)) {
+        callback(null, true);
+        return;
+      }
+
+      callback(new Error(`Origin ${origin} is not allowed by CORS`), false);
+    },
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Authorization', 'Content-Type', 'X-Guest-Id'],
+    exposedHeaders: ['Set-Cookie'],
+    optionsSuccessStatus: 204,
   });
   await app.register(rateLimit, {
     max: env.RATE_LIMIT_GLOBAL_MAX,
@@ -45,6 +63,19 @@ export const buildApp = async () => {
   });
   await app.register(swaggerUi, {
     routePrefix: '/docs',
+  });
+
+  app.addHook('onRequest', async (request) => {
+    if (request.url.startsWith('/api/products/') && ['OPTIONS', 'POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method)) {
+      request.log.info(
+        {
+          origin: request.headers.origin,
+          requestedMethod: request.headers['access-control-request-method'],
+          requestedHeaders: request.headers['access-control-request-headers'],
+        },
+        'product mutation request diagnostic',
+      );
+    }
   });
 
   await app.register(healthRoutes, { prefix: '/api' });

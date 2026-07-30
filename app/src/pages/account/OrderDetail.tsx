@@ -1,4 +1,3 @@
-import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -13,57 +12,100 @@ import {
 import { products } from '../../data/products';
 import { formatPrice, formatDateTime } from '../../utils/format';
 
+interface MockOrderItem {
+  product: string | { _id: string };
+  name: string;
+  image: string;
+  price: number;
+  quantity: number;
+  brand?: string;
+  specs?: string;
+}
+
+interface MockStatusHistoryItem {
+  status: string;
+  note: string;
+  timestamp: string;
+}
+
+interface MockOrderDetail {
+  _id: string;
+  orderNumber: string;
+  status: string;
+  statusHistory: MockStatusHistoryItem[];
+  items: MockOrderItem[];
+  shippingAddress: {
+    street: string;
+    city: string;
+    state: string;
+    zipCode: string;
+    country: string;
+  };
+  contactInfo: {
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone: string;
+  };
+  paymentMethod: string;
+  shippingMethod: string;
+  shippingCost: number;
+  subtotal: number;
+  tax: number;
+  discount: number;
+  total: number;
+  trackingNumber: string;
+  createdAt: string;
+}
+
+const getMockOrder = (id = 'mock-order'): MockOrderDetail => ({
+  _id: id,
+  orderNumber: 'WAH-ABC123',
+  status: 'delivered',
+  statusHistory: [
+    { status: 'pending', timestamp: '2025-02-15T10:30:00', note: 'Order placed' },
+    { status: 'processing', timestamp: '2025-02-15T11:00:00', note: 'Payment confirmed' },
+    { status: 'shipped', timestamp: '2025-02-16T09:00:00', note: 'Order shipped' },
+    { status: 'delivered', timestamp: '2025-02-18T14:30:00', note: 'Order delivered' },
+  ],
+  items: [
+    {
+      product: products[0],
+      name: products[0].name,
+      image: products[0].images[0],
+      price: 599999,
+      quantity: 1,
+      brand: products[0].brand,
+      specs: `${products[0].specifications.storage}, ${products[0].specifications.color}`,
+    },
+  ],
+  shippingAddress: {
+    street: '123 Main Street',
+    city: 'Lahore',
+    state: 'Punjab',
+    zipCode: '54000',
+    country: 'Pakistan',
+  },
+  contactInfo: {
+    firstName: 'John',
+    lastName: 'Doe',
+    email: 'john@example.com',
+    phone: '+92 300 1234567',
+  },
+  paymentMethod: 'card',
+  shippingMethod: 'standard',
+  shippingCost: 500,
+  subtotal: 599999,
+  tax: 11999,
+  discount: 0,
+  total: 612498,
+  trackingNumber: 'TRK123456789',
+  createdAt: '2025-02-15T10:30:00',
+});
+
 const OrderDetail = () => {
   const { id } = useParams<{ id: string }>();
-  const [order, setOrder] = useState<any>(null);
-
-  useEffect(() => {
-    // Mock order data
-    setOrder({
-      _id: id,
-      orderNumber: 'WAH-ABC123',
-      status: 'delivered',
-      statusHistory: [
-        { status: 'pending', timestamp: '2025-02-15T10:30:00', note: 'Order placed' },
-        { status: 'processing', timestamp: '2025-02-15T11:00:00', note: 'Payment confirmed' },
-        { status: 'shipped', timestamp: '2025-02-16T09:00:00', note: 'Order shipped' },
-        { status: 'delivered', timestamp: '2025-02-18T14:30:00', note: 'Order delivered' },
-      ],
-      items: [
-        { product: products[0], name: products[0].name, image: products[0].images[0], price: 599999, quantity: 1, brand: products[0].brand, specs: `${products[0].specifications.storage}, ${products[0].specifications.color}` },
-      ],
-      shippingAddress: {
-        street: '123 Main Street',
-        city: 'Lahore',
-        state: 'Punjab',
-        zipCode: '54000',
-        country: 'Pakistan',
-      },
-      contactInfo: {
-        firstName: 'John',
-        lastName: 'Doe',
-        email: 'john@example.com',
-        phone: '+92 300 1234567',
-      },
-      paymentMethod: 'card',
-      shippingMethod: 'standard',
-      shippingCost: 500,
-      subtotal: 599999,
-      tax: 11999,
-      discount: 0,
-      total: 612498,
-      trackingNumber: 'TRK123456789',
-      createdAt: '2025-02-15T10:30:00',
-    });
-  }, [id]);
-
-  if (!order) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
-      </div>
-    );
-  }
+  const order = getMockOrder(id);
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -138,7 +180,7 @@ const OrderDetail = () => {
           >
             <h3 className="text-lg font-bold text-gray-900 mb-6">Order Timeline</h3>
             <div className="relative">
-      {order.statusHistory.map((status: { status: string; note: string; timestamp: string }, index: number) => {
+              {order.statusHistory.map((status, index) => {
                 const Icon = getStatusIcon(status.status);
                 const isLast = index === order.statusHistory.length - 1;
                 return (
@@ -173,7 +215,7 @@ const OrderDetail = () => {
           >
             <h3 className="text-lg font-bold text-gray-900 mb-6">Order Items</h3>
             <div className="space-y-4">
-              {order.items.map((item: { product: string | { _id: string }; name: string; image: string; price: number; quantity: number; brand?: string; specs?: string }, index: number) => (
+              {order.items.map((item, index) => (
                 <div key={index} className="flex gap-4 p-4 bg-gray-50 rounded-xl">
                   <div className="w-24 h-24 bg-white rounded-lg overflow-hidden flex-shrink-0">
                     <img

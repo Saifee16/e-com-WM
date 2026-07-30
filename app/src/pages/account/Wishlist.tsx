@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -8,30 +8,26 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import { products } from '../../data/products';
+import type { Product } from '../../types';
 import { formatPrice } from '../../utils/format';
 import { useCart } from '../../contexts/CartContext';
 import { useToast } from '../../contexts/ToastContext';
 
 const Wishlist = () => {
-  const [wishlistItems, setWishlistItems] = useState<any[]>([]);
+  const [wishlistItems, setWishlistItems] = useState<Product[]>(products.slice(0, 4));
   const { addToCart } = useCart();
   const { showToast } = useToast();
-
-  useEffect(() => {
-    // Mock wishlist items
-    setWishlistItems(products.slice(0, 4));
-  }, []);
 
   const removeFromWishlist = (id: string) => {
     setWishlistItems(wishlistItems.filter((item) => item._id !== id));
     showToast('Removed from wishlist', 'success');
   };
 
-  const handleAddToCart = async (item: any) => {
+  const handleAddToCart = async (item: Product) => {
     try {
       await addToCart(item, 1);
       showToast('Added to cart', 'success');
-    } catch (error) {
+    } catch {
       showToast('Failed to add to cart', 'error');
     }
   };

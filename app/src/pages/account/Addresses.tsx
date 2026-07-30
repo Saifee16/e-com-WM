@@ -10,9 +10,36 @@ import {
 } from 'lucide-react';
 import { useToast } from '../../contexts/ToastContext';
 
+interface SavedAddress {
+  _id: string;
+  firstName: string;
+  lastName: string;
+  phone: string;
+  street: string;
+  city: string;
+  state: string;
+  zipCode: string;
+  country: string;
+  isDefault: boolean;
+}
+
+type AddressFormData = Omit<SavedAddress, '_id'>;
+
+const emptyAddressForm: AddressFormData = {
+  firstName: '',
+  lastName: '',
+  phone: '',
+  street: '',
+  city: '',
+  state: '',
+  zipCode: '',
+  country: 'Pakistan',
+  isDefault: false,
+};
+
 const Addresses = () => {
   const { showToast } = useToast();
-  const [addresses, setAddresses] = useState<any[]>([
+  const [addresses, setAddresses] = useState<SavedAddress[]>([
     {
       _id: '1',
       firstName: 'John',
@@ -40,38 +67,28 @@ const Addresses = () => {
   ]);
 
   const [isEditing, setIsEditing] = useState(false);
-  const [editingAddress, setEditingAddress] = useState<any>(null);
-  const [formData, setFormData] = useState({
-    firstName: '',
-    lastName: '',
-    phone: '',
-    street: '',
-    city: '',
-    state: '',
-    zipCode: '',
-    country: 'Pakistan',
-    isDefault: false,
-  });
+  const [editingAddress, setEditingAddress] = useState<SavedAddress | null>(null);
+  const [formData, setFormData] = useState<AddressFormData>(emptyAddressForm);
 
   const handleAddNew = () => {
     setEditingAddress(null);
-    setFormData({
-      firstName: '',
-      lastName: '',
-      phone: '',
-      street: '',
-      city: '',
-      state: '',
-      zipCode: '',
-      country: 'Pakistan',
-      isDefault: false,
-    });
+    setFormData(emptyAddressForm);
     setIsEditing(true);
   };
 
-  const handleEdit = (address: any) => {
+  const handleEdit = (address: SavedAddress) => {
     setEditingAddress(address);
-    setFormData({ ...address });
+    setFormData({
+      firstName: address.firstName,
+      lastName: address.lastName,
+      phone: address.phone,
+      street: address.street,
+      city: address.city,
+      state: address.state,
+      zipCode: address.zipCode,
+      country: address.country,
+      isDefault: address.isDefault,
+    });
     setIsEditing(true);
   };
 

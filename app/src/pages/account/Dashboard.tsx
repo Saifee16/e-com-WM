@@ -1,4 +1,3 @@
-import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -13,37 +12,44 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { products } from '../../data/products';
+import type { Product } from '../../types';
 import { formatPrice } from '../../utils/format';
+
+interface RecentOrder {
+  _id: string;
+  orderNumber: string;
+  status: string;
+  total: number;
+  createdAt: string;
+  items: Array<{
+    name: string;
+    image: string;
+  }>;
+}
+
+const recentOrders: RecentOrder[] = [
+  {
+    _id: '1',
+    orderNumber: 'WAH-ABC123',
+    status: 'delivered',
+    total: 599999,
+    createdAt: '2025-02-15',
+    items: [{ name: 'iPhone 16 Pro Max', image: products[0].images[0] }],
+  },
+  {
+    _id: '2',
+    orderNumber: 'WAH-DEF456',
+    status: 'processing',
+    total: 349999,
+    createdAt: '2025-02-18',
+    items: [{ name: 'Google Pixel 9 Pro XL', image: products[4].images[0] }],
+  },
+];
+
+const wishlistItems: Product[] = products.slice(0, 3);
 
 const Dashboard = () => {
   const { user } = useAuth();
-  const [recentOrders, setRecentOrders] = useState<any[]>([]);
-  const [wishlistItems, setWishlistItems] = useState<any[]>([]);
-
-  useEffect(() => {
-    // Mock recent orders
-    setRecentOrders([
-      {
-        _id: '1',
-        orderNumber: 'WAH-ABC123',
-        status: 'delivered',
-        total: 599999,
-        createdAt: '2025-02-15',
-        items: [{ name: 'iPhone 16 Pro Max', image: products[0].images[0] }],
-      },
-      {
-        _id: '2',
-        orderNumber: 'WAH-DEF456',
-        status: 'processing',
-        total: 349999,
-        createdAt: '2025-02-18',
-        items: [{ name: 'Google Pixel 9 Pro XL', image: products[4].images[0] }],
-      },
-    ]);
-
-    // Mock wishlist items
-    setWishlistItems(products.slice(0, 3));
-  }, []);
 
   const stats = [
     { icon: ShoppingBag, label: 'Total Orders', value: '12', color: 'bg-blue-100 text-blue-600' },

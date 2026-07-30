@@ -45,6 +45,23 @@ const googleUserSchema = z.object({
   name: z.string().optional(),
 });
 
+const missingGoogleOAuthConfig = () => {
+  const missing = [];
+
+  if (!env.GOOGLE_CLIENT_ID) missing.push('GOOGLE_CLIENT_ID');
+  if (!env.GOOGLE_CLIENT_SECRET) missing.push('GOOGLE_CLIENT_SECRET');
+  if (!env.GOOGLE_REDIRECT_URI) missing.push('GOOGLE_REDIRECT_URI');
+
+  return missing;
+};
+
+const googleOAuthNotConfigured = (reply: FastifyReply, missing: string[]) =>
+  fail(reply, 503, {
+    code: 'GOOGLE_OAUTH_NOT_CONFIGURED',
+    message: 'Google OAuth is not configured. Add the missing Google OAuth environment variables to backend/.env.',
+    details: { missing },
+  });
+
 const issueLoginResponse = async (user: {
   id: string;
   firstName: string;
@@ -168,16 +185,14 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
       })
       .parse(request.query);
 
-    if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_REDIRECT_URI) {
-      return fail(reply, 503, {
-        code: 'GOOGLE_OAUTH_NOT_CONFIGURED',
-        message: 'Google OAuth credentials are not configured',
-      });
+    const missingConfig = missingGoogleOAuthConfig();
+    if (missingConfig.length > 0) {
+      return googleOAuthNotConfigured(reply, missingConfig);
     }
 
     const params = new URLSearchParams({
-      client_id: env.GOOGLE_CLIENT_ID,
-      redirect_uri: env.GOOGLE_REDIRECT_URI,
+      client_id: env.GOOGLE_CLIENT_ID!,
+      redirect_uri: env.GOOGLE_REDIRECT_URI!,
       response_type: 'code',
       scope: 'openid email profile',
       access_type: 'offline',
@@ -193,11 +208,9 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
   app.post('/google/callback', async (request, reply) => {
     const body = googleCallbackSchema.parse(request.body);
 
-    if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET || !env.GOOGLE_REDIRECT_URI) {
-      return fail(reply, 503, {
-        code: 'GOOGLE_OAUTH_NOT_CONFIGURED',
-        message: 'Google OAuth credentials are not configured',
-      });
+    const missingConfig = missingGoogleOAuthConfig();
+    if (missingConfig.length > 0) {
+      return googleOAuthNotConfigured(reply, missingConfig);
     }
 
     const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
@@ -205,9 +218,9 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
         code: body.code,
-        client_id: env.GOOGLE_CLIENT_ID,
-        client_secret: env.GOOGLE_CLIENT_SECRET,
-        redirect_uri: env.GOOGLE_REDIRECT_URI,
+        client_id: env.GOOGLE_CLIENT_ID!,
+        client_secret: env.GOOGLE_CLIENT_SECRET!,
+        redirect_uri: env.GOOGLE_REDIRECT_URI!,
         grant_type: 'authorization_code',
       }),
     });

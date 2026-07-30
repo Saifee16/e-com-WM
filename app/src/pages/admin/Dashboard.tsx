@@ -1,4 +1,3 @@
-import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   Users,
@@ -10,36 +9,44 @@ import {
 } from 'lucide-react';
 import { formatPrice, formatNumber } from '../../utils/format';
 
+interface AdminRecentOrder {
+  _id: string;
+  orderNumber: string;
+  customer: string;
+  total: number;
+  status: string;
+  date: string;
+}
+
+interface TopProduct {
+  name: string;
+  sales: number;
+  revenue: number;
+}
+
+const stats = {
+  totalRevenue: 12500000,
+  totalOrders: 156,
+  totalCustomers: 89,
+  totalProducts: 50,
+};
+
+const recentOrders: AdminRecentOrder[] = [
+  { _id: '1', orderNumber: 'WAH-001', customer: 'John Doe', total: 599999, status: 'delivered', date: '2025-02-22' },
+  { _id: '2', orderNumber: 'WAH-002', customer: 'Jane Smith', total: 349999, status: 'processing', date: '2025-02-22' },
+  { _id: '3', orderNumber: 'WAH-003', customer: 'Ali Khan', total: 579999, status: 'shipped', date: '2025-02-21' },
+  { _id: '4', orderNumber: 'WAH-004', customer: 'Sarah Ahmed', total: 499999, status: 'pending', date: '2025-02-21' },
+  { _id: '5', orderNumber: 'WAH-005', customer: 'Mike Johnson', total: 299999, status: 'delivered', date: '2025-02-20' },
+];
+
+const topProducts: TopProduct[] = [
+  { name: 'iPhone 16 Pro Max', sales: 45, revenue: 26999955 },
+  { name: 'Samsung Galaxy S24 Ultra', sales: 38, revenue: 22039962 },
+  { name: 'Google Pixel 9 Pro XL', sales: 32, revenue: 11199968 },
+  { name: 'OnePlus 12', sales: 28, revenue: 8399972 },
+];
+
 const AdminDashboard = () => {
-  const [stats] = useState({
-    totalRevenue: 12500000,
-    totalOrders: 156,
-    totalCustomers: 89,
-    totalProducts: 50,
-  });
-
-  const [recentOrders, setRecentOrders] = useState<any[]>([]);
-  const [topProducts, setTopProducts] = useState<any[]>([]);
-
-  useEffect(() => {
-    // Mock recent orders
-    setRecentOrders([
-      { _id: '1', orderNumber: 'WAH-001', customer: 'John Doe', total: 599999, status: 'delivered', date: '2025-02-22' },
-      { _id: '2', orderNumber: 'WAH-002', customer: 'Jane Smith', total: 349999, status: 'processing', date: '2025-02-22' },
-      { _id: '3', orderNumber: 'WAH-003', customer: 'Ali Khan', total: 579999, status: 'shipped', date: '2025-02-21' },
-      { _id: '4', orderNumber: 'WAH-004', customer: 'Sarah Ahmed', total: 499999, status: 'pending', date: '2025-02-21' },
-      { _id: '5', orderNumber: 'WAH-005', customer: 'Mike Johnson', total: 299999, status: 'delivered', date: '2025-02-20' },
-    ]);
-
-    // Mock top products
-    setTopProducts([
-      { name: 'iPhone 16 Pro Max', sales: 45, revenue: 26999955 },
-      { name: 'Samsung Galaxy S24 Ultra', sales: 38, revenue: 22039962 },
-      { name: 'Google Pixel 9 Pro XL', sales: 32, revenue: 11199968 },
-      { name: 'OnePlus 12', sales: 28, revenue: 8399972 },
-    ]);
-  }, []);
-
   const statCards = [
     { title: 'Total Revenue', value: stats.totalRevenue, icon: DollarSign, change: '+12%', up: true, color: 'bg-green-100 text-green-600' },
     { title: 'Total Orders', value: stats.totalOrders, icon: ShoppingBag, change: '+8%', up: true, color: 'bg-blue-100 text-blue-600' },

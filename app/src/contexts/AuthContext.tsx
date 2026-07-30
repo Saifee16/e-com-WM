@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 import type { User, LoginCredentials, RegisterData } from '../types';
 import { authAPI, cartAPI, clearGuestCartId, GUEST_CART_ID_KEY } from '../services/api';
+import { getApiErrorMessage } from '../utils/api-error';
 
 interface AuthContextType {
   user: User | null;
@@ -56,8 +57,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setUser(data);
       await cartAPI.mergeGuestCart(guestId).catch(() => undefined);
       clearGuestCartId();
-    } catch (error: any) {
-      throw new Error(error.response?.data?.error?.message || error.response?.data?.message || 'Login failed');
+    } catch (error: unknown) {
+      throw new Error(getApiErrorMessage(error, 'Login failed'));
     }
   };
 
@@ -67,8 +68,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const { data } = response.data;
 
       setUser(data);
-    } catch (error: any) {
-      throw new Error(error.response?.data?.error?.message || error.response?.data?.message || 'Admin login failed');
+    } catch (error: unknown) {
+      throw new Error(getApiErrorMessage(error, 'Admin login failed'));
     }
   };
 
@@ -81,8 +82,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setUser(userData);
       await cartAPI.mergeGuestCart(guestId).catch(() => undefined);
       clearGuestCartId();
-    } catch (error: any) {
-      throw new Error(error.response?.data?.error?.message || error.response?.data?.message || 'Registration failed');
+    } catch (error: unknown) {
+      throw new Error(getApiErrorMessage(error, 'Registration failed'));
     }
   };
 
@@ -99,8 +100,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const updatedUser = response.data.data;
       
       setUser(updatedUser);
-    } catch (error: any) {
-      throw new Error(error.response?.data?.message || 'Update failed');
+    } catch (error: unknown) {
+      throw new Error(getApiErrorMessage(error, 'Update failed'));
     }
   };
 

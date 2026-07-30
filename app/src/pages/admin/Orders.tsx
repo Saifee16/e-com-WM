@@ -8,8 +8,21 @@ import {
 } from 'lucide-react';
 import { formatPrice, formatDate } from '../../utils/format';
 
+type AdminOrderStatus = 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
+
+interface AdminOrderRow {
+  _id: string;
+  orderNumber: string;
+  customer: string;
+  email: string;
+  total: number;
+  status: AdminOrderStatus;
+  date: string;
+  items: number;
+}
+
 const AdminOrders = () => {
-  const [orders, setOrders] = useState<any[]>([
+  const [orders, setOrders] = useState<AdminOrderRow[]>([
     { _id: '1', orderNumber: 'WAH-001', customer: 'John Doe', email: 'john@example.com', total: 599999, status: 'delivered', date: '2025-02-22', items: 1 },
     { _id: '2', orderNumber: 'WAH-002', customer: 'Jane Smith', email: 'jane@example.com', total: 349999, status: 'processing', date: '2025-02-22', items: 1 },
     { _id: '3', orderNumber: 'WAH-003', customer: 'Ali Khan', email: 'ali@example.com', total: 579999, status: 'shipped', date: '2025-02-21', items: 2 },
@@ -20,7 +33,7 @@ const AdminOrders = () => {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [selectedOrder, setSelectedOrder] = useState<any>(null);
+  const [selectedOrder, setSelectedOrder] = useState<AdminOrderRow | null>(null);
 
   const filteredOrders = orders.filter((order) => {
     const matchesSearch =
@@ -48,7 +61,7 @@ const AdminOrders = () => {
     }
   };
 
-  const updateOrderStatus = (orderId: string, newStatus: string) => {
+  const updateOrderStatus = (orderId: string, newStatus: AdminOrderStatus) => {
     setOrders(orders.map((o) => (o._id === orderId ? { ...o, status: newStatus } : o)));
   };
 
@@ -128,7 +141,7 @@ const AdminOrders = () => {
                         <ChevronDown className="w-5 h-5" />
                       </button>
                       <div className="absolute right-0 top-full mt-2 w-40 bg-white rounded-xl shadow-lg border border-gray-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
-                        {['pending', 'processing', 'shipped', 'delivered', 'cancelled'].map((status) => (
+                        {(['pending', 'processing', 'shipped', 'delivered', 'cancelled'] satisfies AdminOrderStatus[]).map((status) => (
                           <button
                             key={status}
                             onClick={() => updateOrderStatus(order._id, status)}
@@ -157,17 +170,6 @@ const AdminOrders = () => {
     </div>
   );
 };
-
-interface AdminOrderRow {
-  _id: string;
-  orderNumber: string;
-  customer: string;
-  email: string;
-  total: number;
-  status: string;
-  date: string;
-  items: number;
-}
 
 const OrderDetailModal = ({ order, onClose }: { order: AdminOrderRow; onClose: () => void }) => {
   return (

@@ -5,6 +5,7 @@ import { Eye, EyeOff, Mail, Lock, User, Phone, ArrowRight, Smartphone } from 'lu
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { authAPI } from '../services/api';
+import { getApiErrorMessage } from '../utils/api-error';
 
 const Register = () => {
   const navigate = useNavigate();
@@ -64,8 +65,8 @@ const Register = () => {
     try {
       const response = await authAPI.googleStart('customer');
       window.location.href = response.data.data.authUrl;
-    } catch (error: any) {
-      showToast(error.response?.data?.error?.message || 'Google login is not configured', 'error');
+    } catch (error: unknown) {
+      showToast(getApiErrorMessage(error, 'Google login is not configured'), 'error');
     }
   };
 

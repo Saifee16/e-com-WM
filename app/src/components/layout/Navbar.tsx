@@ -38,11 +38,6 @@ const Navbar = () => {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Close mobile menu on route change
-  useEffect(() => {
-    setIsMobileMenuOpen(false);
-  }, [location.pathname]);
-
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.trim()) {
@@ -265,6 +260,7 @@ const Navbar = () => {
                   <Link
                     key={link.path}
                     to={link.path}
+                    onClick={() => setIsMobileMenuOpen(false)}
                     className={`block px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
                       location.pathname === link.path
                         ? 'bg-blue-50 text-blue-600'
@@ -277,6 +273,7 @@ const Navbar = () => {
                 {!isAuthenticated && (
                   <Link
                     to="/login"
+                    onClick={() => setIsMobileMenuOpen(false)}
                     className="block px-4 py-3 bg-blue-600 text-white rounded-lg text-sm font-medium text-center"
                   >
                     Sign In

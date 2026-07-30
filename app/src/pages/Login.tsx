@@ -5,6 +5,13 @@ import { Eye, EyeOff, Mail, Lock, ArrowRight, Smartphone } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { authAPI } from '../services/api';
+import { getApiErrorMessage } from '../utils/api-error';
+
+interface LoginLocationState {
+  from?: {
+    pathname?: string;
+  };
+}
 
 const Login = () => {
   const navigate = useNavigate();
@@ -17,7 +24,7 @@ const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  const from = (location.state as any)?.from?.pathname || '/';
+  const from = (location.state as LoginLocationState | null)?.from?.pathname || '/';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,8 +34,8 @@ const Login = () => {
       await login({ email, password });
       showToast('Welcome back!', 'success');
       navigate(from, { replace: true });
-    } catch (error: any) {
-      showToast(error.message || 'Login failed', 'error');
+    } catch (error: unknown) {
+      showToast(getApiErrorMessage(error, 'Login failed'), 'error');
     } finally {
       setIsLoading(false);
     }
@@ -38,8 +45,8 @@ const Login = () => {
     try {
       const response = await authAPI.googleStart('customer');
       window.location.href = response.data.data.authUrl;
-    } catch (error: any) {
-      showToast(error.response?.data?.error?.message || 'Google login is not configured', 'error');
+    } catch (error: unknown) {
+      showToast(getApiErrorMessage(error, 'Google login is not configured'), 'error');
     }
   };
 

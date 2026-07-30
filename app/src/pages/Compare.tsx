@@ -11,6 +11,13 @@ import type { Product } from '../types';
 import { formatPrice } from '../utils/format';
 import { productsAPI } from '../services/api';
 
+interface CompareSpec {
+  key: string;
+  label: string;
+  tone?: 'price' | 'brand';
+  getValue: (product: Product) => string | number | undefined;
+}
+
 const Compare = () => {
   const [compareList, setCompareList] = useState<Product[]>([]);
   const [allProducts, setAllProducts] = useState<Product[]>([]);
@@ -103,20 +110,20 @@ const Compare = () => {
     );
   }
 
-  const specs = [
-    { key: 'brand', label: 'Brand' },
-    { key: 'price', label: 'Price' },
-    { key: 'display', label: 'Display', getValue: (p: Product) => p.specifications.display },
-    { key: 'processor', label: 'Processor', getValue: (p: Product) => p.specifications.processor },
-    { key: 'ram', label: 'RAM', getValue: (p: Product) => p.specifications.ram },
-    { key: 'storage', label: 'Storage', getValue: (p: Product) => p.specifications.storage },
-    { key: 'battery', label: 'Battery', getValue: (p: Product) => p.specifications.battery },
-    { key: 'camera', label: 'Camera', getValue: (p: Product) => p.specifications.camera },
-    { key: 'os', label: 'Operating System', getValue: (p: Product) => p.specifications.os },
-    { key: 'network', label: 'Network', getValue: (p: Product) => p.specifications.network },
-    { key: 'ptaApproved', label: 'PTA Approved', getValue: (p: Product) => (p.ptaApproved ? 'Yes' : 'No') },
-    { key: 'condition', label: 'Condition', getValue: (p: Product) => p.condition },
-    { key: 'rating', label: 'Rating', getValue: (p: Product) => `${p.rating}/5` },
+  const specs: CompareSpec[] = [
+    { key: 'brand', label: 'Brand', tone: 'brand', getValue: (p) => p.brand },
+    { key: 'price', label: 'Price', tone: 'price', getValue: (p) => p.price },
+    { key: 'display', label: 'Display', getValue: (p) => p.specifications.display },
+    { key: 'processor', label: 'Processor', getValue: (p) => p.specifications.processor },
+    { key: 'ram', label: 'RAM', getValue: (p) => p.specifications.ram },
+    { key: 'storage', label: 'Storage', getValue: (p) => p.specifications.storage },
+    { key: 'battery', label: 'Battery', getValue: (p) => p.specifications.battery },
+    { key: 'camera', label: 'Camera', getValue: (p) => p.specifications.camera },
+    { key: 'os', label: 'Operating System', getValue: (p) => p.specifications.os },
+    { key: 'network', label: 'Network', getValue: (p) => p.specifications.network },
+    { key: 'ptaApproved', label: 'PTA Approved', getValue: (p) => (p.ptaApproved ? 'Yes' : 'No') },
+    { key: 'condition', label: 'Condition', getValue: (p) => p.condition },
+    { key: 'rating', label: 'Rating', getValue: (p) => `${p.rating}/5` },
   ];
 
   return (
@@ -190,17 +197,17 @@ const Compare = () => {
                   </td>
                   {compareList.map((product) => (
                     <td key={product._id} className="p-6 text-center">
-                      {spec.key === 'price' ? (
+                      {spec.tone === 'price' ? (
                         <span className="text-xl font-bold text-blue-600">
-                          {formatPrice(product.price)}
+                          {formatPrice(Number(spec.getValue(product) ?? 0))}
                         </span>
-                      ) : spec.key === 'brand' ? (
+                      ) : spec.tone === 'brand' ? (
                         <span className="inline-block px-3 py-1 bg-blue-100 text-blue-600 rounded-full text-sm font-medium">
-                          {product.brand}
+                          {spec.getValue(product) ?? '-'}
                         </span>
                       ) : (
                         <span className="text-gray-600">
-                          {spec.getValue ? spec.getValue(product) : (product as any)[spec.key] || '-'}
+                          {spec.getValue(product) ?? '-'}
                         </span>
                       )}
                     </td>

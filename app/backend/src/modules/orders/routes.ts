@@ -312,6 +312,14 @@ export const orderRoutes: FastifyPluginAsync = async (app) => {
   app.get('/:id', async (request, reply) => {
     const params = z.object({ id: z.string().uuid() }).parse(request.params);
     const user = await getAuthenticatedUser(request);
+
+    if (!user) {
+      return fail(reply, 401, {
+        code: 'UNAUTHENTICATED',
+        message: 'Authentication required',
+      });
+    }
+
     const order = await prisma.order.findUnique({
       where: { id: params.id },
       include: orderInclude,
@@ -324,7 +332,16 @@ export const orderRoutes: FastifyPluginAsync = async (app) => {
       });
     }
 
-    if (order.userId && order.userId !== user?.id && user?.role !== 'ADMIN' && user?.role !== 'SUPER_ADMIN') {
+    const isAdmin = user.role === 'ADMIN' || user.role === 'SUPER_ADMIN';
+
+    if (order.userId && order.userId !== user.id && !isAdmin) {
+      return fail(reply, 403, {
+        code: 'ORDER_FORBIDDEN',
+        message: 'You cannot access this order',
+      });
+    }
+
+    if (!order.userId && !isAdmin) {
       return fail(reply, 403, {
         code: 'ORDER_FORBIDDEN',
         message: 'You cannot access this order',
