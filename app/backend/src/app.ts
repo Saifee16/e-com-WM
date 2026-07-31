@@ -13,6 +13,7 @@ import { adminAuthRoutes } from './modules/admin/auth-routes.js';
 import { adminRoutes } from './modules/admin/routes.js';
 import { cartRoutes } from './modules/cart/routes.js';
 import { contactRoutes } from './modules/contact/routes.js';
+import { addressRoutes, wishlistRoutes } from './modules/customer-routes.js';
 import { adminOrderRoutes, orderRoutes } from './modules/orders/routes.js';
 import { adminProductRoutes, productRoutes } from './modules/products/routes.js';
 import { requestIdPlugin } from './plugins/request-id.js';
@@ -92,6 +93,8 @@ export const buildApp = async () => {
   await app.register(adminProductRoutes, { prefix: '/api/admin/products' });
   await app.register(adminOrderRoutes, { prefix: '/api/admin/orders' });
   await app.register(contactRoutes, { prefix: '/api/contact' });
+  await app.register(wishlistRoutes, { prefix: '/api/wishlist' });
+  await app.register(addressRoutes, { prefix: '/api/addresses' });
 
   app.setErrorHandler((error: unknown, _request, reply) => {
     if (error instanceof ZodError) {

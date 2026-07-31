@@ -9,6 +9,7 @@ import {
   LogOut,
   ArrowLeft,
   BarChart3,
+  RotateCcw,
 } from 'lucide-react';
 import { useAdminAuth } from '../../contexts/AdminAuthContext';
 
@@ -22,6 +23,7 @@ const AdminLayout = () => {
     { name: 'Orders', path: '/admin/orders', icon: ShoppingCart },
     { name: 'Users', path: '/admin/users', icon: Users },
     { name: 'Messages', path: '/admin/contact', icon: Mail },
+    { name: 'Returns', path: '/admin/returns', icon: RotateCcw },
   ];
 
   const handleLogout = () => {

@@ -46,7 +46,7 @@ const Footer = () => {
     { icon: Shield, title: 'PTA Approved', description: 'All devices are PTA approved' },
     { icon: Truck, title: 'Free Shipping', description: 'On orders over Rs. 100,000' },
     { icon: RotateCcw, title: 'Easy Returns', description: '7-day return policy' },
-    { icon: CreditCard, title: 'Secure Payment', description: '100% secure checkout' },
+    { icon: CreditCard, title: 'Cash on Delivery', description: 'Pay when it arrives' },
   ];
 
   return (
@@ -204,7 +204,7 @@ const Footer = () => {
             <div className="flex items-center gap-4">
               <span className="text-gray-500 text-sm">We accept:</span>
               <div className="flex gap-2">
-                {['Visa', 'Mastercard', 'JazzCash', 'EasyPaisa'].map((method) => (
+                {['Cash on Delivery'].map((method) => (
                   <span
                     key={method}
                     className="px-3 py-1 bg-gray-800 rounded text-xs text-gray-400"

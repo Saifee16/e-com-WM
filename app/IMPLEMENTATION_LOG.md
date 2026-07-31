@@ -76,7 +76,7 @@
 
 ## Known limitations
 
-- Refresh-token rotation, password reset, and payment webhook modules are not yet implemented.
+- Payments are intentionally COD-only; no payment gateway or webhook abstraction is planned.
 - Frontend is not yet fully API-backed and still uses mock/static production paths in several pages.
 - Local verification requires a clean dependency install and Node version compatible with Vite 7 (`^20.19.0` or `>=22.12.0`).
 - Migrations now exist, but there are two initial migrations: `000001_init` creates the PostgreSQL `citext` extension, and `20260630230827_init` contains the generated table/index schema.
@@ -94,3 +94,14 @@
 - Replaced inline authorization calls with Fastify route/plugin `preHandler` hooks.
 - Removed the inactive Express/Mongo backend and its fallback JWT secret.
 - Added focused auth-realm tests covering 401, 403, query-level role scoping, and simultaneous sessions.
+
+## Phase 4 - Customer account and support flows
+
+- Added rotating customer/admin refresh sessions with replay revocation, logout revocation, and password-change revocation.
+- Added expiring, single-use password-reset tokens with SMTP delivery and a local-development link fallback.
+- Wired wishlist and address-book CRUD, product reviews, order cancellation, and return requests through the API and frontend.
+- Unified complaints and Contact Us submissions as support tickets with `OPEN`, `IN_PROGRESS`, and `RESOLVED` states.
+- Preserved guest support tickets and guest order returns in the admin queues.
+- Return approval records a manually completed cash/bank refund; the application does not transfer funds.
+- Removed the inactive payment-provider abstraction and kept checkout COD-only.
+- Added the first frontend Vitest/Testing Library suite for the Phase 4 flows.

@@ -54,6 +54,7 @@ const ContactMessages = () => {
                     <span className="px-2 py-1 bg-blue-50 text-blue-600 rounded text-xs font-medium">
                       {message.status}
                     </span>
+                    {message.isGuest && <span className="px-2 py-1 bg-amber-50 text-amber-700 rounded text-xs font-medium">Guest submission</span>}
                   </div>
                   <p className="text-sm text-gray-500">
                     {message.name} · {message.email} · {new Date(message.createdAt).toLocaleString()}
@@ -62,16 +63,16 @@ const ContactMessages = () => {
                 </div>
                 <div className="flex gap-2">
                   <button
-                    onClick={() => updateStatus(message.id, 'REVIEWED')}
-                    className="px-3 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700"
+                    onClick={() => updateStatus(message.id, 'IN_PROGRESS')}
+                    className="px-3 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700"
                   >
-                    Reviewed
+                    In progress
                   </button>
                   <button
-                    onClick={() => updateStatus(message.id, 'ARCHIVED')}
-                    className="px-3 py-2 border border-gray-200 rounded-lg text-sm hover:bg-gray-50"
+                    onClick={() => updateStatus(message.id, 'RESOLVED')}
+                    className="px-3 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700"
                   >
-                    Archive
+                    Resolve
                   </button>
                 </div>
               </div>

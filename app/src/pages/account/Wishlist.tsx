@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -7,20 +7,33 @@ import {
   Trash2,
   ArrowRight,
 } from 'lucide-react';
-import { products } from '../../data/products';
 import type { Product } from '../../types';
 import { formatPrice } from '../../utils/format';
 import { useCart } from '../../contexts/CartContext';
 import { useToast } from '../../contexts/ToastContext';
+import { wishlistAPI } from '../../services/api';
 
 const Wishlist = () => {
-  const [wishlistItems, setWishlistItems] = useState<Product[]>(products.slice(0, 4));
+  const [wishlistItems, setWishlistItems] = useState<Product[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const { addToCart } = useCart();
   const { showToast } = useToast();
 
-  const removeFromWishlist = (id: string) => {
-    setWishlistItems(wishlistItems.filter((item) => item._id !== id));
-    showToast('Removed from wishlist', 'success');
+  useEffect(() => {
+    wishlistAPI.get()
+      .then((response) => setWishlistItems(response.data.data))
+      .catch(() => showToast('Failed to load wishlist', 'error'))
+      .finally(() => setIsLoading(false));
+  }, [showToast]);
+
+  const removeFromWishlist = async (id: string) => {
+    try {
+      await wishlistAPI.remove(id);
+      setWishlistItems((items) => items.filter((item) => item._id !== id));
+      showToast('Removed from wishlist', 'success');
+    } catch {
+      showToast('Failed to update wishlist', 'error');
+    }
   };
 
   const handleAddToCart = async (item: Product) => {
@@ -31,6 +44,8 @@ const Wishlist = () => {
       showToast('Failed to add to cart', 'error');
     }
   };
+
+  if (isLoading) return <div className="py-16 text-center text-gray-500">Loading wishlist…</div>;
 
   if (wishlistItems.length === 0) {
     return (
@@ -79,6 +94,7 @@ const Wishlist = () => {
                 />
               </Link>
               <button
+                aria-label={`Remove ${item.name} from wishlist`}
                 onClick={() => removeFromWishlist(item._id)}
                 className="absolute top-4 right-4 w-10 h-10 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center text-red-500 hover:bg-red-50 transition-colors"
               >
@@ -103,6 +119,7 @@ const Wishlist = () => {
               <div className="flex items-center justify-between">
                 <span className="text-xl font-bold text-gray-900">{formatPrice(item.price)}</span>
                 <button
+                  aria-label={`Add ${item.name} to cart`}
                   onClick={() => handleAddToCart(item)}
                   className="p-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors"
                 >

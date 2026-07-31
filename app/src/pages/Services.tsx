@@ -46,8 +46,8 @@ const Services = () => {
     {
       icon: CreditCard,
       title: 'Secure Payments',
-      description: 'Multiple secure payment options including credit cards, JazzCash, and EasyPaisa.',
-      features: ['SSL encrypted', 'Multiple options', 'Fraud protection', 'Instant confirmation'],
+      description: 'Straightforward Cash on Delivery with no online gateway or stored payment details.',
+      features: ['Cash on Delivery', 'Pay the courier', 'No card storage', 'Manual refunds'],
     },
   ];
 

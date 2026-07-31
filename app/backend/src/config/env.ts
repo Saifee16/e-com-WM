@@ -16,16 +16,27 @@ const envSchema = z.object({
   JWT_REFRESH_SECRET: z.string().min(24),
   ACCESS_TOKEN_TTL_SECONDS: z.coerce.number().int().positive().default(900),
   REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().positive().default(30),
+  PASSWORD_RESET_TOKEN_TTL_MINUTES: z.coerce.number().int().positive().default(30),
   COOKIE_DOMAIN: z.string().default('localhost'),
   COOKIE_SECURE: stringBoolean.default(false),
   COOKIE_SAME_SITE: z.enum(['lax', 'strict', 'none']).default('lax'),
   RATE_LIMIT_GLOBAL_MAX: z.coerce.number().int().positive().default(300),
   RATE_LIMIT_GLOBAL_WINDOW_SECONDS: z.coerce.number().int().positive().default(60),
-  PAYMENT_PROVIDER: z.enum(['mock', 'stripe', 'paypal', 'cod', 'bank_transfer', 'local_gateway']).default('mock'),
-  PAYMENT_WEBHOOK_SECRET: z.string().min(8),
+  EMAIL_FROM: z.string().email().default('no-reply@example.com'),
+  SMTP_HOST: z.string().trim().optional().transform((value) => value || undefined),
+  SMTP_PORT: z.coerce.number().int().positive().optional(),
+  SMTP_USER: z.string().trim().optional().transform((value) => value || undefined),
+  SMTP_PASS: z.string().optional().transform((value) => value || undefined),
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
   GOOGLE_REDIRECT_URI: z.string().url().optional(),
+}).superRefine((value, context) => {
+  if ((value.SMTP_USER && !value.SMTP_PASS) || (!value.SMTP_USER && value.SMTP_PASS)) {
+    context.addIssue({ code: 'custom', path: ['SMTP_USER'], message: 'SMTP_USER and SMTP_PASS must be configured together' });
+  }
+  if (value.SMTP_HOST && !value.SMTP_PORT) {
+    context.addIssue({ code: 'custom', path: ['SMTP_PORT'], message: 'SMTP_PORT is required when SMTP_HOST is configured' });
+  }
 });
 
 const parsed = envSchema.safeParse(process.env);

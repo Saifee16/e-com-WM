@@ -23,6 +23,8 @@ import About from './pages/About';
 import Services from './pages/Services';
 import Support from './pages/Support';
 import Compare from './pages/Compare';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 
 // Account Pages
 import Dashboard from './pages/account/Dashboard';
@@ -31,6 +33,7 @@ import OrderDetail from './pages/account/OrderDetail';
 import Wishlist from './pages/account/Wishlist';
 import Addresses from './pages/account/Addresses';
 import Settings from './pages/account/Settings';
+import SupportTickets from './pages/account/SupportTickets';
 
 // Admin Pages
 import AdminDashboard from './pages/admin/Dashboard';
@@ -39,6 +42,7 @@ import AdminOrders from './pages/admin/Orders';
 import AdminUsers from './pages/admin/Users';
 import AdminLogin from './pages/admin/Login';
 import ContactMessages from './pages/admin/ContactMessages';
+import AdminReturns from './pages/admin/Returns';
 
 // Protected Route Component
 const CustomerProtectedRoute = ({ children }: { children: React.ReactNode }) => {
@@ -134,6 +138,8 @@ function App() {
                 }
               />
               <Route path="/auth/google/callback" element={<GoogleCallback />} />
+              <Route path="/forgot-password" element={<ForgotPassword />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
 
               {/* Checkout Route */}
               <Route path="/checkout" element={<Checkout />} />
@@ -154,6 +160,7 @@ function App() {
                 <Route path="wishlist" element={<Wishlist />} />
                 <Route path="addresses" element={<Addresses />} />
                 <Route path="settings" element={<Settings />} />
+                <Route path="support" element={<SupportTickets />} />
               </Route>
 
               {/* Admin Routes */}
@@ -176,6 +183,7 @@ function App() {
                 <Route path="orders" element={<AdminOrders />} />
                 <Route path="users" element={<AdminUsers />} />
                 <Route path="contact" element={<ContactMessages />} />
+                <Route path="returns" element={<AdminReturns />} />
               </Route>
 
               {/* 404 Route */}

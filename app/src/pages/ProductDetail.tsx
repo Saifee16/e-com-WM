@@ -20,7 +20,7 @@ import { formatPrice } from '../utils/format';
 import { useCart } from '../contexts/CartContext';
 import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
-import { productsAPI } from '../services/api';
+import { productsAPI, wishlistAPI } from '../services/api';
 import AuthModal from '../components/auth/AuthModal';
 
 const ProductDetail = () => {
@@ -33,6 +33,11 @@ const ProductDetail = () => {
   const [relatedProducts, setRelatedProducts] = useState<Product[]>([]);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isLoadingProduct, setIsLoadingProduct] = useState(true);
+  const [isWishlisted, setIsWishlisted] = useState(false);
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewTitle, setReviewTitle] = useState('');
+  const [reviewBody, setReviewBody] = useState('');
+  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
   
   const { addToCart } = useCart();
   const { isAuthenticated } = useAuth();
@@ -106,6 +111,42 @@ const ProductDetail = () => {
     }
     localStorage.setItem('compareList', JSON.stringify([...ids, product._id]));
     showToast('Product added to compare', 'success');
+  };
+
+  const handleWishlist = async () => {
+    if (!product) return;
+    if (!isAuthenticated) return setIsAuthModalOpen(true);
+    try {
+      if (isWishlisted) await wishlistAPI.remove(product._id);
+      else await wishlistAPI.add(product._id);
+      setIsWishlisted((value) => !value);
+      showToast(isWishlisted ? 'Removed from wishlist' : 'Saved to wishlist', 'success');
+    } catch {
+      showToast('Failed to update wishlist', 'error');
+    }
+  };
+
+  const handleReviewSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!product) return;
+    if (!isAuthenticated) return setIsAuthModalOpen(true);
+    setIsSubmittingReview(true);
+    try {
+      await productsAPI.submitReview(product._id, {
+        rating: reviewRating,
+        ...(reviewTitle.trim() ? { title: reviewTitle.trim() } : {}),
+        body: reviewBody,
+      });
+      const response = await productsAPI.getProductById(product._id);
+      setProduct(response.data.data as Product);
+      setReviewTitle('');
+      setReviewBody('');
+      showToast('Review submitted', 'success');
+    } catch {
+      showToast('You may only review a product once', 'error');
+    } finally {
+      setIsSubmittingReview(false);
+    }
   };
 
   if (isLoadingProduct) {
@@ -267,8 +308,8 @@ const ProductDetail = () => {
                 >
                   Buy Now
                 </button>
-                <button className="p-4 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
-                  <Heart className="w-6 h-6 text-gray-600" />
+                <button onClick={handleWishlist} aria-label="Toggle wishlist" className="p-4 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
+                  <Heart className={`w-6 h-6 ${isWishlisted ? 'fill-red-500 text-red-500' : 'text-gray-600'}`} />
                 </button>
                 <button
                   onClick={handleAddToCompare}
@@ -369,6 +410,19 @@ const ProductDetail = () => {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
               >
+                <form onSubmit={handleReviewSubmit} className="mb-8 rounded-2xl bg-gray-50 p-5">
+                  <h3 className="font-semibold text-gray-900">Write a review</h3>
+                  <div className="mt-3 flex gap-1" aria-label="Rating">
+                    {[1, 2, 3, 4, 5].map((rating) => (
+                      <button key={rating} type="button" aria-label={`${rating} stars`} onClick={() => setReviewRating(rating)}>
+                        <Star className={`h-6 w-6 ${rating <= reviewRating ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}`} />
+                      </button>
+                    ))}
+                  </div>
+                  <input value={reviewTitle} onChange={(event) => setReviewTitle(event.target.value)} maxLength={120} placeholder="Review title (optional)" className="mt-4 w-full rounded-xl border border-gray-200 bg-white px-4 py-3" />
+                  <textarea aria-label="Review" required minLength={2} maxLength={2000} value={reviewBody} onChange={(event) => setReviewBody(event.target.value)} placeholder="Share your experience" className="mt-3 min-h-28 w-full rounded-xl border border-gray-200 bg-white px-4 py-3" />
+                  <button disabled={isSubmittingReview} className="mt-3 rounded-xl bg-blue-600 px-5 py-2.5 font-medium text-white disabled:opacity-50">{isSubmittingReview ? 'Submitting…' : 'Submit review'}</button>
+                </form>
                 {product.reviews.length === 0 ? (
                   <div className="text-center py-8">
                     <p className="text-gray-500">No reviews yet. Be the first to review!</p>

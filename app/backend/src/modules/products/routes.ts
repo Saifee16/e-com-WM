@@ -3,7 +3,7 @@ import type { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { prisma } from '../../db/prisma.js';
 import { fail, ok } from '../../utils/responses.js';
-import { authenticateAdmin } from '../auth/session.js';
+import { authenticateAdmin, authenticateCustomer } from '../auth/session.js';
 
 const slugify = (value: string) =>
   value
@@ -17,7 +17,7 @@ export const productInclude = {
   category: true,
   images: { orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }, { createdAt: 'asc' }] },
   variants: { orderBy: { createdAt: 'asc' } },
-  reviews: true,
+  reviews: { where: { isApproved: true }, orderBy: { createdAt: 'desc' } },
 } satisfies Prisma.ProductInclude;
 
 export type ProductWithRelations = Prisma.ProductGetPayload<{ include: typeof productInclude }>;
@@ -273,6 +273,43 @@ export const productRoutes: FastifyPluginAsync = async (app) => {
     });
 
     return ok(reply, products.map(mapProduct));
+  });
+
+  app.post('/:id/reviews', { preHandler: authenticateCustomer }, async (request, reply) => {
+    const params = z.object({ id: z.string().uuid() }).parse(request.params);
+    const body = z.object({
+      rating: z.coerce.number().int().min(1).max(5),
+      title: z.string().trim().min(1).max(120).optional(),
+      body: z.string().trim().min(2).max(2000),
+    }).parse(request.body);
+    const product = await prisma.product.findFirst({ where: { id: params.id, status: 'ACTIVE' } });
+    if (!product) return fail(reply, 404, { code: 'PRODUCT_NOT_FOUND', message: 'Product not found' });
+    const existing = await prisma.review.findUnique({
+      where: { userId_productId: { userId: request.authUser!.id, productId: params.id } },
+    });
+    if (existing) return fail(reply, 409, { code: 'REVIEW_EXISTS', message: 'You have already reviewed this product' });
+    const verifiedPurchase = await prisma.order.count({
+      where: { userId: request.authUser!.id, status: 'DELIVERED', items: { some: { productId: params.id } } },
+    });
+    const review = await prisma.review.create({
+      data: {
+        userId: request.authUser!.id,
+        productId: params.id,
+        rating: body.rating,
+        ...(body.title ? { title: body.title } : {}),
+        body: body.body,
+        isVerifiedPurchase: verifiedPurchase > 0,
+        isApproved: true,
+      },
+    });
+    return ok(reply.status(201), {
+      id: review.id,
+      rating: review.rating,
+      title: review.title,
+      body: review.body,
+      isVerifiedPurchase: review.isVerifiedPurchase,
+      createdAt: review.createdAt.toISOString(),
+    });
   });
 
   app.get('/:id', async (request, reply) => {

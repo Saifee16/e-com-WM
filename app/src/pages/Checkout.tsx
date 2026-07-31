@@ -7,8 +7,6 @@ import {
   Check,
   ChevronRight,
   Shield,
-  Smartphone,
-  Wallet,
   Banknote,
 } from 'lucide-react';
 import { useCart } from '../contexts/CartContext';
@@ -38,7 +36,7 @@ const Checkout = () => {
     zipCode: user?.address?.zipCode || '',
   });
 
-  const [paymentMethod, setPaymentMethod] = useState<'jazzcash' | 'easypaisa' | 'cod'>('cod');
+  const paymentMethod = 'cod' as const;
   const [shippingMethod, setShippingMethod] = useState<'standard' | 'express' | 'pickup'>('standard');
 
   const shippingCosts = {
@@ -333,31 +331,14 @@ const Checkout = () => {
                 <h2 className="text-xl font-bold text-gray-900 mb-6">Payment Method</h2>
                 <form onSubmit={handlePaymentSubmit}>
                   <div className="space-y-4 mb-8">
-                    {([
-                      { key: 'jazzcash', label: 'JazzCash', icon: Smartphone },
-                      { key: 'easypaisa', label: 'EasyPaisa', icon: Wallet },
-                      { key: 'cod', label: 'Cash on Delivery', icon: Banknote },
-                    ] as const).map((method) => (
-                      <label
-                        key={method.key}
-                        className={`flex items-center gap-4 p-4 border rounded-xl cursor-pointer transition-colors ${
-                          paymentMethod === method.key
-                            ? 'border-blue-500 bg-blue-50'
-                            : 'border-gray-200 hover:border-gray-300'
-                        }`}
-                      >
-                        <input
-                          type="radio"
-                          name="payment"
-                          value={method.key}
-                          checked={paymentMethod === method.key}
-                          onChange={(e) => setPaymentMethod(e.target.value as typeof paymentMethod)}
-                          className="w-4 h-4 text-blue-600"
-                        />
-                        <method.icon className="w-6 h-6 text-gray-600" />
-                        <span className="font-medium text-gray-900">{method.label}</span>
-                      </label>
-                    ))}
+                    <div className="flex items-center gap-4 p-4 border border-blue-500 bg-blue-50 rounded-xl">
+                      <input type="radio" name="payment" value="cod" checked readOnly className="w-4 h-4 text-blue-600" />
+                      <Banknote className="w-6 h-6 text-gray-600" />
+                      <div>
+                        <span className="font-medium text-gray-900">Cash on Delivery</span>
+                        <p className="text-sm text-gray-500">Pay the courier when your order arrives.</p>
+                      </div>
+                    </div>
                   </div>
 
                   <div className="flex gap-4">

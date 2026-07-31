@@ -6,6 +6,7 @@ import {
   Heart,
   MapPin,
   Settings,
+  LifeBuoy,
   ChevronRight,
   LogOut,
 } from 'lucide-react';
@@ -20,6 +21,7 @@ const AccountLayout = () => {
     { name: 'My Orders', path: '/account/orders', icon: ShoppingBag },
     { name: 'Wishlist', path: '/account/wishlist', icon: Heart },
     { name: 'Addresses', path: '/account/addresses', icon: MapPin },
+    { name: 'Support Tickets', path: '/account/support', icon: LifeBuoy },
     { name: 'Settings', path: '/account/settings', icon: Settings },
   ];
 

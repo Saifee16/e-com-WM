@@ -80,6 +80,17 @@ export interface ApiOrder {
   items: ApiOrderItem[];
   trackingNumber?: string;
   notes?: string;
+  cancelledAt?: string;
+  cancellationReason?: string;
+  returnRequest?: {
+    id: string;
+    status: string;
+    reason: string;
+    details?: string;
+    resolutionNote?: string;
+    refundConfirmedAt?: string;
+    createdAt: string;
+  };
   createdAt: string;
 }
 
@@ -138,6 +149,15 @@ const adminApi: AxiosInstance = axios.create({
   timeout: 10000,
 });
 
+type RetryableRequest = NonNullable<AxiosError['config']> & { _retry?: boolean };
+let customerRefresh: Promise<unknown> | null = null;
+let adminRefresh: Promise<unknown> | null = null;
+
+const excludesRefresh = (url: string) =>
+  ['/auth/login', '/auth/register', '/auth/refresh', '/auth/logout', '/auth/password-reset/'].some((path) =>
+    url.startsWith(path),
+  );
+
 // Request interceptor keeps legacy localStorage guest carts working while
 // the hardened backend cookie remains the primary cart identity.
 api.interceptors.request.use(
@@ -154,14 +174,20 @@ api.interceptors.request.use(
 // Customer response interceptor.
 api.interceptors.response.use(
   (response: AxiosResponse) => response,
-  (error: AxiosError) => {
+  async (error: AxiosError) => {
     const requestUrl = error.config?.url ?? '';
-    const isAuthEndpoint = requestUrl.startsWith('/auth/');
-    if (error.response?.status === 401 && !isAuthEndpoint) {
-      // Clear token and redirect to login
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      window.location.href = '/login';
+    const config = error.config as RetryableRequest | undefined;
+    if (error.response?.status === 401 && config && !config._retry && !excludesRefresh(requestUrl)) {
+      config._retry = true;
+      try {
+        customerRefresh ??= api.post('/auth/refresh').finally(() => { customerRefresh = null; });
+        await customerRefresh;
+        return api(config);
+      } catch {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        window.location.href = '/login';
+      }
     }
     return Promise.reject(error);
   }
@@ -170,11 +196,18 @@ api.interceptors.response.use(
 // Admin failures must never destroy or redirect the customer session.
 adminApi.interceptors.response.use(
   (response: AxiosResponse) => response,
-  (error: AxiosError) => {
+  async (error: AxiosError) => {
     const requestUrl = error.config?.url ?? '';
-    const isAuthEndpoint = requestUrl.startsWith('/auth/');
-    if (error.response?.status === 401 && !isAuthEndpoint) {
-      window.location.href = '/admin/login';
+    const config = error.config as RetryableRequest | undefined;
+    if (error.response?.status === 401 && config && !config._retry && !excludesRefresh(requestUrl)) {
+      config._retry = true;
+      try {
+        adminRefresh ??= adminApi.post('/auth/refresh').finally(() => { adminRefresh = null; });
+        await adminRefresh;
+        return adminApi(config);
+      } catch {
+        window.location.href = '/admin/login';
+      }
     }
     return Promise.reject(error);
   }
@@ -194,6 +227,9 @@ export const authAPI = {
     api.put('/auth/profile', data),
   changePassword: (currentPassword: string, newPassword: string) =>
     api.put('/auth/password', { currentPassword, newPassword }),
+  requestPasswordReset: (email: string) => api.post('/auth/password-reset/request', { email }),
+  consumePasswordReset: (token: string, newPassword: string) =>
+    api.post('/auth/password-reset/consume', { token, newPassword }),
 };
 
 export const adminAuthAPI = {
@@ -213,6 +249,8 @@ export const productsAPI = {
   getProductsByBrand: (brand: string) => api.get(`/products/brand/${brand}`),
   getBrands: () => api.get('/products/brands'),
   getCategories: () => api.get('/products/categories'),
+  submitReview: (productId: string, data: { rating: number; title?: string; body: string }) =>
+    api.post(`/products/${productId}/reviews`, data),
   // Admin only
   createProduct: (data: ProductPayload) => adminApi.post('/products', data),
   updateProduct: (id: string, data: ProductPayload) => adminApi.put(`/products/${id}`, data),
@@ -237,6 +275,11 @@ export const ordersAPI = {
   createOrder: (data: OrderPayload) => api.post('/orders', data),
   getMyOrders: () => api.get<ApiSuccess<ApiOrder[]>>('/orders/my-orders'),
   getOrderById: (id: string) => api.get<ApiSuccess<ApiOrder>>(`/orders/${id}`),
+  cancelOrder: (id: string, reason: string) => api.post<ApiSuccess<ApiOrder>>(`/orders/${id}/cancel`, { reason }),
+  requestReturn: (id: string, data: { reason: string; details?: string }) => api.post(`/orders/${id}/returns`, data),
+  requestGuestReturn: (orderNumber: string, data: { email: string; reason: string; details?: string }) =>
+    api.post(`/orders/guest/${encodeURIComponent(orderNumber)}/returns`, data),
+  getMyReturns: () => api.get('/orders/returns'),
   // Admin only
   getAllOrders: (params?: JsonObject) => adminApi.get<ApiSuccess<ApiOrder[]>>('/orders', { params }),
   updateOrderStatus: (id: string, status: string, note?: string) =>
@@ -252,10 +295,42 @@ export const adminAPI = {
   getTopCustomers: (params?: JsonObject) => adminApi.get('/top-customers', { params }),
   getContactMessages: (params?: JsonObject) => adminApi.get('/contact-messages', { params }),
   updateContactMessage: (id: string, status: string) => adminApi.patch(`/contact-messages/${id}`, { status }),
+  getReturns: () => adminApi.get('/orders/returns'),
+  resolveReturn: (id: string, data: { status: 'APPROVED' | 'REJECTED'; resolutionNote: string; manualRefundCompleted?: true }) =>
+    adminApi.patch(`/orders/returns/${id}`, data),
 };
 
 export const contactAPI = {
   submit: (data: ContactPayload) => api.post('/contact', data),
+  mine: () => api.get('/contact/mine'),
+};
+
+export interface SavedAddress {
+  id: string;
+  label?: string;
+  fullName: string;
+  phone: string;
+  line1: string;
+  line2?: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  country: string;
+  isDefaultShipping: boolean;
+  isDefaultBilling: boolean;
+}
+
+export const wishlistAPI = {
+  get: () => api.get<ApiSuccess<Product[]>>('/wishlist'),
+  add: (productId: string) => api.post('/wishlist', { productId }),
+  remove: (productId: string) => api.delete(`/wishlist/${productId}`),
+};
+
+export const addressesAPI = {
+  get: () => api.get<ApiSuccess<SavedAddress[]>>('/addresses'),
+  create: (data: Omit<SavedAddress, 'id'>) => api.post('/addresses', data),
+  update: (id: string, data: Partial<Omit<SavedAddress, 'id'>>) => api.patch(`/addresses/${id}`, data),
+  remove: (id: string) => api.delete(`/addresses/${id}`),
 };
 
 export default api;

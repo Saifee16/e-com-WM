@@ -19,6 +19,11 @@ enum UserStatus {
   DELETED
 }
 
+enum SessionRealm {
+  CUSTOMER
+  ADMIN
+}
+
 enum ProductStatus {
   DRAFT
   ACTIVE
@@ -37,21 +42,8 @@ enum OrderStatus {
 
 enum PaymentStatus {
   UNPAID
-  PENDING
-  AUTHORIZED
   PAID
-  FAILED
   REFUNDED
-  PARTIALLY_REFUNDED
-}
-
-enum PaymentProvider {
-  MOCK
-  STRIPE
-  PAYPAL
-  COD
-  BANK_TRANSFER
-  LOCAL_GATEWAY
 }
 
 enum ShipmentStatus {
@@ -91,9 +83,15 @@ enum AuditAction {
 }
 
 enum ContactMessageStatus {
-  NEW
-  REVIEWED
-  ARCHIVED
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+}
+
+enum ReturnRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 model User {
@@ -112,10 +110,14 @@ model User {
   deletedAt       DateTime?           @map("deleted_at")
   addresses       Address[]
   refreshTokens   RefreshToken[]
+  passwordResetTokens PasswordResetToken[]
   carts           Cart[]
   orders          Order[]
   reviews         Review[]
   wishlists       Wishlist[]
+  contactMessages ContactMessage[]
+  returnRequests  ReturnRequest[]       @relation("ReturnCustomer")
+  resolvedReturns ReturnRequest[]       @relation("ReturnResolver")
   inventoryMoves  InventoryMovement[] @relation("InventoryAdmin")
   auditLogs       AuditLog[]          @relation("AuditActor")
 
@@ -127,16 +129,38 @@ model RefreshToken {
   userId            String    @map("user_id") @db.Uuid
   tokenHash         String    @unique @map("token_hash")
   familyId          String    @map("family_id") @db.Uuid
+  realm             SessionRealm
   expiresAt         DateTime  @map("expires_at")
   revokedAt         DateTime? @map("revoked_at")
+  revokedReason     String?   @map("revoked_reason")
   replacedByTokenId String?   @map("replaced_by_token_id") @db.Uuid
   createdAt         DateTime  @default(now()) @map("created_at")
   createdByIp       String?   @map("created_by_ip")
   userAgent         String?   @map("user_agent")
   user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  replacedBy        RefreshToken?  @relation("RefreshRotation", fields: [replacedByTokenId], references: [id], onDelete: SetNull)
+  replaces          RefreshToken[] @relation("RefreshRotation")
 
   @@index([userId])
+  @@index([familyId])
+  @@index([expiresAt])
+  @@unique([replacedByTokenId])
   @@map("refresh_tokens")
+}
+
+model PasswordResetToken {
+  id            String    @id @default(uuid()) @db.Uuid
+  userId        String    @map("user_id") @db.Uuid
+  tokenHash     String    @unique @map("token_hash")
+  expiresAt     DateTime  @map("expires_at")
+  consumedAt    DateTime? @map("consumed_at")
+  requestedByIp String?   @map("requested_by_ip")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("password_reset_tokens")
 }
 
 model Address {
@@ -339,6 +363,9 @@ model Order {
   shippingAddressSnapshot Json            @map("shipping_address_snapshot")
   billingAddressSnapshot  Json            @map("billing_address_snapshot")
   notes                   String?
+  cancelledAt             DateTime?       @map("cancelled_at")
+  cancellationReason      String?          @map("cancellation_reason")
+  cancelledBy             String?          @map("cancelled_by")
   idempotencyKey          String?         @unique @map("idempotency_key")
   createdAt               DateTime        @default(now()) @map("created_at")
   updatedAt               DateTime        @updatedAt @map("updated_at")
@@ -348,6 +375,7 @@ model Order {
   payments                Payment[]
   shipments               Shipment[]
   inventoryMovements      InventoryMovement[]
+  returnRequests          ReturnRequest[]
 
   @@index([userId])
   @@index([status])
@@ -380,20 +408,15 @@ model OrderItem {
 model Payment {
   id                String          @id @default(uuid()) @db.Uuid
   orderId           String          @map("order_id") @db.Uuid
-  provider          PaymentProvider
-  providerPaymentId String?         @map("provider_payment_id")
-  providerSessionId String?         @map("provider_session_id")
   status            PaymentStatus
   amount            Int
   currency          String          @default("PKR")
-  rawWebhookEventId String?         @map("raw_webhook_event_id")
   metadata          Json?
   createdAt         DateTime        @default(now()) @map("created_at")
   updatedAt         DateTime        @updatedAt @map("updated_at")
   order             Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   @@index([orderId])
-  @@index([providerPaymentId])
   @@map("payments")
 }
 
@@ -430,6 +453,7 @@ model Review {
 
   @@index([userId])
   @@index([productId])
+  @@unique([userId, productId])
   @@map("reviews")
 }
 
@@ -484,17 +508,45 @@ model AuditLog {
 }
 
 model ContactMessage {
-  id         String               @id @default(uuid()) @db.Uuid
-  name       String
-  email      String
-  subject    String
-  message    String
-  status     ContactMessageStatus @default(NEW)
-  reviewedAt DateTime?            @map("reviewed_at")
-  createdAt  DateTime             @default(now()) @map("created_at")
-  updatedAt  DateTime             @updatedAt @map("updated_at")
+  id              String               @id @default(uuid()) @db.Uuid
+  userId          String?              @map("user_id") @db.Uuid
+  name            String
+  email           String
+  subject         String
+  message         String
+  status          ContactMessageStatus @default(OPEN)
+  statusUpdatedAt DateTime             @default(now()) @map("status_updated_at")
+  resolvedAt      DateTime?            @map("resolved_at")
+  createdAt       DateTime             @default(now()) @map("created_at")
+  updatedAt       DateTime             @updatedAt @map("updated_at")
+  user            User?                @relation(fields: [userId], references: [id], onDelete: SetNull)
 
+  @@index([userId])
   @@index([status])
   @@index([createdAt])
   @@map("contact_messages")
+}
+
+model ReturnRequest {
+  id                String              @id @default(uuid()) @db.Uuid
+  orderId           String              @unique @map("order_id") @db.Uuid
+  userId            String?             @map("user_id") @db.Uuid
+  guestEmail        String?             @map("guest_email") @db.Citext
+  status            ReturnRequestStatus @default(PENDING)
+  reason            String
+  details           String?
+  resolutionNote    String?             @map("resolution_note")
+  resolvedByUserId  String?             @map("resolved_by_user_id") @db.Uuid
+  resolvedAt        DateTime?           @map("resolved_at")
+  refundConfirmedAt DateTime?           @map("refund_confirmed_at")
+  createdAt         DateTime            @default(now()) @map("created_at")
+  updatedAt         DateTime            @updatedAt @map("updated_at")
+  order             Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  user              User?               @relation("ReturnCustomer", fields: [userId], references: [id], onDelete: SetNull)
+  resolvedBy        User?               @relation("ReturnResolver", fields: [resolvedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("return_requests")
 }

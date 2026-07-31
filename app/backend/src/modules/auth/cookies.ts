@@ -1,4 +1,4 @@
-import type { FastifyReply } from 'fastify';
+import type { FastifyReply, FastifyRequest } from 'fastify';
 import { env } from '../../config/env.js';
 import {
   ADMIN_ACCESS_COOKIE,
@@ -8,6 +8,7 @@ import {
   toSafeUser,
 } from './session.js';
 import { createAccessToken, type AuthRealm } from './tokens.js';
+import { clearRefreshCookie, issueRefreshToken } from './refresh.js';
 
 interface SessionUser {
   id: string;
@@ -24,7 +25,7 @@ const cookieSettings = (realm: AuthRealm) => ({
   path: realm === 'admin' ? ADMIN_COOKIE_PATH : CUSTOMER_COOKIE_PATH,
 });
 
-export const issueAuthSession = (user: SessionUser, reply: FastifyReply, realm: AuthRealm) => {
+export const issueAccessToken = (user: SessionUser, reply: FastifyReply, realm: AuthRealm) => {
   const token = createAccessToken({
     sub: user.id,
     email: user.email,
@@ -43,6 +44,16 @@ export const issueAuthSession = (user: SessionUser, reply: FastifyReply, realm: 
     ...(env.COOKIE_DOMAIN !== 'localhost' ? { domain: env.COOKIE_DOMAIN } : {}),
   });
 
+};
+
+export const issueAuthSession = async (
+  user: SessionUser,
+  request: FastifyRequest,
+  reply: FastifyReply,
+  realm: AuthRealm,
+) => {
+  issueAccessToken(user, reply, realm);
+  await issueRefreshToken(user, request, reply, realm);
   return {
     success: true,
     data: toSafeUser(user),
@@ -56,4 +67,5 @@ export const clearAuthSession = (reply: FastifyReply, realm: AuthRealm) => {
     path: cookie.path,
     ...(env.COOKIE_DOMAIN !== 'localhost' ? { domain: env.COOKIE_DOMAIN } : {}),
   });
+  clearRefreshCookie(reply, realm);
 };

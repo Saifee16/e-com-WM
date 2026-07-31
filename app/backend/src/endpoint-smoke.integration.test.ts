@@ -522,7 +522,7 @@ describe('endpoint smoke suite', () => {
       }),
       201,
     );
-    expect(contact.status).toBe('NEW');
+    expect(contact.status).toBe('OPEN');
     const contactMessages = parseSuccess<Array<{ id: string }>>(
       await app.inject({
         method: 'GET',
@@ -536,7 +536,7 @@ describe('endpoint smoke suite', () => {
         method: 'PATCH',
         url: `/api/admin/contact-messages/${contact.id}`,
         headers: { cookie: adminCookie },
-        payload: { status: 'REVIEWED' },
+        payload: { status: 'IN_PROGRESS' },
       }),
     );
 

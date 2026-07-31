@@ -3,9 +3,10 @@ import argon2 from 'argon2';
 import { z } from 'zod';
 import { prisma } from '../../db/prisma.js';
 import { fail, ok } from '../../utils/responses.js';
-import { clearAuthSession, issueAuthSession } from '../auth/cookies.js';
+import { clearAuthSession, issueAccessToken, issueAuthSession } from '../auth/cookies.js';
 import { exchangeGoogleUser, getGoogleAuthUrl } from '../auth/google.js';
 import { authenticateAdmin, toSafeUser } from '../auth/session.js';
+import { revokeRefreshFamily, rotateRefreshToken } from '../auth/refresh.js';
 
 const loginSchema = z.object({
   email: z.string().email().transform((value) => value.toLowerCase()),
@@ -40,7 +41,7 @@ export const adminAuthRoutes: FastifyPluginAsync = async (app) => {
       data: { lastLoginAt: new Date() },
     });
 
-    return reply.send(issueAuthSession(user, reply, 'admin'));
+    return reply.send(await issueAuthSession(user, request, reply, 'admin'));
   });
 
   app.get('/google/start', async (_request, reply) => {
@@ -76,7 +77,17 @@ export const adminAuthRoutes: FastifyPluginAsync = async (app) => {
       data: { lastLoginAt: new Date() },
     });
 
-    return reply.send(issueAuthSession(user, reply, 'admin'));
+    return reply.send(await issueAuthSession(user, request, reply, 'admin'));
+  });
+
+  app.post('/refresh', async (request, reply) => {
+    const user = await rotateRefreshToken(request, reply, 'admin');
+    if (!user) {
+      clearAuthSession(reply, 'admin');
+      return fail(reply, 401, { code: 'INVALID_REFRESH_TOKEN', message: 'Session expired' });
+    }
+    issueAccessToken(user, reply, 'admin');
+    return ok(reply, toSafeUser(user));
   });
 
   await app.register(async (protectedApp) => {
@@ -91,7 +102,8 @@ export const adminAuthRoutes: FastifyPluginAsync = async (app) => {
     });
   });
 
-  app.post('/logout', async (_request, reply) => {
+  app.post('/logout', async (request, reply) => {
+    await revokeRefreshFamily(request, 'admin');
     clearAuthSession(reply, 'admin');
     return ok(reply, { loggedOut: true });
   });

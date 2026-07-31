@@ -73,8 +73,11 @@ export interface ContactMessage {
   email: string;
   subject: string;
   message: string;
-  status: 'NEW' | 'REVIEWED' | 'ARCHIVED';
-  reviewedAt?: string;
+  status: 'OPEN' | 'IN_PROGRESS' | 'RESOLVED';
+  customerId?: string;
+  isGuest?: boolean;
+  statusUpdatedAt: string;
+  resolvedAt?: string;
   createdAt: string;
 }
 
@@ -132,8 +135,8 @@ export interface Order {
   items: OrderItem[];
   shippingAddress: Address;
   contactInfo: ContactInfo;
-  paymentMethod: 'card' | 'jazzcash' | 'easypaisa' | 'cod';
-  paymentStatus: 'pending' | 'completed' | 'failed' | 'refunded';
+  paymentMethod: 'cod';
+  paymentStatus: 'unpaid' | 'paid' | 'refunded';
   shippingMethod: 'standard' | 'express' | 'pickup';
   shippingCost: number;
   subtotal: number;

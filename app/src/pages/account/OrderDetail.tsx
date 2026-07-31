@@ -10,6 +10,7 @@ import {
   LoaderCircle,
   MapPin,
   Package,
+  RefreshCcw,
   Truck,
   X,
 } from 'lucide-react';
@@ -56,6 +57,11 @@ const OrderDetail = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [reloadVersion, setReloadVersion] = useState(0);
+  const [cancelReason, setCancelReason] = useState('Changed my mind');
+  const [returnReason, setReturnReason] = useState('Item is not suitable');
+  const [returnDetails, setReturnDetails] = useState('');
+  const [actionError, setActionError] = useState('');
+  const [isActing, setIsActing] = useState(false);
 
   useEffect(() => {
     let isActive = true;
@@ -93,6 +99,34 @@ const OrderDetail = () => {
       isActive = false;
     };
   }, [id, reloadVersion]);
+
+  const cancelOrder = async () => {
+    if (!id) return;
+    setIsActing(true);
+    setActionError('');
+    try {
+      await ordersAPI.cancelOrder(id, cancelReason);
+      setReloadVersion((version) => version + 1);
+    } catch (cancelError) {
+      setActionError(getApiErrorMessage(cancelError, 'Unable to cancel order'));
+    } finally {
+      setIsActing(false);
+    }
+  };
+
+  const requestReturn = async () => {
+    if (!id) return;
+    setIsActing(true);
+    setActionError('');
+    try {
+      await ordersAPI.requestReturn(id, { reason: returnReason, ...(returnDetails ? { details: returnDetails } : {}) });
+      setReloadVersion((version) => version + 1);
+    } catch (returnError) {
+      setActionError(getApiErrorMessage(returnError, 'Unable to request return'));
+    } finally {
+      setIsActing(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -164,6 +198,35 @@ const OrderDetail = () => {
           )}
         </div>
       </div>
+
+      {actionError && <p role="alert" className="mb-4 rounded-xl bg-red-50 p-4 text-sm text-red-700">{actionError}</p>}
+      {['pending', 'confirmed'].includes(order.status) && (
+        <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 p-5">
+          <h3 className="font-semibold text-gray-900">Cancel order</h3>
+          <p className="mt-1 text-sm text-gray-600">Cancellation is available until processing begins.</p>
+          <div className="mt-3 flex flex-col gap-3 sm:flex-row">
+            <input aria-label="Cancellation reason" value={cancelReason} onChange={(event) => setCancelReason(event.target.value)} className="flex-1 rounded-xl border border-amber-200 bg-white px-4 py-2.5" />
+            <button disabled={isActing || cancelReason.trim().length < 3} onClick={cancelOrder} className="rounded-xl bg-red-600 px-5 py-2.5 font-medium text-white disabled:opacity-50">Cancel order</button>
+          </div>
+        </div>
+      )}
+      {order.status === 'delivered' && !order.returnRequest && (
+        <div className="mb-6 rounded-2xl border border-blue-200 bg-blue-50 p-5">
+          <h3 className="flex items-center gap-2 font-semibold text-gray-900"><RefreshCcw className="h-5 w-5" /> Request a return</h3>
+          <p className="mt-1 text-sm text-gray-600">Eligible orders can be requested within seven days of delivery.</p>
+          <input aria-label="Return reason" value={returnReason} onChange={(event) => setReturnReason(event.target.value)} className="mt-3 w-full rounded-xl border border-blue-200 bg-white px-4 py-2.5" />
+          <textarea aria-label="Return details" value={returnDetails} onChange={(event) => setReturnDetails(event.target.value)} placeholder="Additional details (optional)" className="mt-3 min-h-24 w-full rounded-xl border border-blue-200 bg-white px-4 py-2.5" />
+          <button disabled={isActing || returnReason.trim().length < 3} onClick={requestReturn} className="mt-3 rounded-xl bg-blue-600 px-5 py-2.5 font-medium text-white disabled:opacity-50">Submit return request</button>
+        </div>
+      )}
+      {order.returnRequest && (
+        <div className="mb-6 rounded-2xl border border-gray-200 bg-white p-5">
+          <h3 className="font-semibold text-gray-900">Return request: {formatStatus(order.returnRequest.status)}</h3>
+          <p className="mt-2 text-gray-600">{order.returnRequest.reason}</p>
+          {order.returnRequest.resolutionNote && <p className="mt-2 text-sm text-gray-500">Admin note: {order.returnRequest.resolutionNote}</p>}
+          {order.returnRequest.refundConfirmedAt && <p className="mt-2 text-sm font-medium text-green-700">Manual refund confirmed {formatDateTime(order.returnRequest.refundConfirmedAt)}</p>}
+        </div>
+      )}
 
       <div className="grid lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">

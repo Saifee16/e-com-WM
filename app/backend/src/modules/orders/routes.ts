@@ -9,6 +9,7 @@ import { authenticateAdmin, authenticateCustomer, getAuthenticatedUser, getGuest
 const orderInclude = {
   items: true,
   shipments: true,
+  returnRequests: { orderBy: { createdAt: 'desc' } },
 } satisfies Prisma.OrderInclude;
 
 const checkoutCartInclude = {
@@ -55,6 +56,19 @@ const mapOrder = (order: OrderWithRelations) => ({
   })),
   trackingNumber: order.shipments[0]?.trackingNumber ?? undefined,
   notes: order.notes ?? undefined,
+  cancelledAt: order.cancelledAt?.toISOString(),
+  cancellationReason: order.cancellationReason ?? undefined,
+  returnRequest: order.returnRequests[0]
+    ? {
+        id: order.returnRequests[0].id,
+        status: order.returnRequests[0].status.toLowerCase(),
+        reason: order.returnRequests[0].reason,
+        details: order.returnRequests[0].details ?? undefined,
+        resolutionNote: order.returnRequests[0].resolutionNote ?? undefined,
+        refundConfirmedAt: order.returnRequests[0].refundConfirmedAt?.toISOString(),
+        createdAt: order.returnRequests[0].createdAt.toISOString(),
+      }
+    : undefined,
   createdAt: order.createdAt.toISOString(),
 });
 
@@ -70,7 +84,7 @@ const checkoutSchema = z.object({
     zipCode: z.string().trim().min(1),
     country: z.string().trim().default('Pakistan'),
   }),
-  paymentMethod: z.enum(['jazzcash', 'easypaisa', 'cod']).default('cod'),
+  paymentMethod: z.literal('cod').default('cod'),
   shippingMethod: z.enum(['standard', 'express', 'pickup']).default('standard'),
   notes: z.string().trim().max(1000).optional(),
 });
@@ -184,7 +198,7 @@ export const orderRoutes: FastifyPluginAsync = async (app) => {
           orderNumber: makeOrderNumber(),
           ...(user ? { user: { connect: { id: user.id } } } : { guestEmail: body.shippingInfo.email }),
           status: 'PENDING',
-          paymentStatus: body.paymentMethod === 'cod' ? 'UNPAID' : 'PENDING',
+          paymentStatus: 'UNPAID',
           subtotalAmount: subtotal,
           discountAmount: discount,
           shippingAmount: shipping,
@@ -278,6 +292,101 @@ export const orderRoutes: FastifyPluginAsync = async (app) => {
     return ok(reply, orders.map(mapOrder));
   });
 
+  app.get('/returns', { preHandler: authenticateCustomer }, async (request, reply) => {
+    const requests = await prisma.returnRequest.findMany({
+      where: { userId: request.authUser!.id },
+      include: { order: true },
+      orderBy: { createdAt: 'desc' },
+    });
+    return ok(reply, requests.map((item) => ({
+      id: item.id,
+      orderId: item.orderId,
+      orderNumber: item.order.orderNumber,
+      status: item.status.toLowerCase(),
+      reason: item.reason,
+      details: item.details ?? undefined,
+      resolutionNote: item.resolutionNote ?? undefined,
+      refundConfirmedAt: item.refundConfirmedAt?.toISOString(),
+      createdAt: item.createdAt.toISOString(),
+    })));
+  });
+
+  app.post('/guest/:orderNumber/returns', async (request, reply) => {
+    const params = z.object({ orderNumber: z.string().trim().min(1) }).parse(request.params);
+    const body = z.object({
+      email: z.string().email().transform((value) => value.toLowerCase()),
+      reason: z.string().trim().min(3).max(200),
+      details: z.string().trim().max(2000).optional(),
+    }).parse(request.body);
+    const order = await prisma.order.findUnique({ where: { orderNumber: params.orderNumber }, include: orderInclude });
+    if (!order || order.userId || order.guestEmail?.toLowerCase() !== body.email) {
+      return fail(reply, 404, { code: 'ORDER_NOT_FOUND', message: 'Order not found for that email' });
+    }
+    const deliveredAt = order.shipments.find((shipment) => shipment.deliveredAt)?.deliveredAt ?? order.updatedAt;
+    if (order.status !== 'DELIVERED' || Date.now() - deliveredAt.getTime() > 7 * 24 * 60 * 60 * 1000) {
+      return fail(reply, 409, { code: 'RETURN_NOT_ELIGIBLE', message: 'This order is outside the seven-day return window' });
+    }
+    if (order.returnRequests.length) return fail(reply, 409, { code: 'RETURN_EXISTS', message: 'A return already exists for this order' });
+    const result = await prisma.returnRequest.create({
+      data: { orderId: order.id, guestEmail: body.email, reason: body.reason, ...(body.details ? { details: body.details } : {}) },
+    });
+    return ok(reply.status(201), { id: result.id, status: result.status.toLowerCase(), createdAt: result.createdAt.toISOString() });
+  });
+
+  app.post('/:id/cancel', { preHandler: authenticateCustomer }, async (request, reply) => {
+    const params = z.object({ id: z.string().uuid() }).parse(request.params);
+    const body = z.object({ reason: z.string().trim().min(3).max(500) }).parse(request.body);
+    const result = await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM orders WHERE id = ${params.id}::uuid FOR UPDATE`;
+      const order = await tx.order.findUnique({ where: { id: params.id }, include: { items: true } });
+      if (!order) return 'NOT_FOUND' as const;
+      if (order.userId !== request.authUser!.id) return 'FORBIDDEN' as const;
+      if (!['PENDING', 'CONFIRMED'].includes(order.status)) return 'NOT_CANCELLABLE' as const;
+      for (const item of order.items) {
+        await tx.productVariant.update({ where: { id: item.variantId }, data: { stockQuantity: { increment: item.quantity } } });
+      }
+      await tx.inventoryMovement.createMany({
+        data: order.items.map((item) => ({
+          variantId: item.variantId,
+          orderId: order.id,
+          type: 'RELEASE',
+          quantityDelta: item.quantity,
+          reason: 'Customer cancellation',
+        })),
+      });
+      await tx.shipment.updateMany({ where: { orderId: order.id }, data: { status: 'CANCELLED' } });
+      return tx.order.update({
+        where: { id: order.id },
+        data: { status: 'CANCELLED', cancelledAt: new Date(), cancelledBy: 'CUSTOMER', cancellationReason: body.reason },
+        include: orderInclude,
+      });
+    });
+    if (result === 'NOT_FOUND') return fail(reply, 404, { code: 'ORDER_NOT_FOUND', message: 'Order not found' });
+    if (result === 'FORBIDDEN') return fail(reply, 403, { code: 'ORDER_FORBIDDEN', message: 'You cannot cancel this order' });
+    if (result === 'NOT_CANCELLABLE') return fail(reply, 409, { code: 'ORDER_NOT_CANCELLABLE', message: 'Orders cannot be cancelled once processing begins' });
+    return ok(reply, mapOrder(result));
+  });
+
+  app.post('/:id/returns', { preHandler: authenticateCustomer }, async (request, reply) => {
+    const params = z.object({ id: z.string().uuid() }).parse(request.params);
+    const body = z.object({
+      reason: z.string().trim().min(3).max(200),
+      details: z.string().trim().max(2000).optional(),
+    }).parse(request.body);
+    const order = await prisma.order.findUnique({ where: { id: params.id }, include: orderInclude });
+    if (!order) return fail(reply, 404, { code: 'ORDER_NOT_FOUND', message: 'Order not found' });
+    if (order.userId !== request.authUser!.id) return fail(reply, 403, { code: 'ORDER_FORBIDDEN', message: 'You cannot return this order' });
+    const deliveredAt = order.shipments.find((shipment) => shipment.deliveredAt)?.deliveredAt ?? order.updatedAt;
+    if (order.status !== 'DELIVERED' || Date.now() - deliveredAt.getTime() > 7 * 24 * 60 * 60 * 1000) {
+      return fail(reply, 409, { code: 'RETURN_NOT_ELIGIBLE', message: 'This order is outside the seven-day return window' });
+    }
+    if (order.returnRequests.length) return fail(reply, 409, { code: 'RETURN_EXISTS', message: 'A return already exists for this order' });
+    const result = await prisma.returnRequest.create({
+      data: { orderId: order.id, userId: request.authUser!.id, reason: body.reason, ...(body.details ? { details: body.details } : {}) },
+    });
+    return ok(reply.status(201), { id: result.id, status: result.status.toLowerCase(), createdAt: result.createdAt.toISOString() });
+  });
+
   app.get('/:id', { preHandler: authenticateCustomer }, async (request, reply) => {
     const params = z.object({ id: z.string().uuid() }).parse(request.params);
     const order = await prisma.order.findUnique({
@@ -328,6 +437,69 @@ export const adminOrderRoutes: FastifyPluginAsync = async (app) => {
     return ok(reply, orders.map(mapOrder));
   });
 
+  app.get('/returns', async (_request, reply) => {
+    const requests = await prisma.returnRequest.findMany({
+      include: {
+        order: true,
+        user: { select: { firstName: true, lastName: true, email: true } },
+        resolvedBy: { select: { firstName: true, lastName: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    });
+    return ok(reply, requests.map((item) => ({
+      id: item.id,
+      orderId: item.orderId,
+      orderNumber: item.order.orderNumber,
+      customer: item.user ? `${item.user.firstName} ${item.user.lastName}`.trim() : 'Guest customer',
+      email: item.user?.email ?? item.guestEmail ?? item.order.guestEmail,
+      isGuest: item.userId === null,
+      status: item.status,
+      reason: item.reason,
+      details: item.details ?? undefined,
+      resolutionNote: item.resolutionNote ?? undefined,
+      refundConfirmedAt: item.refundConfirmedAt?.toISOString(),
+      createdAt: item.createdAt.toISOString(),
+    })));
+  });
+
+  app.patch('/returns/:id', async (request, reply) => {
+    const params = z.object({ id: z.string().uuid() }).parse(request.params);
+    const body = z.discriminatedUnion('status', [
+      z.object({ status: z.literal('APPROVED'), resolutionNote: z.string().trim().min(3).max(1000), manualRefundCompleted: z.literal(true) }),
+      z.object({ status: z.literal('REJECTED'), resolutionNote: z.string().trim().min(3).max(1000), manualRefundCompleted: z.boolean().optional() }),
+    ]).parse(request.body);
+    const result = await prisma.$transaction(async (tx) => {
+      const existing = await tx.returnRequest.findUnique({ where: { id: params.id } });
+      if (!existing) return null;
+      if (existing.status !== 'PENDING') return 'RESOLVED' as const;
+      const now = new Date();
+      const updated = await tx.returnRequest.update({
+        where: { id: existing.id },
+        data: {
+          status: body.status,
+          resolutionNote: body.resolutionNote,
+          resolvedByUserId: request.authUser!.id,
+          resolvedAt: now,
+          refundConfirmedAt: body.status === 'APPROVED' ? now : null,
+        },
+      });
+      if (body.status === 'APPROVED') {
+        await tx.order.update({ where: { id: existing.orderId }, data: { status: 'REFUNDED', paymentStatus: 'REFUNDED' } });
+      }
+      return updated;
+    });
+    if (!result) return fail(reply, 404, { code: 'RETURN_NOT_FOUND', message: 'Return request not found' });
+    if (result === 'RESOLVED') return fail(reply, 409, { code: 'RETURN_ALREADY_RESOLVED', message: 'Return request is already resolved' });
+    return ok(reply, {
+      id: result.id,
+      status: result.status,
+      resolutionNote: result.resolutionNote,
+      refundConfirmedAt: result.refundConfirmedAt?.toISOString(),
+      resolvedAt: result.resolvedAt?.toISOString(),
+    });
+  });
+
   app.get('/:id', async (request, reply) => {
     const params = z.object({ id: z.string().uuid() }).parse(request.params);
     const order = await prisma.order.findUnique({
@@ -349,17 +521,23 @@ export const adminOrderRoutes: FastifyPluginAsync = async (app) => {
     const params = z.object({ id: z.string().uuid() }).parse(request.params);
     const body = z
       .object({
-        status: z.enum(['PENDING', 'CONFIRMED', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED', 'REFUNDED']),
+        status: z.enum(['PENDING', 'CONFIRMED', 'PROCESSING', 'SHIPPED', 'DELIVERED']),
         note: z.string().trim().optional(),
       })
       .parse(request.body);
-    const order = await prisma.order.update({
-      where: { id: params.id },
-      data: {
-        status: body.status,
-        ...(body.note !== undefined ? { notes: body.note } : {}),
-      },
-      include: orderInclude,
+    const order = await prisma.$transaction(async (tx) => {
+      const updated = await tx.order.update({
+        where: { id: params.id },
+        data: {
+          status: body.status,
+          ...(body.status === 'DELIVERED' ? { paymentStatus: 'PAID' } : {}),
+          ...(body.note !== undefined ? { notes: body.note } : {}),
+        },
+        include: orderInclude,
+      });
+      if (body.status === 'SHIPPED') await tx.shipment.updateMany({ where: { orderId: params.id }, data: { status: 'SHIPPED', shippedAt: new Date() } });
+      if (body.status === 'DELIVERED') await tx.shipment.updateMany({ where: { orderId: params.id }, data: { status: 'DELIVERED', deliveredAt: new Date() } });
+      return updated;
     });
 
     return ok(reply, mapOrder(order));

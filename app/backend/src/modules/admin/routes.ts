@@ -11,7 +11,9 @@ const mapContactMessage = (message: {
   subject: string;
   message: string;
   status: string;
-  reviewedAt: Date | null;
+  userId: string | null;
+  statusUpdatedAt: Date;
+  resolvedAt: Date | null;
   createdAt: Date;
 }) => ({
   id: message.id,
@@ -20,7 +22,10 @@ const mapContactMessage = (message: {
   subject: message.subject,
   message: message.message,
   status: message.status,
-  reviewedAt: message.reviewedAt?.toISOString(),
+  customerId: message.userId ?? undefined,
+  isGuest: message.userId === null,
+  statusUpdatedAt: message.statusUpdatedAt.toISOString(),
+  resolvedAt: message.resolvedAt?.toISOString(),
   createdAt: message.createdAt.toISOString(),
 });
 
@@ -32,7 +37,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       prisma.product.count({ where: { status: { not: 'ARCHIVED' } } }),
       prisma.order.count(),
       prisma.user.count({ where: { deletedAt: null } }),
-      prisma.contactMessage.count({ where: { status: 'NEW' } }),
+      prisma.contactMessage.count({ where: { status: 'OPEN' } }),
       prisma.order.aggregate({ _sum: { totalAmount: true } }),
       prisma.order.findMany({
         orderBy: { createdAt: 'desc' },
@@ -130,7 +135,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   app.get('/contact-messages', async (request, reply) => {
     const query = z
       .object({
-        status: z.enum(['NEW', 'REVIEWED', 'ARCHIVED']).optional(),
+        status: z.enum(['OPEN', 'IN_PROGRESS', 'RESOLVED']).optional(),
       })
       .parse(request.query);
     const messages = await prisma.contactMessage.findMany({
@@ -144,12 +149,14 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
 
   app.patch('/contact-messages/:id', async (request, reply) => {
     const params = z.object({ id: z.string().uuid() }).parse(request.params);
-    const body = z.object({ status: z.enum(['NEW', 'REVIEWED', 'ARCHIVED']) }).parse(request.body);
+    const body = z.object({ status: z.enum(['OPEN', 'IN_PROGRESS', 'RESOLVED']) }).parse(request.body);
+    const now = new Date();
     const message = await prisma.contactMessage.update({
       where: { id: params.id },
       data: {
         status: body.status,
-        reviewedAt: body.status === 'REVIEWED' ? new Date() : null,
+        statusUpdatedAt: now,
+        resolvedAt: body.status === 'RESOLVED' ? now : null,
       },
     });
 

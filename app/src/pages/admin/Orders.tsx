@@ -43,6 +43,7 @@ const statuses: AdminOrderStatus[] = [
   'cancelled',
   'refunded',
 ];
+const mutableStatuses: AdminOrderStatus[] = ['pending', 'confirmed', 'processing', 'shipped', 'delivered'];
 
 const mapOrderToRow = (order: ApiOrder): AdminOrderRow => ({
   _id: order.id,
@@ -253,7 +254,7 @@ const AdminOrders = () => {
                           )}
                         </button>
                         <div className="absolute right-0 top-full mt-2 w-44 bg-white rounded-xl shadow-lg border border-gray-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
-                          {statuses.map((status) => (
+                          {mutableStatuses.map((status) => (
                             <button
                               type="button"
                               key={status}

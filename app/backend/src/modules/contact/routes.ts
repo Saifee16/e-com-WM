@@ -2,6 +2,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '../../db/prisma.js';
 import { ok } from '../../utils/responses.js';
+import { authenticateCustomer, getAuthenticatedUser } from '../auth/session.js';
 
 const contactSchema = z.object({
   name: z.string().trim().min(1).max(120),
@@ -13,8 +14,9 @@ const contactSchema = z.object({
 export const contactRoutes: FastifyPluginAsync = async (app) => {
   app.post('/', async (request, reply) => {
     const body = contactSchema.parse(request.body);
+    const user = await getAuthenticatedUser(request);
     const message = await prisma.contactMessage.create({
-      data: body,
+      data: { ...body, ...(user ? { userId: user.id } : {}) },
     });
 
     return ok(reply.status(201), {
@@ -23,5 +25,22 @@ export const contactRoutes: FastifyPluginAsync = async (app) => {
       createdAt: message.createdAt.toISOString(),
     });
   });
-};
 
+  app.get('/mine', { preHandler: authenticateCustomer }, async (request, reply) => {
+    const messages = await prisma.contactMessage.findMany({
+      where: { userId: request.authUser!.id },
+      orderBy: { createdAt: 'desc' },
+    });
+    return ok(reply, messages.map((message) => ({
+      id: message.id,
+      name: message.name,
+      email: message.email,
+      subject: message.subject,
+      message: message.message,
+      status: message.status,
+      statusUpdatedAt: message.statusUpdatedAt.toISOString(),
+      resolvedAt: message.resolvedAt?.toISOString(),
+      createdAt: message.createdAt.toISOString(),
+    })));
+  });
+};

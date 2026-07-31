@@ -3,6 +3,8 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
     exclude: ['backend/**', 'node_modules/**', 'dist/**'],
-    passWithNoTests: true,
+    environment: 'jsdom',
+    setupFiles: ['./src/test/setup.ts'],
+    passWithNoTests: false,
   },
 });

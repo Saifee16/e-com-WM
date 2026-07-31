@@ -14,7 +14,7 @@ import {
   RefreshCcw,
   Send,
 } from 'lucide-react';
-import { contactAPI } from '../services/api';
+import { contactAPI, ordersAPI } from '../services/api';
 import { useToast } from '../contexts/ToastContext';
 
 const Support = () => {
@@ -27,6 +27,7 @@ const Support = () => {
     subject: '',
     message: '',
   });
+  const [guestReturn, setGuestReturn] = useState({ orderNumber: '', email: '', reason: '', details: '' });
   const { showToast } = useToast();
 
   const faqs = [
@@ -90,7 +91,7 @@ const Support = () => {
       questions: [
         {
           q: 'What payment methods do you accept?',
-          a: 'We accept Credit/Debit Cards, JazzCash, EasyPaisa, and Cash on Delivery (COD).',
+          a: 'Cash on Delivery (COD) is the only payment method. Refunds are handled manually by the support team.',
         },
         {
           q: 'Is my payment information secure?',
@@ -143,6 +144,22 @@ const Support = () => {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleGuestReturn = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setIsSubmitting(true);
+    try {
+      await ordersAPI.requestGuestReturn(guestReturn.orderNumber, {
+        email: guestReturn.email,
+        reason: guestReturn.reason,
+        ...(guestReturn.details ? { details: guestReturn.details } : {}),
+      });
+      setGuestReturn({ orderNumber: '', email: '', reason: '', details: '' });
+      showToast('Guest return request submitted', 'success');
+    } catch {
+      showToast('Order is not eligible or could not be matched', 'error');
+    } finally { setIsSubmitting(false); }
   };
 
   const filteredFaqs = faqs.map((category) => ({
@@ -260,6 +277,13 @@ const Support = () => {
               <Send className="w-5 h-5" />
               {isSubmitting ? 'Submitting...' : 'Submit Message'}
             </button>
+          </form>
+          <form onSubmit={handleGuestReturn} className="mt-8 bg-white rounded-2xl shadow-sm border border-gray-200 p-8 space-y-5">
+            <div><h2 className="text-xl font-bold text-gray-900">Guest order return</h2><p className="mt-1 text-sm text-gray-500">Use the order number and checkout email for a delivered guest order.</p></div>
+            <div className="grid sm:grid-cols-2 gap-5"><input aria-label="Order number" required value={guestReturn.orderNumber} onChange={(event) => setGuestReturn({ ...guestReturn, orderNumber: event.target.value })} placeholder="Order number" className="px-4 py-3 border border-gray-200 rounded-xl" /><input aria-label="Order email" type="email" required value={guestReturn.email} onChange={(event) => setGuestReturn({ ...guestReturn, email: event.target.value })} placeholder="Checkout email" className="px-4 py-3 border border-gray-200 rounded-xl" /></div>
+            <input aria-label="Return reason" required minLength={3} value={guestReturn.reason} onChange={(event) => setGuestReturn({ ...guestReturn, reason: event.target.value })} placeholder="Return reason" className="w-full px-4 py-3 border border-gray-200 rounded-xl" />
+            <textarea aria-label="Return details" value={guestReturn.details} onChange={(event) => setGuestReturn({ ...guestReturn, details: event.target.value })} placeholder="Additional details" className="w-full px-4 py-3 border border-gray-200 rounded-xl" />
+            <button disabled={isSubmitting} className="px-6 py-3 bg-blue-600 text-white rounded-xl font-medium disabled:opacity-50">Submit guest return</button>
           </form>
         </div>
       </section>

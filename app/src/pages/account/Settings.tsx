@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   User,
@@ -16,7 +17,8 @@ import { authAPI } from '../../services/api';
 import { getApiErrorMessage } from '../../utils/api-error';
 
 const Settings = () => {
-  const { user, updateUser } = useAuth();
+  const { user, updateUser, logout } = useAuth();
+  const navigate = useNavigate();
   const { showToast } = useToast();
 
   const [activeTab, setActiveTab] = useState<'profile' | 'password' | 'notifications'>('profile');
@@ -77,8 +79,10 @@ const Settings = () => {
     setIsLoading(true);
     try {
       await authAPI.changePassword(passwordData.currentPassword, passwordData.newPassword);
-      showToast('Password changed successfully', 'success');
+      logout();
+      showToast('Password changed. Sign in again on all devices.', 'success');
       setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      navigate('/login');
     } catch (error) {
       showToast(getApiErrorMessage(error, 'Failed to change password'), 'error');
     } finally {

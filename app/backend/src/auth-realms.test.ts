@@ -8,6 +8,9 @@ const prismaMocks = vi.hoisted(() => ({
   userFindUnique: vi.fn(),
   userCreate: vi.fn(),
   userUpdate: vi.fn(),
+  refreshTokenCreate: vi.fn(),
+  refreshTokenFindUnique: vi.fn(),
+  refreshTokenUpdateMany: vi.fn(),
 }));
 
 vi.mock('./db/prisma.js', () => ({
@@ -17,6 +20,11 @@ vi.mock('./db/prisma.js', () => ({
       findUnique: prismaMocks.userFindUnique,
       create: prismaMocks.userCreate,
       update: prismaMocks.userUpdate,
+    },
+    refreshToken: {
+      create: prismaMocks.refreshTokenCreate,
+      findUnique: prismaMocks.refreshTokenFindUnique,
+      updateMany: prismaMocks.refreshTokenUpdateMany,
     },
   },
 }));
@@ -91,6 +99,9 @@ describe('customer and admin auth realms', () => {
     prismaMocks.userUpdate.mockImplementation(async (args: { where: { id: string } }) =>
       args.where.id === adminId ? admin : customer,
     );
+    prismaMocks.refreshTokenCreate.mockResolvedValue({ id: '33333333-3333-4333-8333-333333333333' });
+    prismaMocks.refreshTokenFindUnique.mockResolvedValue(null);
+    prismaMocks.refreshTokenUpdateMany.mockResolvedValue({ count: 0 });
 
     app = await buildApp();
   }, 30000);

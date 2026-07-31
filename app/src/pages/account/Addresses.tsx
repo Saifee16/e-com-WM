@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   MapPin,
@@ -9,6 +9,8 @@ import {
   X,
 } from 'lucide-react';
 import { useToast } from '../../contexts/ToastContext';
+import { addressesAPI } from '../../services/api';
+import type { SavedAddress as ApiAddress } from '../../services/api';
 
 interface SavedAddress {
   _id: string;
@@ -39,36 +41,46 @@ const emptyAddressForm: AddressFormData = {
 
 const Addresses = () => {
   const { showToast } = useToast();
-  const [addresses, setAddresses] = useState<SavedAddress[]>([
-    {
-      _id: '1',
-      firstName: 'John',
-      lastName: 'Doe',
-      phone: '+92 300 1234567',
-      street: '123 Main Street',
-      city: 'Lahore',
-      state: 'Punjab',
-      zipCode: '54000',
-      country: 'Pakistan',
-      isDefault: true,
-    },
-    {
-      _id: '2',
-      firstName: 'John',
-      lastName: 'Doe',
-      phone: '+92 300 1234567',
-      street: '456 Park Avenue',
-      city: 'Karachi',
-      state: 'Sindh',
-      zipCode: '74000',
-      country: 'Pakistan',
-      isDefault: false,
-    },
-  ]);
+  const [addresses, setAddresses] = useState<SavedAddress[]>([]);
 
   const [isEditing, setIsEditing] = useState(false);
   const [editingAddress, setEditingAddress] = useState<SavedAddress | null>(null);
   const [formData, setFormData] = useState<AddressFormData>(emptyAddressForm);
+
+  const fromApi = (address: ApiAddress): SavedAddress => {
+    const [firstName = '', ...lastName] = address.fullName.split(' ');
+    return {
+      _id: address.id,
+      firstName,
+      lastName: lastName.join(' '),
+      phone: address.phone,
+      street: address.line1,
+      city: address.city,
+      state: address.state,
+      zipCode: address.postalCode,
+      country: address.country,
+      isDefault: address.isDefaultShipping,
+    };
+  };
+
+  const loadAddresses = async () => {
+    try {
+      const response = await addressesAPI.get();
+      setAddresses(response.data.data.map(fromApi));
+    } catch {
+      showToast('Failed to load addresses', 'error');
+    }
+  };
+
+  useEffect(() => {
+    let active = true;
+    addressesAPI.get()
+      .then((response) => {
+        if (active) setAddresses(response.data.data.map(fromApi));
+      })
+      .catch(() => showToast('Failed to load addresses', 'error'));
+    return () => { active = false; };
+  }, [showToast]);
 
   const handleAddNew = () => {
     setEditingAddress(null);
@@ -92,41 +104,52 @@ const Addresses = () => {
     setIsEditing(true);
   };
 
-  const handleDelete = (id: string) => {
-    setAddresses(addresses.filter((a) => a._id !== id));
-    showToast('Address deleted', 'success');
-  };
-
-  const handleSetDefault = (id: string) => {
-    setAddresses(
-      addresses.map((a) => ({
-        ...a,
-        isDefault: a._id === id,
-      }))
-    );
-    showToast('Default address updated', 'success');
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (editingAddress) {
-      setAddresses(
-        addresses.map((a) =>
-          a._id === editingAddress._id ? { ...formData, _id: a._id } : a
-        )
-      );
-      showToast('Address updated', 'success');
-    } else {
-      const newAddress = {
-        ...formData,
-        _id: Math.random().toString(36).substring(7),
-      };
-      setAddresses([...addresses, newAddress]);
-      showToast('Address added', 'success');
+  const handleDelete = async (id: string) => {
+    try {
+      await addressesAPI.remove(id);
+      await loadAddresses();
+      showToast('Address deleted', 'success');
+    } catch {
+      showToast('Failed to delete address', 'error');
     }
-    
-    setIsEditing(false);
+  };
+
+  const handleSetDefault = async (id: string) => {
+    try {
+      await addressesAPI.update(id, { isDefaultShipping: true, isDefaultBilling: true });
+      await loadAddresses();
+      showToast('Default address updated', 'success');
+    } catch {
+      showToast('Failed to update default address', 'error');
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const payload = {
+      fullName: `${formData.firstName} ${formData.lastName}`.trim(),
+      phone: formData.phone,
+      line1: formData.street,
+      city: formData.city,
+      state: formData.state,
+      postalCode: formData.zipCode,
+      country: formData.country,
+      isDefaultShipping: formData.isDefault,
+      isDefaultBilling: formData.isDefault,
+    };
+    try {
+      if (editingAddress) {
+        await addressesAPI.update(editingAddress._id, payload);
+        showToast('Address updated', 'success');
+      } else {
+        await addressesAPI.create(payload);
+        showToast('Address added', 'success');
+      }
+      await loadAddresses();
+      setIsEditing(false);
+    } catch {
+      showToast('Failed to save address', 'error');
+    }
   };
 
   return (
