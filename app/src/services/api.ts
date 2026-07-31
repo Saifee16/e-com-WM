@@ -1,11 +1,110 @@
 import axios, { AxiosError } from 'axios';
 import type { AxiosInstance, AxiosResponse } from 'axios';
+import type { Product } from '../types';
 
 type JsonObject = Record<string, unknown>;
 type ProductPayload = JsonObject;
-type ProductQueryParams = JsonObject;
 type OrderPayload = JsonObject;
 type ContactPayload = { name: string; email: string; subject: string; message: string };
+
+interface ApiSuccess<T> {
+  success: true;
+  data: T;
+}
+
+export interface ProductQueryParams {
+  search?: string;
+  brand?: string;
+  category?: string;
+  featured?: boolean;
+  sort?: 'newest' | 'price-low' | 'price-high' | 'rating';
+  page?: number;
+  limit?: number;
+  minPrice?: number;
+  maxPrice?: number;
+  storage?: string;
+  condition?: 'new' | 'used' | 'refurbished';
+}
+
+export interface Pagination {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+  hasPreviousPage: boolean;
+  hasNextPage: boolean;
+}
+
+export interface ProductPage {
+  items: Product[];
+  pagination: Pagination;
+}
+
+export interface OrderAddressSnapshot {
+  fullName?: string;
+  phone?: string;
+  email?: string;
+  line1?: string;
+  line2?: string;
+  city?: string;
+  state?: string;
+  postalCode?: string;
+  country?: string;
+  shippingMethod?: string;
+}
+
+export interface ApiOrderItem {
+  product: string;
+  name: string;
+  image: string;
+  price: number;
+  quantity: number;
+  specs?: string;
+}
+
+export interface ApiOrder {
+  _id: string;
+  id: string;
+  orderNumber: string;
+  user?: string | null;
+  guestEmail?: string | null;
+  status: string;
+  paymentStatus: string;
+  subtotal: number;
+  tax: number;
+  discount: number;
+  shippingCost: number;
+  total: number;
+  shippingAddress: OrderAddressSnapshot;
+  billingAddress: OrderAddressSnapshot;
+  items: ApiOrderItem[];
+  trackingNumber?: string;
+  notes?: string;
+  createdAt: string;
+}
+
+export interface AdminDashboardData {
+  products: number;
+  orders: number;
+  users: number;
+  newContactMessages: number;
+  revenue: number;
+  recentOrders: Array<{
+    id: string;
+    orderNumber: string;
+    customer: string;
+    email?: string | null;
+    total: number;
+    status: string;
+    createdAt: string;
+  }>;
+  topProducts: Array<{
+    id: string;
+    name: string;
+    sales: number;
+    revenue: number;
+  }>;
+}
 
 export const GUEST_CART_ID_KEY = 'guestCartId';
 
@@ -108,7 +207,7 @@ export const adminAuthAPI = {
 
 // Products API
 export const productsAPI = {
-  getProducts: (params?: ProductQueryParams) => api.get('/products', { params }),
+  getProducts: (params?: ProductQueryParams) => api.get<ApiSuccess<ProductPage>>('/products', { params }),
   getProductById: (id: string) => api.get(`/products/${id}`),
   getFeaturedProducts: () => api.get('/products/featured'),
   getProductsByBrand: (brand: string) => api.get(`/products/brand/${brand}`),
@@ -136,18 +235,18 @@ export const cartAPI = {
 // Orders API
 export const ordersAPI = {
   createOrder: (data: OrderPayload) => api.post('/orders', data),
-  getMyOrders: () => api.get('/orders/my-orders'),
-  getOrderById: (id: string) => api.get(`/orders/${id}`),
+  getMyOrders: () => api.get<ApiSuccess<ApiOrder[]>>('/orders/my-orders'),
+  getOrderById: (id: string) => api.get<ApiSuccess<ApiOrder>>(`/orders/${id}`),
   // Admin only
-  getAllOrders: (params?: JsonObject) => adminApi.get('/orders', { params }),
+  getAllOrders: (params?: JsonObject) => adminApi.get<ApiSuccess<ApiOrder[]>>('/orders', { params }),
   updateOrderStatus: (id: string, status: string, note?: string) =>
-    adminApi.put(`/orders/${id}/status`, { status, note }),
+    adminApi.put<ApiSuccess<ApiOrder>>(`/orders/${id}/status`, { status, note }),
   getOrderStats: () => adminApi.get('/orders/stats/overview'),
 };
 
 // Admin API
 export const adminAPI = {
-  getDashboardStats: () => adminApi.get('/dashboard'),
+  getDashboardStats: () => adminApi.get<ApiSuccess<AdminDashboardData>>('/dashboard'),
   getSalesReport: (params?: JsonObject) => adminApi.get('/sales-report', { params }),
   getTopProducts: (params?: JsonObject) => adminApi.get('/top-products', { params }),
   getTopCustomers: (params?: JsonObject) => adminApi.get('/top-customers', { params }),

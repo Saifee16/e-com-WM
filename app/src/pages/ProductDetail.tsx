@@ -49,7 +49,7 @@ const ProductDetail = () => {
         setSelectedImage(0);
         const relatedResponse = await productsAPI.getProducts({ brand: loadedProduct.brand, limit: 5 });
         setRelatedProducts(
-          (relatedResponse.data.data as Product[]).filter((item) => item._id !== loadedProduct._id).slice(0, 4),
+          relatedResponse.data.data.items.filter((item) => item._id !== loadedProduct._id).slice(0, 4),
         );
       } catch {
         setProduct(null);

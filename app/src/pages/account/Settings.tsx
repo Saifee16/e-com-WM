@@ -12,6 +12,8 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
+import { authAPI } from '../../services/api';
+import { getApiErrorMessage } from '../../utils/api-error';
 
 const Settings = () => {
   const { user, updateUser } = useAuth();
@@ -68,17 +70,20 @@ const Settings = () => {
       showToast('Passwords do not match', 'error');
       return;
     }
-    if (passwordData.newPassword.length < 6) {
-      showToast('Password must be at least 6 characters', 'error');
+    if (passwordData.newPassword.length < 8) {
+      showToast('Password must be at least 8 characters', 'error');
       return;
     }
     setIsLoading(true);
-    // Simulate password change
-    setTimeout(() => {
+    try {
+      await authAPI.changePassword(passwordData.currentPassword, passwordData.newPassword);
       showToast('Password changed successfully', 'success');
       setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
+    } catch (error) {
+      showToast(getApiErrorMessage(error, 'Failed to change password'), 'error');
+    } finally {
       setIsLoading(false);
-    }, 1000);
+    }
   };
 
   const handleNotificationChange = (key: string) => {

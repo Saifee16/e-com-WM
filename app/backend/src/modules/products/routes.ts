@@ -73,8 +73,19 @@ const productQuerySchema = z.object({
   category: z.string().trim().optional(),
   featured: z.coerce.boolean().optional(),
   sort: z.enum(['newest', 'price-low', 'price-high', 'rating']).default('newest'),
-  limit: z.coerce.number().int().positive().max(100).default(100),
-});
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(100).default(20),
+  minPrice: z.coerce.number().int().nonnegative().optional(),
+  maxPrice: z.coerce.number().int().nonnegative().optional(),
+  storage: z.string().trim().min(1).max(40).optional(),
+  condition: z.enum(['new', 'used', 'refurbished']).optional(),
+}).refine(
+  (query) => query.minPrice === undefined || query.maxPrice === undefined || query.minPrice <= query.maxPrice,
+  {
+    message: 'minPrice cannot be greater than maxPrice',
+    path: ['minPrice'],
+  },
+);
 
 const productPayloadSchema = z.object({
   name: z.string().trim().min(1).max(200),
@@ -174,10 +185,14 @@ export const productRoutes: FastifyPluginAsync = async (app) => {
 
   app.get('/', async (request, reply) => {
     const query = productQuerySchema.parse(request.query);
+    const brandSlugs = query.brand
+      ?.split(',')
+      .map((brand) => slugify(brand))
+      .filter(Boolean);
     const where: Prisma.ProductWhereInput = {
       status: 'ACTIVE',
       ...(query.featured === true ? { isFeatured: true } : {}),
-      ...(query.brand ? { brand: { slug: slugify(query.brand) } } : {}),
+      ...(brandSlugs?.length ? { brand: { slug: { in: brandSlugs } } } : {}),
       ...(query.category ? { category: { slug: slugify(query.category) } } : {}),
       ...(query.search
         ? {
@@ -194,23 +209,48 @@ export const productRoutes: FastifyPluginAsync = async (app) => {
     const products = await prisma.product.findMany({
       where,
       include: productInclude,
-      take: query.limit,
-      orderBy: query.sort === 'newest' ? { createdAt: 'desc' } : { createdAt: 'desc' },
+      orderBy: { createdAt: 'desc' },
     });
 
-    const mapped = products.map(mapProduct);
+    const filtered = products
+      .map(mapProduct)
+      .filter((product) => query.minPrice === undefined || product.price >= query.minPrice)
+      .filter((product) => query.maxPrice === undefined || product.price <= query.maxPrice)
+      .filter((product) => query.storage === undefined || product.specifications.storage === query.storage)
+      .filter((product) => query.condition === undefined || product.condition === query.condition);
 
-    if (query.sort === 'price-low') {
-      mapped.sort((a, b) => a.price - b.price);
-    }
-    if (query.sort === 'price-high') {
-      mapped.sort((a, b) => b.price - a.price);
-    }
-    if (query.sort === 'rating') {
-      mapped.sort((a, b) => b.rating - a.rating);
-    }
+    filtered.sort((left, right) => {
+      let comparison = 0;
 
-    return ok(reply, mapped);
+      if (query.sort === 'price-low') {
+        comparison = left.price - right.price;
+      } else if (query.sort === 'price-high') {
+        comparison = right.price - left.price;
+      } else if (query.sort === 'rating') {
+        comparison = right.rating - left.rating;
+      } else {
+        comparison = new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime();
+      }
+
+      return comparison || left.id.localeCompare(right.id);
+    });
+
+    const total = filtered.length;
+    const totalPages = Math.ceil(total / query.limit);
+    const offset = (query.page - 1) * query.limit;
+    const items = filtered.slice(offset, offset + query.limit);
+
+    return ok(reply, {
+      items,
+      pagination: {
+        page: query.page,
+        limit: query.limit,
+        total,
+        totalPages,
+        hasPreviousPage: query.page > 1,
+        hasNextPage: query.page < totalPages,
+      },
+    });
   });
 
   app.get('/featured', async (_request, reply) => {

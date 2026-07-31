@@ -22,7 +22,7 @@ const AdminProducts = () => {
   const loadProducts = async () => {
     try {
       const response = await productsAPI.getProducts({ limit: 100 });
-      setProductList(response.data.data);
+      setProductList(response.data.data.items);
     } catch {
       showToast('Failed to load products', 'error');
     }

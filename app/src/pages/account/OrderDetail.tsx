@@ -1,143 +1,140 @@
+import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
-  ChevronLeft,
-  Truck,
-  MapPin,
-  CreditCard,
+  AlertCircle,
   Check,
+  ChevronLeft,
   Clock,
+  CreditCard,
+  LoaderCircle,
+  MapPin,
+  Package,
+  Truck,
   X,
 } from 'lucide-react';
-import { products } from '../../data/products';
+import { ordersAPI } from '../../services/api';
+import type { ApiOrder } from '../../services/api';
+import { getApiErrorMessage } from '../../utils/api-error';
 import { formatPrice, formatDateTime } from '../../utils/format';
 
-interface MockOrderItem {
-  product: string | { _id: string };
-  name: string;
-  image: string;
-  price: number;
-  quantity: number;
-  brand?: string;
-  specs?: string;
-}
+const getStatusColor = (status: string) => {
+  switch (status) {
+    case 'delivered':
+      return 'bg-green-100 text-green-600';
+    case 'confirmed':
+    case 'processing':
+      return 'bg-blue-100 text-blue-600';
+    case 'shipped':
+      return 'bg-purple-100 text-purple-600';
+    case 'pending':
+      return 'bg-yellow-100 text-yellow-600';
+    case 'cancelled':
+    case 'refunded':
+      return 'bg-red-100 text-red-600';
+    default:
+      return 'bg-gray-100 text-gray-600';
+  }
+};
 
-interface MockStatusHistoryItem {
-  status: string;
-  note: string;
-  timestamp: string;
-}
+const getStatusIcon = (status: string) => {
+  if (status === 'delivered') return Check;
+  if (status === 'shipped') return Truck;
+  if (status === 'cancelled' || status === 'refunded') return X;
+  return Clock;
+};
 
-interface MockOrderDetail {
-  _id: string;
-  orderNumber: string;
-  status: string;
-  statusHistory: MockStatusHistoryItem[];
-  items: MockOrderItem[];
-  shippingAddress: {
-    street: string;
-    city: string;
-    state: string;
-    zipCode: string;
-    country: string;
-  };
-  contactInfo: {
-    firstName: string;
-    lastName: string;
-    email: string;
-    phone: string;
-  };
-  paymentMethod: string;
-  shippingMethod: string;
-  shippingCost: number;
-  subtotal: number;
-  tax: number;
-  discount: number;
-  total: number;
-  trackingNumber: string;
-  createdAt: string;
-}
-
-const getMockOrder = (id = 'mock-order'): MockOrderDetail => ({
-  _id: id,
-  orderNumber: 'WAH-ABC123',
-  status: 'delivered',
-  statusHistory: [
-    { status: 'pending', timestamp: '2025-02-15T10:30:00', note: 'Order placed' },
-    { status: 'processing', timestamp: '2025-02-15T11:00:00', note: 'Payment confirmed' },
-    { status: 'shipped', timestamp: '2025-02-16T09:00:00', note: 'Order shipped' },
-    { status: 'delivered', timestamp: '2025-02-18T14:30:00', note: 'Order delivered' },
-  ],
-  items: [
-    {
-      product: products[0],
-      name: products[0].name,
-      image: products[0].images[0],
-      price: 599999,
-      quantity: 1,
-      brand: products[0].brand,
-      specs: `${products[0].specifications.storage}, ${products[0].specifications.color}`,
-    },
-  ],
-  shippingAddress: {
-    street: '123 Main Street',
-    city: 'Lahore',
-    state: 'Punjab',
-    zipCode: '54000',
-    country: 'Pakistan',
-  },
-  contactInfo: {
-    firstName: 'John',
-    lastName: 'Doe',
-    email: 'john@example.com',
-    phone: '+92 300 1234567',
-  },
-  paymentMethod: 'card',
-  shippingMethod: 'standard',
-  shippingCost: 500,
-  subtotal: 599999,
-  tax: 11999,
-  discount: 0,
-  total: 612498,
-  trackingNumber: 'TRK123456789',
-  createdAt: '2025-02-15T10:30:00',
-});
+const formatStatus = (status: string) =>
+  status
+    .split('_')
+    .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
+    .join(' ');
 
 const OrderDetail = () => {
   const { id } = useParams<{ id: string }>();
-  const order = getMockOrder(id);
+  const [order, setOrder] = useState<ApiOrder | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [reloadVersion, setReloadVersion] = useState(0);
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'delivered':
-        return Check;
-      case 'cancelled':
-        return X;
-      default:
-        return Clock;
-    }
-  };
+  useEffect(() => {
+    let isActive = true;
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'delivered':
-        return 'bg-green-100 text-green-600';
-      case 'processing':
-        return 'bg-blue-100 text-blue-600';
-      case 'shipped':
-        return 'bg-purple-100 text-purple-600';
-      case 'pending':
-        return 'bg-yellow-100 text-yellow-600';
-      case 'cancelled':
-        return 'bg-red-100 text-red-600';
-      default:
-        return 'bg-gray-100 text-gray-600';
-    }
-  };
+    const loadOrder = async () => {
+      if (!id) {
+        setError('No order was selected.');
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        setIsLoading(true);
+        setError(null);
+        const response = await ordersAPI.getOrderById(id);
+
+        if (isActive) {
+          setOrder(response.data.data);
+        }
+      } catch (loadError) {
+        if (isActive) {
+          setOrder(null);
+          setError(getApiErrorMessage(loadError, 'Unable to load this order.'));
+        }
+      } finally {
+        if (isActive) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    void loadOrder();
+
+    return () => {
+      isActive = false;
+    };
+  }, [id, reloadVersion]);
+
+  if (isLoading) {
+    return (
+      <div className="bg-white rounded-2xl border border-gray-200 p-12 text-center">
+        <LoaderCircle className="w-10 h-10 text-blue-600 animate-spin mx-auto mb-4" />
+        <p className="text-gray-500">Loading order details...</p>
+      </div>
+    );
+  }
+
+  if (error || !order) {
+    return (
+      <div>
+        <Link
+          to="/account/orders"
+          className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-6"
+        >
+          <ChevronLeft className="w-5 h-5" />
+          Back to Orders
+        </Link>
+        <div className="bg-white rounded-2xl border border-red-200 p-12 text-center">
+          <AlertCircle className="w-10 h-10 text-red-500 mx-auto mb-4" />
+          <h2 className="text-xl font-bold text-gray-900 mb-2">Order could not be loaded</h2>
+          <p className="text-gray-500 mb-5">{error ?? 'Order not found.'}</p>
+          <button
+            type="button"
+            onClick={() => setReloadVersion((version) => version + 1)}
+            className="px-5 py-2.5 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700"
+          >
+            Try again
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const StatusIcon = getStatusIcon(order.status);
+  const shippingAddress = order.shippingAddress;
+  const shippingMethod = shippingAddress.shippingMethod;
 
   return (
     <div>
-      {/* Back Link */}
       <Link
         to="/account/orders"
         className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-6"
@@ -146,14 +143,13 @@ const OrderDetail = () => {
         Back to Orders
       </Link>
 
-      {/* Order Header */}
       <div className="bg-white rounded-2xl border border-gray-200 p-6 mb-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-3 mb-2">
               <h2 className="text-2xl font-bold text-gray-900">{order.orderNumber}</h2>
-              <span className={`px-3 py-1 rounded-full text-sm font-medium capitalize ${getStatusColor(order.status)}`}>
-                {order.status}
+              <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(order.status)}`}>
+                {formatStatus(order.status)}
               </span>
             </div>
             <p className="text-gray-500">
@@ -161,7 +157,7 @@ const OrderDetail = () => {
             </p>
           </div>
           {order.trackingNumber && (
-            <div className="text-right">
+            <div className="sm:text-right">
               <p className="text-sm text-gray-500">Tracking Number</p>
               <p className="font-medium text-gray-900">{order.trackingNumber}</p>
             </div>
@@ -170,43 +166,27 @@ const OrderDetail = () => {
       </div>
 
       <div className="grid lg:grid-cols-3 gap-6">
-        {/* Main Content */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Order Timeline */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             className="bg-white rounded-2xl border border-gray-200 p-6"
           >
-            <h3 className="text-lg font-bold text-gray-900 mb-6">Order Timeline</h3>
-            <div className="relative">
-              {order.statusHistory.map((status, index) => {
-                const Icon = getStatusIcon(status.status);
-                const isLast = index === order.statusHistory.length - 1;
-                return (
-                  <div key={index} className="flex gap-4 pb-8 last:pb-0">
-                    <div className="flex flex-col items-center">
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                        isLast ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500'
-                      }`}>
-                        <Icon className="w-5 h-5" />
-                      </div>
-                      {!isLast && <div className="w-0.5 flex-1 bg-gray-200 mt-2" />}
-                    </div>
-                    <div className="flex-1 pb-4">
-                      <p className="font-medium text-gray-900 capitalize">{status.status}</p>
-                      <p className="text-sm text-gray-500">{status.note}</p>
-                      <p className="text-sm text-gray-400 mt-1">
-                        {formatDateTime(status.timestamp)}
-                      </p>
-                    </div>
-                  </div>
-                );
-              })}
+            <h3 className="text-lg font-bold text-gray-900 mb-4">Current Status</h3>
+            <div className="flex items-start gap-4">
+              <div className={`w-11 h-11 rounded-full flex items-center justify-center ${getStatusColor(order.status)}`}>
+                <StatusIcon className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="font-semibold text-gray-900">{formatStatus(order.status)}</p>
+                <p className="text-sm text-gray-500">
+                  This is the latest status stored for your order.
+                </p>
+                {order.notes && <p className="text-sm text-gray-600 mt-2">{order.notes}</p>}
+              </div>
             </div>
           </motion.div>
 
-          {/* Order Items */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -216,23 +196,26 @@ const OrderDetail = () => {
             <h3 className="text-lg font-bold text-gray-900 mb-6">Order Items</h3>
             <div className="space-y-4">
               {order.items.map((item, index) => (
-                <div key={index} className="flex gap-4 p-4 bg-gray-50 rounded-xl">
-                  <div className="w-24 h-24 bg-white rounded-lg overflow-hidden flex-shrink-0">
-                    <img
-                      src={item.image}
-                      alt={item.name}
-                      className="w-full h-full object-cover"
-                    />
+                <div key={`${item.product}-${index}`} className="flex gap-4 p-4 bg-gray-50 rounded-xl">
+                  <div className="w-24 h-24 bg-white rounded-lg overflow-hidden flex-shrink-0 flex items-center justify-center">
+                    {item.image ? (
+                      <img
+                        src={item.image}
+                        alt={item.name}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <Package className="w-9 h-9 text-gray-400" />
+                    )}
                   </div>
                   <div className="flex-1">
                     <Link
-                      to={`/products/${typeof item.product === 'string' ? item.product : item.product._id}`}
+                      to={`/products/${item.product}`}
                       className="font-semibold text-gray-900 hover:text-blue-600 transition-colors"
                     >
                       {item.name}
                     </Link>
-                    <p className="text-sm text-gray-500 mt-1">{item.brand}</p>
-                    <p className="text-sm text-gray-500">{item.specs}</p>
+                    {item.specs && <p className="text-sm text-gray-500 mt-1">{item.specs}</p>}
                     <div className="flex items-center justify-between mt-3">
                       <p className="text-sm text-gray-500">Qty: {item.quantity}</p>
                       <p className="font-bold text-gray-900">{formatPrice(item.price * item.quantity)}</p>
@@ -243,7 +226,6 @@ const OrderDetail = () => {
             </div>
           </motion.div>
 
-          {/* Shipping Address */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -254,23 +236,26 @@ const OrderDetail = () => {
             <div className="flex items-start gap-3">
               <MapPin className="w-5 h-5 text-gray-400 mt-0.5" />
               <div>
-                <p className="font-medium text-gray-900">
-                  {order.contactInfo.firstName} {order.contactInfo.lastName}
-                </p>
-                <p className="text-gray-600">{order.shippingAddress.street}</p>
-                <p className="text-gray-600">
-                  {order.shippingAddress.city}, {order.shippingAddress.state} {order.shippingAddress.zipCode}
-                </p>
-                <p className="text-gray-600">{order.shippingAddress.country}</p>
-                <p className="text-gray-600 mt-2">{order.contactInfo.phone}</p>
+                {shippingAddress.fullName && (
+                  <p className="font-medium text-gray-900">{shippingAddress.fullName}</p>
+                )}
+                {shippingAddress.line1 && <p className="text-gray-600">{shippingAddress.line1}</p>}
+                {(shippingAddress.city || shippingAddress.state || shippingAddress.postalCode) && (
+                  <p className="text-gray-600">
+                    {[shippingAddress.city, shippingAddress.state, shippingAddress.postalCode]
+                      .filter(Boolean)
+                      .join(', ')}
+                  </p>
+                )}
+                {shippingAddress.country && <p className="text-gray-600">{shippingAddress.country}</p>}
+                {shippingAddress.phone && <p className="text-gray-600 mt-2">{shippingAddress.phone}</p>}
+                {shippingAddress.email && <p className="text-gray-600">{shippingAddress.email}</p>}
               </div>
             </div>
           </motion.div>
         </div>
 
-        {/* Sidebar */}
         <div className="space-y-6">
-          {/* Order Summary */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -304,59 +289,31 @@ const OrderDetail = () => {
             </div>
           </motion.div>
 
-          {/* Payment Info */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4 }}
             className="bg-white rounded-2xl border border-gray-200 p-6"
           >
-            <h3 className="text-lg font-bold text-gray-900 mb-4">Payment Information</h3>
+            <h3 className="text-lg font-bold text-gray-900 mb-4">Payment Status</h3>
             <div className="flex items-center gap-3">
               <CreditCard className="w-5 h-5 text-gray-400" />
-              <div>
-                <p className="font-medium text-gray-900 capitalize">
-                  {order.paymentMethod === 'card' ? 'Credit/Debit Card' : order.paymentMethod}
-                </p>
-                <p className="text-sm text-gray-500">Payment completed</p>
-              </div>
+              <p className="font-medium text-gray-900">{formatStatus(order.paymentStatus)}</p>
             </div>
           </motion.div>
 
-          {/* Shipping Method */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.5 }}
-            className="bg-white rounded-2xl border border-gray-200 p-6"
-          >
-            <h3 className="text-lg font-bold text-gray-900 mb-4">Shipping Method</h3>
-            <div className="flex items-center gap-3">
-              <Truck className="w-5 h-5 text-gray-400" />
-              <div>
-                <p className="font-medium text-gray-900 capitalize">
-                  {order.shippingMethod} Shipping
-                </p>
-                <p className="text-sm text-gray-500">
-                  {order.shippingMethod === 'standard' && '3-5 business days'}
-                  {order.shippingMethod === 'express' && '1-2 business days'}
-                  {order.shippingMethod === 'pickup' && 'Same day pickup'}
-                </p>
-              </div>
-            </div>
-          </motion.div>
-
-          {/* Actions */}
-          {order.status !== 'cancelled' && order.status !== 'delivered' && (
+          {shippingMethod && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.6 }}
+              transition={{ delay: 0.5 }}
               className="bg-white rounded-2xl border border-gray-200 p-6"
             >
-              <button className="w-full py-3 border border-red-200 text-red-600 rounded-xl font-medium hover:bg-red-50 transition-colors">
-                Cancel Order
-              </button>
+              <h3 className="text-lg font-bold text-gray-900 mb-4">Shipping Method</h3>
+              <div className="flex items-center gap-3">
+                <Truck className="w-5 h-5 text-gray-400" />
+                <p className="font-medium text-gray-900">{formatStatus(shippingMethod)}</p>
+              </div>
             </motion.div>
           )}
         </div>

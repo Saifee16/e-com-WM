@@ -29,8 +29,8 @@ const Compare = () => {
     const loadCompareProducts = async () => {
       const saved = localStorage.getItem('compareList');
       const ids = saved ? (JSON.parse(saved) as string[]) : [];
-      const response = await productsAPI.getProducts();
-      const loadedProducts = response.data.data as Product[];
+      const response = await productsAPI.getProducts({ limit: 100 });
+      const loadedProducts = response.data.data.items;
       setAllProducts(loadedProducts);
       setCompareList(loadedProducts.filter((product) => ids.includes(product._id)));
       setIsHydrated(true);

@@ -39,6 +39,28 @@ interface ProductResponse {
   status: string;
 }
 
+interface ProductPageResponse {
+  items: ProductResponse[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+    hasPreviousPage: boolean;
+    hasNextPage: boolean;
+  };
+}
+
+interface DashboardResponse {
+  products: number;
+  orders: number;
+  users: number;
+  newContactMessages: number;
+  revenue: number;
+  recentOrders: Array<{ id: string; orderNumber: string }>;
+  topProducts: Array<{ id: string; name: string; sales: number; revenue: number }>;
+}
+
 interface CartResponse {
   items: Array<{
     product: string;
@@ -391,13 +413,14 @@ describe('endpoint smoke suite', () => {
       'INVALID_CREDENTIALS',
     );
 
-    const productList = parseSuccess<ProductResponse[]>(
+    const productList = parseSuccess<ProductPageResponse>(
       await app.inject({
         method: 'GET',
         url: '/api/products',
       }),
     );
-    expect(productList.some((product) => product.id === catalogProduct.id)).toBe(true);
+    expect(productList.items.some((product) => product.id === catalogProduct.id)).toBe(true);
+    expect(productList.pagination.limit).toBe(20);
 
     const featuredProducts = parseSuccess<ProductResponse[]>(
       await app.inject({
@@ -455,13 +478,15 @@ describe('endpoint smoke suite', () => {
       403,
       'ADMIN_REQUIRED',
     );
-    parseSuccess<Record<string, number>>(
+    const dashboard = parseSuccess<DashboardResponse>(
       await app.inject({
         method: 'GET',
         url: '/api/admin/dashboard',
         headers: { cookie: adminCookie },
       }),
     );
+    expect(Array.isArray(dashboard.recentOrders)).toBe(true);
+    expect(Array.isArray(dashboard.topProducts)).toBe(true);
     parseSuccess<Array<Record<string, unknown>>>(
       await app.inject({
         method: 'GET',
@@ -766,6 +791,14 @@ describe('endpoint smoke suite', () => {
       }),
     );
     expect(statusUpdate.status).toBe('confirmed');
+    const persistedStatus = parseSuccess<OrderResponse>(
+      await app.inject({
+        method: 'GET',
+        url: `/api/admin/orders/${order.id}`,
+        headers: { cookie: adminCookie },
+      }),
+    );
+    expect(persistedStatus.status).toBe('confirmed');
 
     const lockedVariant = await prisma.productVariant.findUniqueOrThrow({
       where: { id: catalogVariant.id },
