@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { env } from '../../config/env.js';
 import { prisma } from '../../db/prisma.js';
 import { fail, ok } from '../../utils/responses.js';
-import { GUEST_CART_COOKIE, getAuthenticatedUser, getGuestId, requireAuthenticatedUser } from '../auth/session.js';
+import { authenticateCustomer, GUEST_CART_COOKIE, getAuthenticatedUser, getGuestId } from '../auth/session.js';
 import { mapProduct, productInclude } from '../products/routes.js';
 
 const cartItemInclude = {
@@ -317,10 +317,7 @@ export const cartRoutes: FastifyPluginAsync = async (app) => {
     });
   });
 
-  app.post('/merge', async (request, reply) => {
-    const user = await requireAuthenticatedUser(request, reply);
-    if (!user) return;
-
+  app.post('/merge', { preHandler: authenticateCustomer }, async (request, reply) => {
     const body = z.object({ guestId: z.string().min(1).optional() }).parse(request.body);
     const guestId = body.guestId ?? getGuestId(request);
 
@@ -333,7 +330,7 @@ export const cartRoutes: FastifyPluginAsync = async (app) => {
       return ok(reply, { merged: false });
     }
 
-    const userCart = await getOrCreateCart({ user, guestId: null });
+    const userCart = await getOrCreateCart({ user: request.authUser!, guestId: null });
     if (!userCart) {
       return fail(reply, 400, {
         code: 'CART_MERGE_FAILED',

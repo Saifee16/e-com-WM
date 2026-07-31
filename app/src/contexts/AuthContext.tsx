@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
+import React, { createContext, useCallback, useContext, useState, useEffect, type ReactNode } from 'react';
 import type { User, LoginCredentials, RegisterData } from '../types';
 import { authAPI, cartAPI, clearGuestCartId, GUEST_CART_ID_KEY } from '../services/api';
 import { getApiErrorMessage } from '../utils/api-error';
@@ -8,10 +8,10 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (credentials: LoginCredentials) => Promise<void>;
-  adminLogin: (credentials: LoginCredentials) => Promise<void>;
   register: (data: RegisterData) => Promise<void>;
   logout: () => void;
   updateUser: (data: Partial<User>) => Promise<void>;
+  refreshAuth: () => Promise<User | null>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -32,21 +32,28 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  const refreshAuth = useCallback(async () => {
+    try {
+      const response = await authAPI.getProfile();
+      const authenticatedUser = response.data.data as User;
+      setUser(authenticatedUser);
+      return authenticatedUser;
+    } catch {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      setUser(null);
+      return null;
+    }
+  }, []);
+
   useEffect(() => {
     const initAuth = async () => {
-      try {
-        const response = await authAPI.getProfile();
-        setUser(response.data.data);
-      } catch {
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-        setUser(null);
-      }
+      await refreshAuth();
       setIsLoading(false);
     };
 
     initAuth();
-  }, []);
+  }, [refreshAuth]);
 
   const login = async (credentials: LoginCredentials) => {
     try {
@@ -59,17 +66,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       clearGuestCartId();
     } catch (error: unknown) {
       throw new Error(getApiErrorMessage(error, 'Login failed'));
-    }
-  };
-
-  const adminLogin = async (credentials: LoginCredentials) => {
-    try {
-      const response = await authAPI.adminLogin(credentials.email, credentials.password);
-      const { data } = response.data;
-
-      setUser(data);
-    } catch (error: unknown) {
-      throw new Error(getApiErrorMessage(error, 'Admin login failed'));
     }
   };
 
@@ -110,10 +106,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     isAuthenticated: !!user,
     isLoading,
     login,
-    adminLogin,
     register,
     logout,
     updateUser,
+    refreshAuth,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

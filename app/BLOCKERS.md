@@ -10,10 +10,10 @@
 ## Scope not completed in this pass
 
 - The full requirements describe a complete production e-commerce rebuild. This pass establishes the backend foundation and fixes known frontend import/type blockers, but it does not complete all commerce modules.
-- The old Mongo/Mongoose backend files are still present under `backend/controllers`, `backend/models`, `backend/routes`, and `backend/middleware`. They are isolated from the new TypeScript entrypoint but should be removed after endpoint parity is implemented.
+- The old Mongo/Mongoose backend has been removed; the Fastify/Prisma service is the only backend implementation.
 - Frontend pages still depend on `src/data/products.ts` and local mock state in production paths.
-- Authentication now has minimal database-backed login/register/profile endpoints, but it still stores bearer token/user data in `localStorage`; cookie-backed refresh-token auth is not implemented yet.
-- `npm.cmd run lint` from the root still fails on 52 frontend issues, including Fast Refresh export structure, `setState` inside effects, remaining `any` usage, and `Math.random()` in `src/components/ui/sidebar.tsx`.
+- Authentication uses separate HttpOnly customer/admin access cookies. Refresh-token issuance and rotation are not implemented yet.
+- Frontend and backend lint pass at the Phase 1 auth checkpoint.
 - Prisma migrations now apply locally. The first migration only creates the required `citext` extension; the second generated migration creates the application tables and indexes.
 
 ## Services required for final verification

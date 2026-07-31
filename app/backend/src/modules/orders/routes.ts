@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { prisma } from '../../db/prisma.js';
 import { fail, ok } from '../../utils/responses.js';
-import { getAuthenticatedUser, getGuestId, requireAdminUser, requireAuthenticatedUser } from '../auth/session.js';
+import { authenticateAdmin, authenticateCustomer, getAuthenticatedUser, getGuestId } from '../auth/session.js';
 
 const orderInclude = {
   items: true,
@@ -268,12 +268,9 @@ export const orderRoutes: FastifyPluginAsync = async (app) => {
     return ok(reply.status(201), mapOrder(order));
   });
 
-  app.get('/my-orders', async (request, reply) => {
-    const user = await requireAuthenticatedUser(request, reply);
-    if (!user) return;
-
+  app.get('/my-orders', { preHandler: authenticateCustomer }, async (request, reply) => {
     const orders = await prisma.order.findMany({
-      where: { userId: user.id },
+      where: { userId: request.authUser!.id },
       include: orderInclude,
       orderBy: { createdAt: 'desc' },
     });
@@ -281,45 +278,8 @@ export const orderRoutes: FastifyPluginAsync = async (app) => {
     return ok(reply, orders.map(mapOrder));
   });
 
-  app.get('/stats/overview', async (request, reply) => {
-    const admin = await requireAdminUser(request, reply);
-    if (!admin) return;
-
-    const [orders, revenue] = await Promise.all([
-      prisma.order.count(),
-      prisma.order.aggregate({ _sum: { totalAmount: true } }),
-    ]);
-
-    return ok(reply, {
-      orders,
-      revenue: revenue._sum.totalAmount ?? 0,
-    });
-  });
-
-  app.get('/', async (request, reply) => {
-    const admin = await requireAdminUser(request, reply);
-    if (!admin) return;
-
-    const orders = await prisma.order.findMany({
-      include: orderInclude,
-      orderBy: { createdAt: 'desc' },
-      take: 100,
-    });
-
-    return ok(reply, orders.map(mapOrder));
-  });
-
-  app.get('/:id', async (request, reply) => {
+  app.get('/:id', { preHandler: authenticateCustomer }, async (request, reply) => {
     const params = z.object({ id: z.string().uuid() }).parse(request.params);
-    const user = await getAuthenticatedUser(request);
-
-    if (!user) {
-      return fail(reply, 401, {
-        code: 'UNAUTHENTICATED',
-        message: 'Authentication required',
-      });
-    }
-
     const order = await prisma.order.findUnique({
       where: { id: params.id },
       include: orderInclude,
@@ -332,16 +292,7 @@ export const orderRoutes: FastifyPluginAsync = async (app) => {
       });
     }
 
-    const isAdmin = user.role === 'ADMIN' || user.role === 'SUPER_ADMIN';
-
-    if (order.userId && order.userId !== user.id && !isAdmin) {
-      return fail(reply, 403, {
-        code: 'ORDER_FORBIDDEN',
-        message: 'You cannot access this order',
-      });
-    }
-
-    if (!order.userId && !isAdmin) {
+    if (order.userId !== request.authUser!.id) {
       return fail(reply, 403, {
         code: 'ORDER_FORBIDDEN',
         message: 'You cannot access this order',
@@ -350,11 +301,51 @@ export const orderRoutes: FastifyPluginAsync = async (app) => {
 
     return ok(reply, mapOrder(order));
   });
+};
+
+export const adminOrderRoutes: FastifyPluginAsync = async (app) => {
+  app.addHook('preHandler', authenticateAdmin);
+
+  app.get('/stats/overview', async (_request, reply) => {
+    const [orders, revenue] = await Promise.all([
+      prisma.order.count(),
+      prisma.order.aggregate({ _sum: { totalAmount: true } }),
+    ]);
+
+    return ok(reply, {
+      orders,
+      revenue: revenue._sum.totalAmount ?? 0,
+    });
+  });
+
+  app.get('/', async (_request, reply) => {
+    const orders = await prisma.order.findMany({
+      include: orderInclude,
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    });
+
+    return ok(reply, orders.map(mapOrder));
+  });
+
+  app.get('/:id', async (request, reply) => {
+    const params = z.object({ id: z.string().uuid() }).parse(request.params);
+    const order = await prisma.order.findUnique({
+      where: { id: params.id },
+      include: orderInclude,
+    });
+
+    if (!order) {
+      return fail(reply, 404, {
+        code: 'ORDER_NOT_FOUND',
+        message: 'Order not found',
+      });
+    }
+
+    return ok(reply, mapOrder(order));
+  });
 
   app.put('/:id/status', async (request, reply) => {
-    const admin = await requireAdminUser(request, reply);
-    if (!admin) return;
-
     const params = z.object({ id: z.string().uuid() }).parse(request.params);
     const body = z
       .object({

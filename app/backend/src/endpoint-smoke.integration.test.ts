@@ -303,10 +303,25 @@ describe('endpoint smoke suite', () => {
     expect(customer.email).toBe(customerEmail);
     expect(customer.isAdmin).toBe(false);
     const customerCookie = extractCookieHeader(customerLoginResponse.headers['set-cookie']);
+    expect(String(customerLoginResponse.headers['set-cookie'])).toContain('accessToken=');
+    expect(String(customerLoginResponse.headers['set-cookie'])).toContain('Path=/api');
+
+    expectError(
+      await app.inject({
+        method: 'POST',
+        url: '/api/auth/login',
+        payload: {
+          email: adminEmail,
+          password: adminPassword,
+        },
+      }),
+      403,
+      'ADMIN_LOGIN_REQUIRED',
+    );
 
     const adminLoginResponse = await app.inject({
       method: 'POST',
-      url: '/api/auth/admin/login',
+      url: '/api/admin/auth/login',
       payload: {
         email: adminEmail,
         password: adminPassword,
@@ -315,6 +330,27 @@ describe('endpoint smoke suite', () => {
     const admin = parseSuccess<UserResponse>(adminLoginResponse);
     expect(admin.isAdmin).toBe(true);
     const adminCookie = extractCookieHeader(adminLoginResponse.headers['set-cookie']);
+    expect(String(adminLoginResponse.headers['set-cookie'])).toContain('adminAccessToken=');
+    expect(String(adminLoginResponse.headers['set-cookie'])).toContain('Path=/api/admin');
+    const coexistingCookies = `${customerCookie}; ${adminCookie}`;
+
+    const coexistingCustomer = parseSuccess<UserResponse>(
+      await app.inject({
+        method: 'GET',
+        url: '/api/auth/profile',
+        headers: { cookie: coexistingCookies },
+      }),
+    );
+    expect(coexistingCustomer.email).toBe(customerEmail);
+
+    const coexistingAdmin = parseSuccess<UserResponse>(
+      await app.inject({
+        method: 'GET',
+        url: '/api/admin/auth/profile',
+        headers: { cookie: coexistingCookies },
+      }),
+    );
+    expect(coexistingAdmin.email).toBe(adminEmail);
 
     parseSuccess<UserResponse>(
       await app.inject({
@@ -345,14 +381,14 @@ describe('endpoint smoke suite', () => {
     expectError(
       await app.inject({
         method: 'POST',
-        url: '/api/auth/admin/login',
+        url: '/api/admin/auth/login',
         payload: {
           email: customerEmail,
           password: changedCustomerPassword,
         },
       }),
-      403,
-      'ADMIN_REQUIRED',
+      401,
+      'INVALID_CREDENTIALS',
     );
 
     const productList = parseSuccess<ProductResponse[]>(
@@ -498,7 +534,7 @@ describe('endpoint smoke suite', () => {
     expectError(
       await app.inject({
         method: 'POST',
-        url: '/api/products',
+        url: '/api/admin/products',
         payload: adminProductPayload,
       }),
       401,
@@ -507,7 +543,7 @@ describe('endpoint smoke suite', () => {
     expectError(
       await app.inject({
         method: 'POST',
-        url: '/api/products',
+        url: '/api/admin/products',
         headers: { cookie: customerCookie },
         payload: adminProductPayload,
       }),
@@ -517,7 +553,7 @@ describe('endpoint smoke suite', () => {
     const createdProduct = parseSuccess<ProductResponse>(
       await app.inject({
         method: 'POST',
-        url: '/api/products',
+        url: '/api/admin/products',
         headers: { cookie: adminCookie },
         payload: adminProductPayload,
       }),
@@ -527,7 +563,7 @@ describe('endpoint smoke suite', () => {
 
     const corsResponse = await app.inject({
       method: 'OPTIONS',
-      url: `/api/products/${createdProduct.id}`,
+      url: `/api/admin/products/${createdProduct.id}`,
       headers: {
         origin: 'http://localhost:5173',
         'access-control-request-method': 'PUT',
@@ -543,7 +579,7 @@ describe('endpoint smoke suite', () => {
     const updatedProduct = parseSuccess<ProductResponse>(
       await app.inject({
         method: 'PUT',
-        url: `/api/products/${createdProduct.id}`,
+        url: `/api/admin/products/${createdProduct.id}`,
         headers: { cookie: adminCookie },
         payload: {
           price: 119_000,
@@ -557,7 +593,7 @@ describe('endpoint smoke suite', () => {
     parseSuccess<{ deleted: boolean }>(
       await app.inject({
         method: 'DELETE',
-        url: `/api/products/${createdProduct.id}`,
+        url: `/api/admin/products/${createdProduct.id}`,
         headers: { cookie: adminCookie },
       }),
     );
@@ -693,7 +729,7 @@ describe('endpoint smoke suite', () => {
     parseSuccess<OrderResponse>(
       await app.inject({
         method: 'GET',
-        url: `/api/orders/${order.id}`,
+        url: `/api/admin/orders/${order.id}`,
         headers: { cookie: adminCookie },
       }),
     );
@@ -707,21 +743,21 @@ describe('endpoint smoke suite', () => {
     parseSuccess<OrderResponse[]>(
       await app.inject({
         method: 'GET',
-        url: '/api/orders',
+        url: '/api/admin/orders',
         headers: { cookie: adminCookie },
       }),
     );
     parseSuccess<{ orders: number; revenue: number }>(
       await app.inject({
         method: 'GET',
-        url: '/api/orders/stats/overview',
+        url: '/api/admin/orders/stats/overview',
         headers: { cookie: adminCookie },
       }),
     );
     const statusUpdate = parseSuccess<OrderResponse>(
       await app.inject({
         method: 'PUT',
-        url: `/api/orders/${order.id}/status`,
+        url: `/api/admin/orders/${order.id}/status`,
         headers: { cookie: adminCookie },
         payload: {
           status: 'CONFIRMED',
@@ -736,12 +772,29 @@ describe('endpoint smoke suite', () => {
     });
     expect(lockedVariant.stockQuantity).toBe(9);
 
-    parseSuccess<{ loggedOut: boolean }>(
+    const customerLogoutResponse = await app.inject({
+      method: 'POST',
+      url: '/api/auth/logout',
+      headers: { cookie: coexistingCookies },
+    });
+    parseSuccess<{ loggedOut: boolean }>(customerLogoutResponse);
+    expect(String(customerLogoutResponse.headers['set-cookie'])).toContain('accessToken=');
+    expect(String(customerLogoutResponse.headers['set-cookie'])).not.toContain('adminAccessToken=');
+
+    parseSuccess<UserResponse>(
       await app.inject({
-        method: 'POST',
-        url: '/api/auth/logout',
-        headers: { cookie: customerCookie },
+        method: 'GET',
+        url: '/api/admin/auth/profile',
+        headers: { cookie: adminCookie },
       }),
     );
+
+    const adminLogoutResponse = await app.inject({
+      method: 'POST',
+      url: '/api/admin/auth/logout',
+      headers: { cookie: adminCookie },
+    });
+    parseSuccess<{ loggedOut: boolean }>(adminLogoutResponse);
+    expect(String(adminLogoutResponse.headers['set-cookie'])).toContain('adminAccessToken=');
   }, 60000);
 });

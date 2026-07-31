@@ -2,18 +2,18 @@ import { useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Lock, Mail, ShieldCheck } from 'lucide-react';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAdminAuth } from '../../contexts/AdminAuthContext';
 import { useToast } from '../../contexts/ToastContext';
 
 const AdminLogin = () => {
   const navigate = useNavigate();
-  const { user, isAuthenticated, adminLogin } = useAuth();
+  const { isAdminAuthenticated, adminLogin } = useAdminAuth();
   const { showToast } = useToast();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  if (isAuthenticated && user?.isAdmin) {
+  if (isAdminAuthenticated) {
     return <Navigate to="/admin/dashboard" replace />;
   }
 

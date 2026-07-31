@@ -10,10 +10,10 @@ import {
   ArrowLeft,
   BarChart3,
 } from 'lucide-react';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAdminAuth } from '../../contexts/AdminAuthContext';
 
 const AdminLayout = () => {
-  const { user, logout } = useAuth();
+  const { adminUser, adminLogout } = useAdminAuth();
   const navigate = useNavigate();
 
   const menuItems = [
@@ -25,7 +25,7 @@ const AdminLayout = () => {
   ];
 
   const handleLogout = () => {
-    logout();
+    adminLogout();
     navigate('/admin/login');
   };
 
@@ -46,7 +46,7 @@ const AdminLayout = () => {
             </div>
             <div className="flex items-center gap-4">
               <span className="text-sm text-gray-400">
-                Admin: {user?.firstName} {user?.lastName}
+                Admin: {adminUser?.firstName} {adminUser?.lastName}
               </span>
               <button
                 onClick={handleLogout}

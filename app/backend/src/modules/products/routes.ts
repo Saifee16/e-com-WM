@@ -3,7 +3,7 @@ import type { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { prisma } from '../../db/prisma.js';
 import { fail, ok } from '../../utils/responses.js';
-import { requireAdminUser } from '../auth/session.js';
+import { authenticateAdmin } from '../auth/session.js';
 
 const slugify = (value: string) =>
   value
@@ -254,11 +254,12 @@ export const productRoutes: FastifyPluginAsync = async (app) => {
 
     return ok(reply, mapProduct(product));
   });
+};
+
+export const adminProductRoutes: FastifyPluginAsync = async (app) => {
+  app.addHook('preHandler', authenticateAdmin);
 
   app.post('/', async (request, reply) => {
-    const admin = await requireAdminUser(request, reply);
-    if (!admin) return;
-
     const body = productPayloadSchema.parse(request.body);
     const brand = await getOrCreateBrand(body.brand);
     const category = await getOrCreateCategory(body.category);
@@ -305,7 +306,7 @@ export const productRoutes: FastifyPluginAsync = async (app) => {
 
     await prisma.auditLog.create({
       data: {
-        actorUserId: admin.id,
+        actorUserId: request.authUser!.id,
         action: 'CREATE',
         entityType: 'Product',
         entityId: product.id,
@@ -317,9 +318,6 @@ export const productRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.put('/:id', async (request, reply) => {
-    const admin = await requireAdminUser(request, reply);
-    if (!admin) return;
-
     const params = z.object({ id: z.string().uuid() }).parse(request.params);
     const body = productPayloadSchema.partial().parse(request.body);
     const existing = await prisma.product.findUnique({
@@ -385,7 +383,7 @@ export const productRoutes: FastifyPluginAsync = async (app) => {
 
     await prisma.auditLog.create({
       data: {
-        actorUserId: admin.id,
+        actorUserId: request.authUser!.id,
         action: 'UPDATE',
         entityType: 'Product',
         entityId: updated.id,
@@ -398,9 +396,6 @@ export const productRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.delete('/:id', async (request, reply) => {
-    const admin = await requireAdminUser(request, reply);
-    if (!admin) return;
-
     const params = z.object({ id: z.string().uuid() }).parse(request.params);
     const existing = await prisma.product.findUnique({
       where: { id: params.id },
@@ -422,7 +417,7 @@ export const productRoutes: FastifyPluginAsync = async (app) => {
 
     await prisma.auditLog.create({
       data: {
-        actorUserId: admin.id,
+        actorUserId: request.authUser!.id,
         action: 'DELETE',
         entityType: 'Product',
         entityId: updated.id,

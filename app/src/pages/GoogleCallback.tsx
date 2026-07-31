@@ -1,10 +1,14 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { authAPI, cartAPI, clearGuestCartId, GUEST_CART_ID_KEY } from '../services/api';
+import { adminAuthAPI, authAPI, cartAPI, clearGuestCartId, GUEST_CART_ID_KEY } from '../services/api';
+import { useAdminAuth } from '../contexts/AdminAuthContext';
+import { useAuth } from '../contexts/AuthContext';
 
 const GoogleCallback = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { refreshAuth } = useAuth();
+  const { refreshAdminAuth } = useAdminAuth();
   const [message, setMessage] = useState('Completing Google sign in...');
 
   useEffect(() => {
@@ -19,20 +23,25 @@ const GoogleCallback = () => {
       }
 
       try {
-        const response = await authAPI.googleCallback(code, mode);
-        const { data } = response.data;
-        if (mode === 'customer') {
-          await cartAPI.mergeGuestCart(guestId).catch(() => undefined);
-          clearGuestCartId();
+        if (mode === 'admin') {
+          await adminAuthAPI.googleCallback(code);
+          await refreshAdminAuth();
+          navigate('/admin/dashboard', { replace: true });
+          return;
         }
-        navigate(data.isAdmin ? '/admin/dashboard' : '/', { replace: true });
+
+        await authAPI.googleCallback(code);
+        await refreshAuth();
+        await cartAPI.mergeGuestCart(guestId).catch(() => undefined);
+        clearGuestCartId();
+        navigate('/', { replace: true });
       } catch {
         setMessage('Google sign in failed. Please try again.');
       }
     };
 
-    completeLogin();
-  }, [navigate, searchParams]);
+    void completeLogin();
+  }, [navigate, refreshAdminAuth, refreshAuth, searchParams]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">

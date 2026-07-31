@@ -69,5 +69,18 @@ Current implemented API:
 
 - `GET /api/health`
 - `GET /api/health/db`
+- Customer auth under `/api/auth`
+- Public catalogue under `/api/products`
+- Customer/guest carts under `/api/cart`
+- Customer/guest checkout under `/api/orders`
+- Admin auth and protected administration under `/api/admin`
 
-The Prisma schema models users, refresh tokens, products, variants, carts, promo codes, orders, order items, payments, shipments, reviews, wishlists, inventory movements, and audit logs. Auth, cart, checkout, payment webhook, account, and admin API modules still need to be implemented on top of this foundation.
+Customer and admin sessions are intentionally separate:
+
+- `accessToken` is scoped to `/api`.
+- `adminAccessToken` is scoped to `/api/admin`.
+- Tokens contain a signed audience and cannot be exchanged between realms.
+
+Local HTTP development uses `COOKIE_SECURE=false` and `COOKIE_SAME_SITE=lax`. Production must terminate HTTPS and set `COOKIE_SECURE=true`. Keep `lax` for a same-site frontend/API deployment; use `none` only for a genuinely cross-site deployment, together with `Secure=true` and an explicitly reviewed cookie domain.
+
+The Prisma schema models users, refresh tokens, products, variants, carts, promo codes, orders, order items, payments, shipments, reviews, wishlists, inventory movements, and audit logs.

@@ -1,5 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
+import { AdminAuthProvider, useAdminAuth } from './contexts/AdminAuthContext';
 import { CartProvider } from './contexts/CartContext';
 import { ToastProvider } from './contexts/ToastContext';
 import { useAuth } from './contexts/AuthContext';
@@ -40,8 +41,8 @@ import AdminLogin from './pages/admin/Login';
 import ContactMessages from './pages/admin/ContactMessages';
 
 // Protected Route Component
-const ProtectedRoute = ({ children, requireAdmin = false }: { children: React.ReactNode; requireAdmin?: boolean }) => {
-  const { isAuthenticated, user, isLoading } = useAuth();
+const CustomerProtectedRoute = ({ children }: { children: React.ReactNode }) => {
+  const { isAuthenticated, isLoading } = useAuth();
 
   if (isLoading) {
     return (
@@ -52,11 +53,25 @@ const ProtectedRoute = ({ children, requireAdmin = false }: { children: React.Re
   }
 
   if (!isAuthenticated) {
-    return <Navigate to={requireAdmin ? '/admin/login' : '/login'} replace />;
+    return <Navigate to="/login" replace />;
   }
 
-  if (requireAdmin && !user?.isAdmin) {
-    return <Navigate to="/" replace />;
+  return <>{children}</>;
+};
+
+const AdminProtectedRoute = ({ children }: { children: React.ReactNode }) => {
+  const { isAdminAuthenticated, isAdminLoading } = useAdminAuth();
+
+  if (isAdminLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  if (!isAdminAuthenticated) {
+    return <Navigate to="/admin/login" replace />;
   }
 
   return <>{children}</>;
@@ -85,9 +100,10 @@ function App() {
   return (
     <ToastProvider>
       <AuthProvider>
-        <CartProvider>
-          <Router>
-            <Routes>
+        <AdminAuthProvider>
+          <CartProvider>
+            <Router>
+              <Routes>
               {/* Public Routes */}
               <Route path="/" element={<MainLayout />}>
                 <Route index element={<Home />} />
@@ -126,9 +142,9 @@ function App() {
               <Route
                 path="/account"
                 element={
-                  <ProtectedRoute>
+                  <CustomerProtectedRoute>
                     <AccountLayout />
-                  </ProtectedRoute>
+                  </CustomerProtectedRoute>
                 }
               >
                 <Route index element={<Navigate to="/account/dashboard" replace />} />
@@ -149,9 +165,9 @@ function App() {
               <Route
                 path="/admin"
                 element={
-                  <ProtectedRoute requireAdmin>
+                  <AdminProtectedRoute>
                     <AdminLayout />
-                  </ProtectedRoute>
+                  </AdminProtectedRoute>
                 }
               >
                 <Route index element={<Navigate to="/admin/dashboard" replace />} />
@@ -177,9 +193,10 @@ function App() {
                   </div>
                 }
               />
-            </Routes>
-          </Router>
-        </CartProvider>
+              </Routes>
+            </Router>
+          </CartProvider>
+        </AdminAuthProvider>
       </AuthProvider>
     </ToastProvider>
   );

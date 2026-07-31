@@ -43,7 +43,7 @@ const Login = () => {
 
   const handleGoogleLogin = async () => {
     try {
-      const response = await authAPI.googleStart('customer');
+      const response = await authAPI.googleStart();
       window.location.href = response.data.data.authUrl;
     } catch (error: unknown) {
       showToast(getApiErrorMessage(error, 'Google login is not configured'), 'error');

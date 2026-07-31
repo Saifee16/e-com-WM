@@ -2,10 +2,13 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import { z } from 'zod';
 import { env } from '../../config/env.js';
 
+export type AuthRealm = 'customer' | 'admin';
+
 interface AccessTokenPayload {
   sub: string;
   email: string;
   role: string;
+  aud: AuthRealm;
   exp: number;
 }
 
@@ -19,6 +22,7 @@ const accessTokenPayloadSchema = z.object({
   sub: z.string().uuid(),
   email: z.string().email(),
   role: z.string(),
+  aud: z.enum(['customer', 'admin']),
   exp: z.number().int().positive(),
 });
 
@@ -30,7 +34,7 @@ export const createAccessToken = (payload: Omit<AccessTokenPayload, 'exp'>) => {
   return `${encodedPayload}.${signature}`;
 };
 
-export const verifyAccessToken = (token: string): AccessTokenPayload | null => {
+export const verifyAccessToken = (token: string, expectedRealm: AuthRealm): AccessTokenPayload | null => {
   try {
     const [encodedPayload, signature, extra] = token.split('.');
 
@@ -48,7 +52,7 @@ export const verifyAccessToken = (token: string): AccessTokenPayload | null => {
 
     const parsed = accessTokenPayloadSchema.parse(JSON.parse(Buffer.from(encodedPayload, 'base64url').toString('utf8')));
 
-    if (parsed.exp < Math.floor(Date.now() / 1000)) {
+    if (parsed.exp < Math.floor(Date.now() / 1000) || parsed.aud !== expectedRealm) {
       return null;
     }
 

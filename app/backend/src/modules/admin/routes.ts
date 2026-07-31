@@ -2,7 +2,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '../../db/prisma.js';
 import { ok } from '../../utils/responses.js';
-import { requireAdminUser } from '../auth/session.js';
+import { authenticateAdmin } from '../auth/session.js';
 
 const mapContactMessage = (message: {
   id: string;
@@ -25,10 +25,9 @@ const mapContactMessage = (message: {
 });
 
 export const adminRoutes: FastifyPluginAsync = async (app) => {
-  app.get('/dashboard', async (request, reply) => {
-    const admin = await requireAdminUser(request, reply);
-    if (!admin) return;
+  app.addHook('preHandler', authenticateAdmin);
 
+  app.get('/dashboard', async (_request, reply) => {
     const [products, orders, users, contacts, revenue] = await Promise.all([
       prisma.product.count({ where: { status: { not: 'ARCHIVED' } } }),
       prisma.order.count(),
@@ -47,9 +46,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.get('/contact-messages', async (request, reply) => {
-    const admin = await requireAdminUser(request, reply);
-    if (!admin) return;
-
     const query = z
       .object({
         status: z.enum(['NEW', 'REVIEWED', 'ARCHIVED']).optional(),
@@ -65,9 +61,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.patch('/contact-messages/:id', async (request, reply) => {
-    const admin = await requireAdminUser(request, reply);
-    if (!admin) return;
-
     const params = z.object({ id: z.string().uuid() }).parse(request.params);
     const body = z.object({ status: z.enum(['NEW', 'REVIEWED', 'ARCHIVED']) }).parse(request.body);
     const message = await prisma.contactMessage.update({
@@ -81,10 +74,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     return ok(reply, mapContactMessage(message));
   });
 
-  app.get('/sales-report', async (request, reply) => {
-    const admin = await requireAdminUser(request, reply);
-    if (!admin) return;
-
+  app.get('/sales-report', async (_request, reply) => {
     const orders = await prisma.order.findMany({
       orderBy: { createdAt: 'desc' },
       take: 30,
@@ -94,10 +84,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     return ok(reply, orders);
   });
 
-  app.get('/top-products', async (request, reply) => {
-    const admin = await requireAdminUser(request, reply);
-    if (!admin) return;
-
+  app.get('/top-products', async (_request, reply) => {
     const products = await prisma.product.findMany({
       where: { status: 'ACTIVE' },
       take: 10,
@@ -108,10 +95,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     return ok(reply, products);
   });
 
-  app.get('/top-customers', async (request, reply) => {
-    const admin = await requireAdminUser(request, reply);
-    if (!admin) return;
-
+  app.get('/top-customers', async (_request, reply) => {
     const customers = await prisma.user.findMany({
       where: { role: 'CUSTOMER', deletedAt: null },
       take: 10,
@@ -122,4 +106,3 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     return ok(reply, customers);
   });
 };
-

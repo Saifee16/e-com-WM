@@ -1,12 +1,24 @@
+import type { User } from '@prisma/client';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { prisma } from '../../db/prisma.js';
 import { fail } from '../../utils/responses.js';
-import { verifyAccessToken } from './tokens.js';
+import { verifyAccessToken, type AuthRealm } from './tokens.js';
 
 export const GUEST_CART_COOKIE = 'guestCartId';
+export const CUSTOMER_ACCESS_COOKIE = 'accessToken';
+export const ADMIN_ACCESS_COOKIE = 'adminAccessToken';
+export const CUSTOMER_COOKIE_PATH = '/api';
+export const ADMIN_COOKIE_PATH = '/api/admin';
 
-export const getBearerToken = (request: FastifyRequest) => {
-  const cookieToken = request.cookies.accessToken;
+declare module 'fastify' {
+  interface FastifyRequest {
+    authUser?: User;
+  }
+}
+
+const getAccessToken = (request: FastifyRequest, realm: AuthRealm) => {
+  const cookieName = realm === 'admin' ? ADMIN_ACCESS_COOKIE : CUSTOMER_ACCESS_COOKIE;
+  const cookieToken = request.cookies[cookieName];
   if (cookieToken) {
     return cookieToken;
   }
@@ -31,14 +43,14 @@ export const getGuestId = (request: FastifyRequest) => {
   return guestId?.trim() || null;
 };
 
-export const getAuthenticatedUser = async (request: FastifyRequest) => {
-  const token = getBearerToken(request);
+const getUserForRealm = async (request: FastifyRequest, realm: AuthRealm) => {
+  const token = getAccessToken(request, realm);
 
   if (!token) {
     return null;
   }
 
-  const payload = verifyAccessToken(token);
+  const payload = verifyAccessToken(token, realm);
 
   if (!payload) {
     return null;
@@ -53,36 +65,56 @@ export const getAuthenticatedUser = async (request: FastifyRequest) => {
   });
 };
 
-export const requireAuthenticatedUser = async (request: FastifyRequest, reply: FastifyReply) => {
+export const getAuthenticatedUser = (request: FastifyRequest) => getUserForRealm(request, 'customer');
+
+export const getAdminAuthenticatedUser = (request: FastifyRequest) => getUserForRealm(request, 'admin');
+
+export const authenticateCustomer = async (request: FastifyRequest, reply: FastifyReply) => {
   const user = await getAuthenticatedUser(request);
 
   if (!user) {
-    fail(reply, 401, {
+    return fail(reply, 401, {
       code: 'UNAUTHENTICATED',
       message: 'Authentication required',
     });
-    return null;
   }
 
-  return user;
+  if (user.role !== 'CUSTOMER') {
+    return fail(reply, 403, {
+      code: 'CUSTOMER_REQUIRED',
+      message: 'Customer access required',
+    });
+  }
+
+  request.authUser = user;
 };
 
-export const requireAdminUser = async (request: FastifyRequest, reply: FastifyReply) => {
-  const user = await requireAuthenticatedUser(request, reply);
+export const authenticateAdmin = async (request: FastifyRequest, reply: FastifyReply) => {
+  const user = await getAdminAuthenticatedUser(request);
 
   if (!user) {
-    return null;
+    const customer = await getAuthenticatedUser(request);
+    if (customer) {
+      return fail(reply, 403, {
+        code: 'ADMIN_REQUIRED',
+        message: 'Admin access required',
+      });
+    }
+
+    return fail(reply, 401, {
+      code: 'UNAUTHENTICATED',
+      message: 'Authentication required',
+    });
   }
 
   if (user.role !== 'ADMIN' && user.role !== 'SUPER_ADMIN') {
-    fail(reply, 403, {
+    return fail(reply, 403, {
       code: 'ADMIN_REQUIRED',
       message: 'Admin access required',
     });
-    return null;
   }
 
-  return user;
+  request.authUser = user;
 };
 
 export const toSafeUser = (user: {

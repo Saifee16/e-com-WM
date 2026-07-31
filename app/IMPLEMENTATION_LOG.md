@@ -76,8 +76,21 @@
 
 ## Known limitations
 
-- Full auth, cart, checkout, payment webhook, account, and admin mutation modules are not yet implemented.
+- Refresh-token rotation, password reset, and payment webhook modules are not yet implemented.
 - Frontend is not yet fully API-backed and still uses mock/static production paths in several pages.
 - Local verification requires a clean dependency install and Node version compatible with Vite 7 (`^20.19.0` or `>=22.12.0`).
 - Migrations now exist, but there are two initial migrations: `000001_init` creates the PostgreSQL `citext` extension, and `20260630230827_init` contains the generated table/index schema.
 - After Docker became available, the first Compose run hit a host Redis `6379` collision. Local Docker host ports were moved to PostgreSQL `15432` and Redis `16379`.
+
+## Phase 5 - Auth realm separation
+
+- Customer login is restricted to `CUSTOMER` accounts and returns `403 ADMIN_LOGIN_REQUIRED` for administrator accounts.
+- Admin login moved to `/api/admin/auth/login` and its Prisma query is scoped to `ADMIN`/`SUPER_ADMIN`.
+- Customer and admin access tokens use separate signed audiences and separate HttpOnly cookies:
+  - `accessToken`, path `/api`
+  - `adminAccessToken`, path `/api/admin`
+- Added separate frontend customer/admin auth contexts and Axios clients so both sessions can coexist.
+- Moved product mutations and admin order operations under `/api/admin`.
+- Replaced inline authorization calls with Fastify route/plugin `preHandler` hooks.
+- Removed the inactive Express/Mongo backend and its fallback JWT secret.
+- Added focused auth-realm tests covering 401, 403, query-level role scoping, and simultaneous sessions.
