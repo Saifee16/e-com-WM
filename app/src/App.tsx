@@ -25,6 +25,9 @@ import Support from './pages/Support';
 import Compare from './pages/Compare';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
+import TermsOfService from './pages/TermsOfService';
+import PrivacyPolicy from './pages/PrivacyPolicy';
+import ReturnsPolicy from './pages/ReturnsPolicy';
 
 // Account Pages
 import Dashboard from './pages/account/Dashboard';
@@ -117,6 +120,10 @@ function App() {
                 <Route path="about" element={<About />} />
                 <Route path="services" element={<Services />} />
                 <Route path="support" element={<Support />} />
+                <Route path="help" element={<Navigate to="/support#faqs" replace />} />
+                <Route path="terms" element={<TermsOfService />} />
+                <Route path="privacy" element={<PrivacyPolicy />} />
+                <Route path="returns" element={<ReturnsPolicy />} />
                 <Route path="compare" element={<Compare />} />
               </Route>
 

@@ -9,6 +9,7 @@ import {
 } from './session.js';
 import { createAccessToken, type AuthRealm } from './tokens.js';
 import { clearRefreshCookie, issueRefreshToken } from './refresh.js';
+import { CSRF_COOKIE, issueCsrfToken } from '../../plugins/csrf.js';
 
 interface SessionUser {
   id: string;
@@ -53,6 +54,7 @@ export const issueAuthSession = async (
   realm: AuthRealm,
 ) => {
   issueAccessToken(user, reply, realm);
+  if (!request.cookies[CSRF_COOKIE]) issueCsrfToken(reply);
   await issueRefreshToken(user, request, reply, realm);
   return {
     success: true,

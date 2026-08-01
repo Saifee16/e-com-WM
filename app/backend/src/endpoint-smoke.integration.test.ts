@@ -116,6 +116,12 @@ const extractCookieHeader = (setCookieHeader: string | string[] | number | undef
   return cookies.join('; ');
 };
 
+const csrfHeaders = (cookie: string) => {
+  const csrfCookie = cookie.split('; ').find((part) => part.startsWith('csrfToken='));
+  expect(csrfCookie).toBeDefined();
+  return { cookie, 'x-csrf-token': csrfCookie!.slice('csrfToken='.length) };
+};
+
 const checkoutPayload = (email: string) => ({
   shippingInfo: {
     firstName: 'Smoke',
@@ -385,7 +391,7 @@ describe('endpoint smoke suite', () => {
       await app.inject({
         method: 'PUT',
         url: '/api/auth/profile',
-        headers: { cookie: customerCookie },
+        headers: csrfHeaders(customerCookie),
         payload: { phone: '+923009990000' },
       }),
     );
@@ -393,7 +399,7 @@ describe('endpoint smoke suite', () => {
       await app.inject({
         method: 'PUT',
         url: '/api/auth/password',
-        headers: { cookie: customerCookie },
+        headers: csrfHeaders(customerCookie),
         payload: {
           currentPassword: customerPassword,
           newPassword: changedCustomerPassword,
@@ -535,7 +541,7 @@ describe('endpoint smoke suite', () => {
       await app.inject({
         method: 'PATCH',
         url: `/api/admin/contact-messages/${contact.id}`,
-        headers: { cookie: adminCookie },
+        headers: csrfHeaders(adminCookie),
         payload: { status: 'IN_PROGRESS' },
       }),
     );
@@ -569,7 +575,7 @@ describe('endpoint smoke suite', () => {
       await app.inject({
         method: 'POST',
         url: '/api/admin/products',
-        headers: { cookie: customerCookie },
+        headers: csrfHeaders(customerCookie),
         payload: adminProductPayload,
       }),
       403,
@@ -579,7 +585,7 @@ describe('endpoint smoke suite', () => {
       await app.inject({
         method: 'POST',
         url: '/api/admin/products',
-        headers: { cookie: adminCookie },
+        headers: csrfHeaders(adminCookie),
         payload: adminProductPayload,
       }),
       201,
@@ -592,7 +598,7 @@ describe('endpoint smoke suite', () => {
       headers: {
         origin: 'http://localhost:5173',
         'access-control-request-method': 'PUT',
-        'access-control-request-headers': 'content-type,x-guest-id',
+        'access-control-request-headers': 'content-type,x-csrf-token,x-guest-id',
       },
     });
     expect(corsResponse.statusCode).toBe(204);
@@ -600,12 +606,13 @@ describe('endpoint smoke suite', () => {
     expect(corsResponse.headers['access-control-allow-credentials']).toBe('true');
     expect(String(corsResponse.headers['access-control-allow-methods']).toUpperCase()).toContain('PUT');
     expect(String(corsResponse.headers['access-control-allow-headers']).toLowerCase()).toContain('content-type');
+    expect(String(corsResponse.headers['access-control-allow-headers']).toLowerCase()).toContain('x-csrf-token');
 
     const updatedProduct = parseSuccess<ProductResponse>(
       await app.inject({
         method: 'PUT',
         url: `/api/admin/products/${createdProduct.id}`,
-        headers: { cookie: adminCookie },
+        headers: csrfHeaders(adminCookie),
         payload: {
           price: 119_000,
           countInStock: 8,
@@ -619,7 +626,7 @@ describe('endpoint smoke suite', () => {
       await app.inject({
         method: 'DELETE',
         url: `/api/admin/products/${createdProduct.id}`,
-        headers: { cookie: adminCookie },
+        headers: csrfHeaders(adminCookie),
       }),
     );
     expectError(
@@ -698,7 +705,7 @@ describe('endpoint smoke suite', () => {
       await app.inject({
         method: 'POST',
         url: '/api/cart/merge',
-        headers: { cookie: customerCookie },
+        headers: csrfHeaders(customerCookie),
         payload: { guestId: mergeGuestId },
       }),
     );
@@ -783,7 +790,7 @@ describe('endpoint smoke suite', () => {
       await app.inject({
         method: 'PUT',
         url: `/api/admin/orders/${order.id}/status`,
-        headers: { cookie: adminCookie },
+        headers: csrfHeaders(adminCookie),
         payload: {
           status: 'CONFIRMED',
           note: 'Smoke test confirmed',
@@ -808,7 +815,7 @@ describe('endpoint smoke suite', () => {
     const customerLogoutResponse = await app.inject({
       method: 'POST',
       url: '/api/auth/logout',
-      headers: { cookie: coexistingCookies },
+      headers: csrfHeaders(coexistingCookies),
     });
     parseSuccess<{ loggedOut: boolean }>(customerLogoutResponse);
     expect(String(customerLogoutResponse.headers['set-cookie'])).toContain('accessToken=');
@@ -825,7 +832,7 @@ describe('endpoint smoke suite', () => {
     const adminLogoutResponse = await app.inject({
       method: 'POST',
       url: '/api/admin/auth/logout',
-      headers: { cookie: adminCookie },
+      headers: csrfHeaders(adminCookie),
     });
     parseSuccess<{ loggedOut: boolean }>(adminLogoutResponse);
     expect(String(adminLogoutResponse.headers['set-cookie'])).toContain('adminAccessToken=');

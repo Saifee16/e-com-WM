@@ -17,6 +17,7 @@ import { addressRoutes, wishlistRoutes } from './modules/customer-routes.js';
 import { adminOrderRoutes, orderRoutes } from './modules/orders/routes.js';
 import { adminProductRoutes, productRoutes } from './modules/products/routes.js';
 import { requestIdPlugin } from './plugins/request-id.js';
+import { csrfPreHandler } from './plugins/csrf.js';
 import { fail } from './utils/responses.js';
 
 export const buildApp = async () => {
@@ -47,7 +48,7 @@ export const buildApp = async () => {
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Authorization', 'Content-Type', 'X-Guest-Id'],
+    allowedHeaders: ['Authorization', 'Content-Type', 'X-CSRF-Token', 'X-Guest-Id'],
     exposedHeaders: ['Set-Cookie'],
     optionsSuccessStatus: 204,
   });
@@ -55,6 +56,7 @@ export const buildApp = async () => {
     max: env.RATE_LIMIT_GLOBAL_MAX,
     timeWindow: `${env.RATE_LIMIT_GLOBAL_WINDOW_SECONDS} seconds`,
   });
+  app.addHook('preHandler', csrfPreHandler);
   await app.register(swagger, {
     openapi: {
       info: {
@@ -83,21 +85,11 @@ export const buildApp = async () => {
     }
   });
 
-  await app.register(healthRoutes, { prefix: '/api' });
-  await app.register(authRoutes, { prefix: '/api/auth' });
-  await app.register(productRoutes, { prefix: '/api/products' });
-  await app.register(cartRoutes, { prefix: '/api/cart' });
-  await app.register(orderRoutes, { prefix: '/api/orders' });
-  await app.register(adminAuthRoutes, { prefix: '/api/admin/auth' });
-  await app.register(adminRoutes, { prefix: '/api/admin' });
-  await app.register(adminProductRoutes, { prefix: '/api/admin/products' });
-  await app.register(adminOrderRoutes, { prefix: '/api/admin/orders' });
-  await app.register(contactRoutes, { prefix: '/api/contact' });
-  await app.register(wishlistRoutes, { prefix: '/api/wishlist' });
-  await app.register(addressRoutes, { prefix: '/api/addresses' });
-
   app.setErrorHandler((error: unknown, _request, reply) => {
-    if (error instanceof ZodError) {
+    if (
+      error instanceof ZodError ||
+      (typeof error === 'object' && error !== null && 'issues' in error && Array.isArray(error.issues))
+    ) {
       return fail(reply, 400, {
         code: 'VALIDATION_ERROR',
         message: 'Validation failed',
@@ -121,6 +113,19 @@ export const buildApp = async () => {
       message,
     });
   });
+
+  await app.register(healthRoutes, { prefix: '/api' });
+  await app.register(authRoutes, { prefix: '/api/auth' });
+  await app.register(productRoutes, { prefix: '/api/products' });
+  await app.register(cartRoutes, { prefix: '/api/cart' });
+  await app.register(orderRoutes, { prefix: '/api/orders' });
+  await app.register(adminAuthRoutes, { prefix: '/api/admin/auth' });
+  await app.register(adminRoutes, { prefix: '/api/admin' });
+  await app.register(adminProductRoutes, { prefix: '/api/admin/products' });
+  await app.register(adminOrderRoutes, { prefix: '/api/admin/orders' });
+  await app.register(contactRoutes, { prefix: '/api/contact' });
+  await app.register(wishlistRoutes, { prefix: '/api/wishlist' });
+  await app.register(addressRoutes, { prefix: '/api/addresses' });
 
   app.setNotFoundHandler((_request, reply) => {
     return fail(reply, 404, {

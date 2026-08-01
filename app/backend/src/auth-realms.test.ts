@@ -30,6 +30,7 @@ vi.mock('./db/prisma.js', () => ({
 }));
 
 import { buildApp } from './app.js';
+import { env } from './config/env.js';
 
 const customerId = '11111111-1111-4111-8111-111111111111';
 const adminId = '22222222-2222-4222-8222-222222222222';
@@ -236,5 +237,84 @@ describe('customer and admin auth realms', () => {
       success: true,
       data: { email: admin.email, role: 'ADMIN' },
     });
+  });
+
+  it('rejects authenticated mutations and refreshes without the double-submit token', async () => {
+    const login = await app.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      payload: { email: customer.email, password: 'Customer123!' },
+    });
+    const accessCookie = extractCookie(login.headers['set-cookie'], 'accessToken');
+    const csrfCookie = extractCookie(login.headers['set-cookie'], 'csrfToken');
+    const csrfToken = csrfCookie.slice('csrfToken='.length);
+
+    const logoutWithoutToken = await app.inject({
+      method: 'POST',
+      url: '/api/auth/logout',
+      headers: { cookie: `${accessCookie}; ${csrfCookie}` },
+    });
+    expect(logoutWithoutToken.statusCode).toBe(403);
+    expect(logoutWithoutToken.json()).toMatchObject({ error: { code: 'CSRF_TOKEN_INVALID' } });
+
+    const refreshWithoutToken = await app.inject({
+      method: 'POST',
+      url: '/api/auth/refresh',
+      headers: { cookie: `refreshToken=not-a-real-token; ${csrfCookie}` },
+    });
+    expect(refreshWithoutToken.statusCode).toBe(403);
+    expect(refreshWithoutToken.json()).toMatchObject({ error: { code: 'CSRF_TOKEN_INVALID' } });
+
+    const refreshWithUnexpectedBody = await app.inject({
+      method: 'POST',
+      url: '/api/auth/refresh',
+      headers: { cookie: `refreshToken=not-a-real-token; ${csrfCookie}`, 'x-csrf-token': csrfToken },
+      payload: {},
+    });
+    expect(refreshWithUnexpectedBody.statusCode).toBe(400);
+
+    const logoutWithToken = await app.inject({
+      method: 'POST',
+      url: '/api/auth/logout',
+      headers: { cookie: `${accessCookie}; ${csrfCookie}`, 'x-csrf-token': csrfToken },
+    });
+    expect(logoutWithToken.statusCode).toBe(200);
+  });
+
+  it('rate limits customer and administrator login routes independently', async () => {
+    const throttledApp = await buildApp();
+    try {
+      for (let attempt = 0; attempt < env.RATE_LIMIT_LOGIN_MAX; attempt += 1) {
+        const response = await throttledApp.inject({
+          method: 'POST',
+          url: '/api/auth/login',
+          payload: { email: `missing-customer-${attempt}@example.com`, password: 'wrong' },
+        });
+        expect(response.statusCode).toBe(401);
+      }
+      const customerLimited = await throttledApp.inject({
+        method: 'POST',
+        url: '/api/auth/login',
+        payload: { email: 'missing-customer-final@example.com', password: 'wrong' },
+      });
+      expect(customerLimited.statusCode).toBe(429);
+
+      for (let attempt = 0; attempt < env.RATE_LIMIT_LOGIN_MAX; attempt += 1) {
+        const response = await throttledApp.inject({
+          method: 'POST',
+          url: '/api/admin/auth/login',
+          payload: { email: `missing-admin-${attempt}@example.com`, password: 'wrong' },
+        });
+        expect(response.statusCode).toBe(401);
+      }
+      const adminLimited = await throttledApp.inject({
+        method: 'POST',
+        url: '/api/admin/auth/login',
+        payload: { email: 'missing-admin-final@example.com', password: 'wrong' },
+      });
+      expect(adminLimited.statusCode).toBe(429);
+    } finally {
+      await throttledApp.close();
+    }
   });
 });

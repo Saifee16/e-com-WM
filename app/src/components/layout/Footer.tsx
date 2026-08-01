@@ -30,15 +30,17 @@ const Footer = () => {
     ],
     support: [
       { name: 'Contact Us', path: '/support#contact' },
-      { name: 'FAQs', path: '/support#faqs' },
+      { name: 'Support Tickets', path: '/account/support' },
+      { name: 'Help & FAQs', path: '/help' },
       { name: 'Shipping Info', path: '/services#shipping' },
-      { name: 'Returns', path: '/services#returns' },
+      { name: 'Returns & Refunds', path: '/returns' },
     ],
     company: [
       { name: 'About Us', path: '/about#about-us' },
       { name: 'Our Services', path: '/services#services' },
       { name: 'Careers', path: '/about#careers' },
-      { name: 'Privacy Policy', path: '/about#privacy-policy' },
+      { name: 'Terms of Service', path: '/terms' },
+      { name: 'Privacy Policy', path: '/privacy' },
     ],
   };
 

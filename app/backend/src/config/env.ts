@@ -22,6 +22,8 @@ const envSchema = z.object({
   COOKIE_SAME_SITE: z.enum(['lax', 'strict', 'none']).default('lax'),
   RATE_LIMIT_GLOBAL_MAX: z.coerce.number().int().positive().default(300),
   RATE_LIMIT_GLOBAL_WINDOW_SECONDS: z.coerce.number().int().positive().default(60),
+  RATE_LIMIT_LOGIN_MAX: z.coerce.number().int().positive().default(10),
+  RATE_LIMIT_LOGIN_WINDOW_SECONDS: z.coerce.number().int().positive().default(60),
   EMAIL_FROM: z.string().email().default('no-reply@example.com'),
   SMTP_HOST: z.string().trim().optional().transform((value) => value || undefined),
   SMTP_PORT: z.coerce.number().int().positive().optional(),
@@ -36,6 +38,15 @@ const envSchema = z.object({
   }
   if (value.SMTP_HOST && !value.SMTP_PORT) {
     context.addIssue({ code: 'custom', path: ['SMTP_PORT'], message: 'SMTP_PORT is required when SMTP_HOST is configured' });
+  }
+  if (value.RATE_LIMIT_LOGIN_MAX >= value.RATE_LIMIT_GLOBAL_MAX) {
+    context.addIssue({ code: 'custom', path: ['RATE_LIMIT_LOGIN_MAX'], message: 'RATE_LIMIT_LOGIN_MAX must be lower than RATE_LIMIT_GLOBAL_MAX' });
+  }
+  if (value.NODE_ENV === 'production' && !value.COOKIE_SECURE) {
+    context.addIssue({ code: 'custom', path: ['COOKIE_SECURE'], message: 'COOKIE_SECURE must be true in production' });
+  }
+  if (value.COOKIE_SAME_SITE === 'none' && !value.COOKIE_SECURE) {
+    context.addIssue({ code: 'custom', path: ['COOKIE_SECURE'], message: 'COOKIE_SECURE must be true when COOKIE_SAME_SITE is none' });
   }
 });
 

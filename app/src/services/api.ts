@@ -152,6 +152,21 @@ const adminApi: AxiosInstance = axios.create({
 type RetryableRequest = NonNullable<AxiosError['config']> & { _retry?: boolean };
 let customerRefresh: Promise<unknown> | null = null;
 let adminRefresh: Promise<unknown> | null = null;
+let csrfToken: string | null = null;
+let csrfTokenRequest: Promise<string> | null = null;
+
+const csrfMethods = new Set(['post', 'put', 'patch', 'delete']);
+
+const ensureCsrfToken = async () => {
+  if (csrfToken) return csrfToken;
+  csrfTokenRequest ??= api.get<ApiSuccess<{ csrfToken: string }>>('/auth/csrf')
+    .then((response) => {
+      csrfToken = response.data.data.csrfToken;
+      return csrfToken;
+    })
+    .finally(() => { csrfTokenRequest = null; });
+  return csrfTokenRequest;
+};
 
 const excludesRefresh = (url: string) =>
   ['/auth/login', '/auth/register', '/auth/refresh', '/auth/logout', '/auth/password-reset/'].some((path) =>
@@ -161,7 +176,10 @@ const excludesRefresh = (url: string) =>
 // Request interceptor keeps legacy localStorage guest carts working while
 // the hardened backend cookie remains the primary cart identity.
 api.interceptors.request.use(
-  (config) => {
+  async (config) => {
+    if (csrfMethods.has(config.method?.toLowerCase() ?? '') && config.url !== '/auth/csrf') {
+      config.headers['X-CSRF-Token'] = await ensureCsrfToken();
+    }
     const legacyGuestId = getGuestCartId();
     if (legacyGuestId && !config.url?.startsWith('/auth/')) {
       config.headers['X-Guest-Id'] = legacyGuestId;
@@ -211,6 +229,16 @@ adminApi.interceptors.response.use(
     }
     return Promise.reject(error);
   }
+);
+
+adminApi.interceptors.request.use(
+  async (config) => {
+    if (csrfMethods.has(config.method?.toLowerCase() ?? '')) {
+      config.headers['X-CSRF-Token'] = await ensureCsrfToken();
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
 );
 
 // Auth API

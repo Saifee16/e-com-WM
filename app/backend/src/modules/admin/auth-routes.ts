@@ -7,6 +7,7 @@ import { clearAuthSession, issueAccessToken, issueAuthSession } from '../auth/co
 import { exchangeGoogleUser, getGoogleAuthUrl } from '../auth/google.js';
 import { authenticateAdmin, toSafeUser } from '../auth/session.js';
 import { revokeRefreshFamily, rotateRefreshToken } from '../auth/refresh.js';
+import { env } from '../../config/env.js';
 
 const loginSchema = z.object({
   email: z.string().email().transform((value) => value.toLowerCase()),
@@ -16,9 +17,17 @@ const loginSchema = z.object({
 const googleCallbackSchema = z.object({
   code: z.string().min(1),
 });
+const emptyBodySchema = z.undefined();
 
 export const adminAuthRoutes: FastifyPluginAsync = async (app) => {
-  app.post('/login', async (request, reply) => {
+  app.post('/login', {
+    config: {
+      rateLimit: {
+        max: env.RATE_LIMIT_LOGIN_MAX,
+        timeWindow: `${env.RATE_LIMIT_LOGIN_WINDOW_SECONDS} seconds`,
+      },
+    },
+  }, async (request, reply) => {
     const body = loginSchema.parse(request.body);
     const user = await prisma.user.findFirst({
       where: {
@@ -81,6 +90,7 @@ export const adminAuthRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.post('/refresh', async (request, reply) => {
+    emptyBodySchema.parse(request.body);
     const user = await rotateRefreshToken(request, reply, 'admin');
     if (!user) {
       clearAuthSession(reply, 'admin');

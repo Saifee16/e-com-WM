@@ -10,6 +10,7 @@ import { exchangeGoogleUser, getGoogleAuthUrl } from './google.js';
 import { authenticateCustomer, toSafeUser } from './session.js';
 import { sendPasswordResetEmail } from './mailer.js';
 import { revokeRefreshFamily, rotateRefreshToken } from './refresh.js';
+import { issueCsrfToken } from '../../plugins/csrf.js';
 
 const loginSchema = z.object({
   email: z.string().email().transform((value) => value.toLowerCase()),
@@ -47,11 +48,23 @@ const passwordResetConsumeSchema = z.object({
   token: z.string().min(20),
   newPassword: z.string().min(8).max(200),
 });
+const emptyBodySchema = z.undefined();
 
 const hashOpaqueToken = (token: string) => createHash('sha256').update(token).digest('hex');
 
 export const authRoutes: FastifyPluginAsync = async (app) => {
-  app.post('/login', async (request, reply) => {
+  app.get('/csrf', async (_request, reply) => {
+    return ok(reply, { csrfToken: issueCsrfToken(reply) });
+  });
+
+  app.post('/login', {
+    config: {
+      rateLimit: {
+        max: env.RATE_LIMIT_LOGIN_MAX,
+        timeWindow: `${env.RATE_LIMIT_LOGIN_WINDOW_SECONDS} seconds`,
+      },
+    },
+  }, async (request, reply) => {
     const body = loginSchema.parse(request.body);
     const user = await prisma.user.findFirst({
       where: {
@@ -170,6 +183,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.post('/refresh', async (request, reply) => {
+    emptyBodySchema.parse(request.body);
     const user = await rotateRefreshToken(request, reply, 'customer');
     if (!user) {
       clearAuthSession(reply, 'customer');

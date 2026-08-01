@@ -278,7 +278,7 @@ const Support = () => {
               {isSubmitting ? 'Submitting...' : 'Submit Message'}
             </button>
           </form>
-          <form onSubmit={handleGuestReturn} className="mt-8 bg-white rounded-2xl shadow-sm border border-gray-200 p-8 space-y-5">
+          <form id="guest-return" onSubmit={handleGuestReturn} className="mt-8 bg-white rounded-2xl shadow-sm border border-gray-200 p-8 space-y-5 scroll-mt-24">
             <div><h2 className="text-xl font-bold text-gray-900">Guest order return</h2><p className="mt-1 text-sm text-gray-500">Use the order number and checkout email for a delivered guest order.</p></div>
             <div className="grid sm:grid-cols-2 gap-5"><input aria-label="Order number" required value={guestReturn.orderNumber} onChange={(event) => setGuestReturn({ ...guestReturn, orderNumber: event.target.value })} placeholder="Order number" className="px-4 py-3 border border-gray-200 rounded-xl" /><input aria-label="Order email" type="email" required value={guestReturn.email} onChange={(event) => setGuestReturn({ ...guestReturn, email: event.target.value })} placeholder="Checkout email" className="px-4 py-3 border border-gray-200 rounded-xl" /></div>
             <input aria-label="Return reason" required minLength={3} value={guestReturn.reason} onChange={(event) => setGuestReturn({ ...guestReturn, reason: event.target.value })} placeholder="Return reason" className="w-full px-4 py-3 border border-gray-200 rounded-xl" />
@@ -369,10 +369,10 @@ const Support = () => {
 
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {[
-              { icon: FileText, title: 'Terms of Service', link: '#' },
-              { icon: Shield, title: 'Privacy Policy', link: '/about#privacy-policy' },
+              { icon: FileText, title: 'Terms of Service', link: '/terms' },
+              { icon: Shield, title: 'Privacy Policy', link: '/privacy' },
               { icon: Truck, title: 'Shipping Info', link: '/services#shipping' },
-              { icon: RefreshCcw, title: 'Return Policy', link: '/services#returns' },
+              { icon: RefreshCcw, title: 'Return Policy', link: '/returns' },
             ].map((item, index) => (
               <motion.a
                 key={item.title}
