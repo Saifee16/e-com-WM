@@ -48,7 +48,7 @@ export const mapProduct = (product: ProductWithRelations) => {
       color: variant?.color ?? undefined,
     },
     condition: (variant?.condition ?? 'new') as 'new' | 'used' | 'refurbished',
-    ptaApproved: true,
+    ptaApproved: product.ptaApproved,
     countInStock: variant?.stockQuantity ?? 0,
     rating: Number(rating.toFixed(1)),
     numReviews: product.reviews.length,
@@ -100,6 +100,7 @@ const productPayloadSchema = z.object({
   color: z.string().trim().max(80).optional(),
   condition: z.enum(['new', 'used', 'refurbished']).default('new'),
   countInStock: z.coerce.number().int().nonnegative().default(0),
+  ptaApproved: z.coerce.boolean().default(true),
   isFeatured: z.coerce.boolean().default(false),
   status: z.enum(['DRAFT', 'ACTIVE', 'ARCHIVED']).default('ACTIVE'),
 });
@@ -353,6 +354,7 @@ export const adminProductRoutes: FastifyPluginAsync = async (app) => {
         shortDescription: body.description.slice(0, 140),
         status: body.status,
         isFeatured: body.isFeatured,
+        ptaApproved: body.ptaApproved,
         variants: {
           create: {
             sku: `${slug.toUpperCase()}-${Date.now()}`,
@@ -454,6 +456,7 @@ export const adminProductRoutes: FastifyPluginAsync = async (app) => {
           : {}),
         ...(body.status !== undefined ? { status: body.status } : {}),
         ...(body.isFeatured !== undefined ? { isFeatured: body.isFeatured } : {}),
+        ...(body.ptaApproved !== undefined ? { ptaApproved: body.ptaApproved } : {}),
       },
       include: productInclude,
     });

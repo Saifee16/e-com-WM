@@ -17,7 +17,7 @@ const envSchema = z.object({
   ACCESS_TOKEN_TTL_SECONDS: z.coerce.number().int().positive().default(900),
   REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().positive().default(30),
   PASSWORD_RESET_TOKEN_TTL_MINUTES: z.coerce.number().int().positive().default(30),
-  COOKIE_DOMAIN: z.string().default('localhost'),
+  COOKIE_DOMAIN: z.string().trim().optional().transform((value) => value || undefined),
   COOKIE_SECURE: stringBoolean.default(false),
   COOKIE_SAME_SITE: z.enum(['lax', 'strict', 'none']).default('lax'),
   RATE_LIMIT_GLOBAL_MAX: z.coerce.number().int().positive().default(300),
@@ -47,6 +47,13 @@ const envSchema = z.object({
   }
   if (value.COOKIE_SAME_SITE === 'none' && !value.COOKIE_SECURE) {
     context.addIssue({ code: 'custom', path: ['COOKIE_SECURE'], message: 'COOKIE_SECURE must be true when COOKIE_SAME_SITE is none' });
+  }
+  const frontendUrl = new URL(value.FRONTEND_URL);
+  const localHttpFrontend =
+    frontendUrl.protocol === 'http:' &&
+    ['localhost', '127.0.0.1', '::1'].includes(frontendUrl.hostname);
+  if (value.NODE_ENV === 'production' && frontendUrl.protocol !== 'https:' && !localHttpFrontend) {
+    context.addIssue({ code: 'custom', path: ['FRONTEND_URL'], message: 'FRONTEND_URL must use HTTPS in production' });
   }
 });
 

@@ -227,6 +227,7 @@ model Product {
   shortDescription String?          @map("short_description")
   status           ProductStatus    @default(DRAFT)
   isFeatured       Boolean          @default(false) @map("is_featured")
+  ptaApproved      Boolean          @default(true) @map("pta_approved")
   metaTitle        String?          @map("meta_title")
   metaDescription  String?          @map("meta_description")
   createdAt        DateTime         @default(now()) @map("created_at")

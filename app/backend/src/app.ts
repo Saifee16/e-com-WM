@@ -33,8 +33,7 @@ export const buildApp = async () => {
 
   const allowedOrigins = new Set([
     env.FRONTEND_URL,
-    'http://localhost:5173',
-    'http://127.0.0.1:5173',
+    ...(env.NODE_ENV === 'production' ? [] : ['http://localhost:5173', 'http://127.0.0.1:5173']),
   ]);
 
   await app.register(cors, {
@@ -85,7 +84,7 @@ export const buildApp = async () => {
     }
   });
 
-  app.setErrorHandler((error: unknown, _request, reply) => {
+  app.setErrorHandler((error: unknown, request, reply) => {
     if (
       error instanceof ZodError ||
       (typeof error === 'object' && error !== null && 'issues' in error && Array.isArray(error.issues))
@@ -107,6 +106,10 @@ export const buildApp = async () => {
         : 500;
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     const message = env.NODE_ENV === 'production' && statusCode >= 500 ? 'Internal server error' : errorMessage;
+
+    if (statusCode >= 500) {
+      request.log.error({ err: error }, 'unhandled request error');
+    }
 
     return fail(reply, statusCode, {
       code: statusCode >= 500 ? 'INTERNAL_SERVER_ERROR' : 'REQUEST_ERROR',

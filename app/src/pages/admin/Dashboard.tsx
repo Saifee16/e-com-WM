@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   AlertCircle,
@@ -153,6 +154,34 @@ const AdminDashboard = () => {
           </motion.div>
         ))}
       </div>
+
+      <section className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+        <div className="p-6 border-b flex items-center justify-between">
+          <div>
+            <h3 className="text-lg font-bold text-gray-900">Latest Customer Contacts</h3>
+            <p className="text-sm text-gray-500">Recent support and sales enquiries</p>
+          </div>
+          <Link to="/admin/contact" className="text-sm font-medium text-blue-600 hover:text-blue-700">View all</Link>
+        </div>
+        {dashboard.recentContacts.length === 0 ? (
+          <p className="p-6 text-center text-gray-500">No contact messages yet.</p>
+        ) : (
+          <div className="divide-y divide-gray-100">
+            {dashboard.recentContacts.map((contact) => (
+              <div key={contact.id} className="p-4 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-5">
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-gray-900">{contact.name} <span className="font-normal text-gray-500">• {contact.email}</span></p>
+                  <p className="text-sm text-gray-600 truncate">{contact.subject}</p>
+                </div>
+                <div className="flex items-center gap-3 text-sm text-gray-500">
+                  <span>{formatDate(contact.createdAt)}</span>
+                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${contact.status === 'RESOLVED' ? 'bg-green-100 text-green-700' : contact.status === 'IN_PROGRESS' ? 'bg-blue-100 text-blue-700' : 'bg-yellow-100 text-yellow-700'}`}>{contact.status.replace('_', ' ').toLowerCase()}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
 
       <div className="grid lg:grid-cols-2 gap-8">
         <motion.div

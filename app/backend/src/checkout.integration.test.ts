@@ -156,11 +156,11 @@ describe('checkout transaction routes', () => {
     expect(cartItem.quantity).toBe(3);
   }, 30000);
 
-  it('rejects checkout when a cart product is archived before the transaction commits', async () => {
+  it('requires customer authentication before checkout', async () => {
     const scope = testRunId();
     scopes.push(scope);
     const guestId = `guest-${scope}`;
-    const { product, variant } = await makeCatalogItem(scope, 5);
+    const { variant } = await makeCatalogItem(scope, 5);
     const cart = await prisma.cart.create({
       data: {
         guestId,
@@ -173,11 +173,6 @@ describe('checkout transaction routes', () => {
       },
     });
 
-    await prisma.product.update({
-      where: { id: product.id },
-      data: { status: 'ARCHIVED' },
-    });
-
     const response = await app.inject({
       method: 'POST',
       url: '/api/orders',
@@ -185,11 +180,11 @@ describe('checkout transaction routes', () => {
       payload: checkoutPayload(`guest-${scope}@example.com`),
     });
 
-    expect(response.statusCode).toBe(409);
+    expect(response.statusCode).toBe(401);
     expect(response.json()).toMatchObject({
       success: false,
       error: {
-        code: 'PRODUCT_NOT_AVAILABLE',
+        code: 'UNAUTHENTICATED',
       },
     });
 
@@ -200,7 +195,7 @@ describe('checkout transaction routes', () => {
     });
   }, 30000);
 
-  it('uses the HttpOnly guestCartId cookie for guest checkout without X-Guest-Id', async () => {
+  it('does not allow the guest-cart cookie to bypass checkout authentication', async () => {
     const scope = testRunId();
     scopes.push(scope);
     const guestId = `guest-${scope}`;
@@ -226,22 +221,17 @@ describe('checkout transaction routes', () => {
       payload: checkoutPayload(`guest-${scope}@example.com`),
     });
 
-    expect(response.statusCode).toBe(201);
+    expect(response.statusCode).toBe(401);
     expect(response.json()).toMatchObject({
-      success: true,
-      data: {
-        guestEmail: `guest-${scope}@example.com`,
-        items: [
-          {
-            quantity: 2,
-          },
-        ],
+      success: false,
+      error: {
+        code: 'UNAUTHENTICATED',
       },
     });
 
-    await expect(prisma.cartItem.count({ where: { cart: { guestId } } })).resolves.toBe(0);
+    await expect(prisma.cartItem.count({ where: { cart: { guestId } } })).resolves.toBe(1);
     await expect(prisma.productVariant.findUniqueOrThrow({ where: { id: variant.id } })).resolves.toMatchObject({
-      stockQuantity: 2,
+      stockQuantity: 4,
     });
   }, 30000);
 });

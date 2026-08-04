@@ -1,417 +1,198 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import {
   ArrowRight,
-  Shield,
-  Truck,
-  RotateCcw,
-  Star,
   ChevronLeft,
   ChevronRight,
+  RotateCcw,
+  Shield,
+  Smartphone,
+  Star,
+  Truck,
 } from 'lucide-react';
 import type { Product } from '../types';
-import { formatPrice } from '../utils/format';
 import { productsAPI } from '../services/api';
+import { formatPrice } from '../utils/format';
 
-// Hero Slider Data
-const heroSlides = [
-  {
-    id: 1,
-    title: 'iPhone 16 Pro Max',
-    subtitle: 'The Most Advanced iPhone Ever',
-    description: 'Experience the ultimate with A18 Pro chip, titanium design, and revolutionary camera system.',
-    image: 'https://images.unsplash.com/photo-1696446701796-da61225697cc?w=1200&q=80',
-    price: 599999,
-    originalPrice: 649999,
-    cta: 'Shop Now',
-    link: '/products?search=iPhone%2016%20Pro%20Max',
-  },
-  {
-    id: 2,
-    title: 'Samsung Galaxy S24 Ultra',
-    subtitle: 'Galaxy AI is Here',
-    description: 'The most powerful Galaxy with AI capabilities, S Pen, and 200MP camera.',
-    image: 'https://images.unsplash.com/photo-1610945265078-3858a0828671?w=1200&q=80',
-    price: 579999,
-    originalPrice: 629999,
-    cta: 'Discover More',
-    link: '/products?search=Samsung%20Galaxy%20S24%20Ultra',
-  },
-  {
-    id: 3,
-    title: 'Google Pixel 9 Pro XL',
-    subtitle: 'The Best of Google AI',
-    description: 'Advanced AI features meet stunning camera capabilities with the new Pixel.',
-    image: 'https://images.unsplash.com/photo-1598327105666-5b89351aff97?w=1200&q=80',
-    price: 349999,
-    originalPrice: 399999,
-    cta: 'Learn More',
-    link: '/products?search=Google%20Pixel',
-  },
-];
+type Brand = { name: string; count: number };
 
-// Features Data
 const features = [
-  {
-    icon: Shield,
-    title: 'PTA Approved',
-    description: 'All devices are 100% PTA approved with official warranty.',
-  },
-  {
-    icon: Truck,
-    title: 'Free Shipping',
-    description: 'Free delivery on all orders above Rs. 100,000.',
-  },
-  {
-    icon: RotateCcw,
-    title: '7-Day Returns',
-    description: 'Easy returns with no questions asked policy.',
-  },
-  {
-    icon: Star,
-    title: 'Best Prices',
-    description: 'Competitive prices guaranteed on all products.',
-  },
+  { icon: Shield, title: 'PTA Approved', description: 'Every eligible device is verified before it is listed.' },
+  { icon: Truck, title: 'Free Shipping', description: 'Free delivery on all orders above Rs. 100,000.' },
+  { icon: RotateCcw, title: '7-Day Returns', description: 'Start a return request directly from your account.' },
+  { icon: Star, title: 'Straightforward Prices', description: 'See the current price and any saving before checkout.' },
 ];
 
-// Brands Data
-const defaultBrands = [
-  { name: 'Apple', image: 'https://images.unsplash.com/photo-1611532736597-de2d4265fba3?w=400&q=80', count: 15 },
-  { name: 'Samsung', image: 'https://images.unsplash.com/photo-1610945265078-3858a0828671?w=400&q=80', count: 20 },
-  { name: 'Google', image: 'https://images.unsplash.com/photo-1598327105666-5b89351aff97?w=400&q=80', count: 8 },
-  { name: 'OnePlus', image: 'https://images.unsplash.com/photo-1660463974457-370df63a4a5e?w=400&q=80', count: 12 },
-  { name: 'Xiaomi', image: 'https://images.unsplash.com/photo-1592899677977-9c10ca588bbd?w=400&q=80', count: 18 },
-  { name: 'OPPO', image: 'https://images.unsplash.com/photo-1616348436168-de43ad0db179?w=400&q=80', count: 10 },
+const brandThemes = [
+  'from-blue-50 to-white border-blue-100 text-blue-800',
+  'from-sky-50 to-white border-sky-100 text-sky-800',
+  'from-indigo-50 to-white border-indigo-100 text-indigo-800',
+  'from-cyan-50 to-white border-cyan-100 text-cyan-800',
+  'from-violet-50 to-white border-violet-100 text-violet-800',
+  'from-slate-100 to-white border-slate-200 text-slate-800',
 ];
 
 const Home = () => {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [featuredProducts, setFeaturedProducts] = useState<Product[]>([]);
-  const [brands, setBrands] = useState(defaultBrands);
+  const [brands, setBrands] = useState<Brand[]>([]);
 
   useEffect(() => {
+    let active = true;
+
     const loadHomeData = async () => {
       try {
         const [featuredResponse, brandsResponse] = await Promise.all([
           productsAPI.getFeaturedProducts(),
           productsAPI.getBrands(),
         ]);
+
+        if (!active) return;
         setFeaturedProducts((featuredResponse.data.data as Product[]).slice(0, 6));
         setBrands(
-          brandsResponse.data.data.map((brand: { name: string; productCount: number }, index: number) => ({
+          brandsResponse.data.data.map((brand: { name: string; productCount: number }) => ({
             name: brand.name,
             count: brand.productCount,
-            image: defaultBrands[index % defaultBrands.length].image,
           })),
         );
       } catch {
-        setFeaturedProducts([]);
+        if (active) {
+          setFeaturedProducts([]);
+          setBrands([]);
+        }
       }
     };
 
-    loadHomeData();
+    void loadHomeData();
+    return () => { active = false; };
   }, []);
 
-  // Auto-slide
+  const heroProducts = useMemo(() => featuredProducts.slice(0, 3), [featuredProducts]);
+  const slideCount = Math.max(heroProducts.length, 1);
+  const activeProduct = heroProducts[currentSlide] ?? null;
+
   useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentSlide((prev) => (prev + 1) % heroSlides.length);
-    }, 6000);
-    return () => clearInterval(timer);
-  }, []);
+    setCurrentSlide((slide) => Math.min(slide, slideCount - 1));
+  }, [slideCount]);
 
-  const nextSlide = () => {
-    setCurrentSlide((prev) => (prev + 1) % heroSlides.length);
-  };
+  useEffect(() => {
+    if (heroProducts.length < 2) return undefined;
+    const timer = window.setInterval(() => {
+      setCurrentSlide((slide) => (slide + 1) % heroProducts.length);
+    }, 6500);
+    return () => window.clearInterval(timer);
+  }, [heroProducts.length]);
 
-  const prevSlide = () => {
-    setCurrentSlide((prev) => (prev - 1 + heroSlides.length) % heroSlides.length);
+  const moveSlide = (direction: 1 | -1) => {
+    setCurrentSlide((slide) => (slide + direction + slideCount) % slideCount);
   };
 
   return (
-    <div className="min-h-screen">
-      {/* Hero Section */}
-      <section className="relative h-[600px] lg:h-[700px] overflow-hidden">
-        {heroSlides.map((slide, index) => (
-          <motion.div
-            key={slide.id}
-            initial={{ opacity: 0 }}
-            animate={{
-              opacity: currentSlide === index ? 1 : 0,
-              scale: currentSlide === index ? 1 : 1.1,
-            }}
-            transition={{ duration: 0.8 }}
-            className={`absolute inset-0 ${currentSlide === index ? 'z-10' : 'z-0'}`}
-          >
-            {/* Background Image */}
-            <div
-              className="absolute inset-0 bg-cover bg-center"
-              style={{ backgroundImage: `url(${slide.image})` }}
+    <div className="min-h-[100dvh] bg-white">
+      <section className="relative isolate overflow-hidden bg-slate-950 text-white">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_76%_25%,rgba(37,99,235,0.35),transparent_32%),radial-gradient(circle_at_16%_82%,rgba(14,165,233,0.2),transparent_28%)]" />
+        <div className="relative mx-auto grid min-h-[540px] max-w-7xl items-center gap-10 px-4 py-14 sm:px-6 lg:min-h-[570px] lg:grid-cols-[1fr_0.9fr] lg:px-8">
+          <div className="max-w-xl">
+            <p className="mb-4 text-sm font-semibold text-blue-200">Wahab Mobiles</p>
+            <h1 className="max-w-[13ch] text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl">
+              {activeProduct?.name ?? 'Your next phone, sorted.'}
+            </h1>
+            <p className="mt-5 max-w-lg text-base leading-7 text-slate-300 sm:text-lg">
+              {activeProduct
+                ? `${activeProduct.brand} with clear pricing, product details, and a simple checkout.`
+                : 'Shop PTA-approved smartphones with clear pricing, product details, and a simple checkout.'}
+            </p>
+            <div className="mt-8 flex flex-wrap items-center gap-x-5 gap-y-3">
+              {activeProduct && <p className="text-2xl font-bold text-white">{formatPrice(activeProduct.price)}</p>}
+              {activeProduct?.originalPrice && activeProduct.originalPrice > activeProduct.price && (
+                <p className="text-sm text-slate-400 line-through">{formatPrice(activeProduct.originalPrice)}</p>
+              )}
+              {activeProduct?.ptaApproved && <span className="text-sm font-medium text-emerald-300">PTA approved</span>}
+            </div>
+            <Link
+              to={activeProduct ? `/products/${activeProduct._id}` : '/products'}
+              className="mt-8 inline-flex items-center gap-2 rounded-xl bg-blue-600 px-6 py-3.5 font-semibold text-white shadow-lg shadow-blue-950/30 transition-colors hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-slate-950"
             >
-              <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/50 to-transparent" />
+              {activeProduct ? 'View phone' : 'Browse products'}
+              <ArrowRight className="h-5 w-5" />
+            </Link>
+          </div>
+
+          <div className="relative mx-auto w-full max-w-md lg:max-w-none">
+            <div className="absolute inset-6 rounded-[2rem] bg-blue-500/20 blur-3xl" />
+            <div className="relative overflow-hidden rounded-[2rem] border border-white/15 bg-white/10 p-4 shadow-2xl backdrop-blur-sm sm:p-6">
+              <AnimatePresence mode="wait">
+                {activeProduct?.images[0] ? (
+                  <motion.img
+                    key={activeProduct._id}
+                    src={activeProduct.images[0]}
+                    alt={activeProduct.name}
+                    initial={{ opacity: 0, scale: 0.96 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 1.03 }}
+                    transition={{ duration: 0.28 }}
+                    className="aspect-[4/3] w-full rounded-[1.35rem] object-cover"
+                  />
+                ) : (
+                  <div className="flex aspect-[4/3] items-center justify-center rounded-[1.35rem] bg-gradient-to-br from-blue-500 to-indigo-700">
+                    <Smartphone className="h-24 w-24 text-white/80" aria-hidden="true" />
+                  </div>
+                )}
+              </AnimatePresence>
             </div>
+          </div>
+        </div>
 
-            {/* Content */}
-            <div className="relative z-10 h-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center">
-              <motion.div
-                initial={{ opacity: 0, x: -50 }}
-                animate={{
-                  opacity: currentSlide === index ? 1 : 0,
-                  x: currentSlide === index ? 0 : -50,
-                }}
-                transition={{ duration: 0.6, delay: 0.3 }}
-                className="max-w-xl text-white"
-              >
-                <span className="inline-block px-4 py-1.5 bg-blue-600 rounded-full text-sm font-medium mb-4">
-                  {slide.subtitle}
-                </span>
-                <h1 className="text-4xl lg:text-6xl font-bold mb-4">{slide.title}</h1>
-                <p className="text-lg text-gray-200 mb-6">{slide.description}</p>
-                <div className="flex items-center gap-4 mb-8">
-                  <span className="text-3xl font-bold text-blue-400">
-                    {formatPrice(slide.price)}
-                  </span>
-                  <span className="text-xl text-gray-400 line-through">
-                    {formatPrice(slide.originalPrice)}
-                  </span>
-                </div>
-                <Link
-                  to={slide.link}
-                  className="inline-flex items-center gap-2 px-8 py-4 bg-blue-600 text-white rounded-full font-semibold hover:bg-blue-700 transition-colors"
-                >
-                  {slide.cta}
-                  <ArrowRight className="w-5 h-5" />
-                </Link>
-              </motion.div>
+        {heroProducts.length > 1 && (
+          <div className="absolute bottom-6 left-1/2 flex -translate-x-1/2 items-center gap-2">
+            <button type="button" aria-label="Previous featured phone" onClick={() => moveSlide(-1)} className="rounded-lg p-2 text-white/80 transition-colors hover:bg-white/10 hover:text-white"><ChevronLeft className="h-5 w-5" /></button>
+            {heroProducts.map((product, index) => (
+              <button key={product._id} type="button" aria-label={`Show ${product.name}`} onClick={() => setCurrentSlide(index)} className={`h-2 rounded-full transition-all ${currentSlide === index ? 'w-8 bg-white' : 'w-2 bg-white/40 hover:bg-white/70'}`} />
+            ))}
+            <button type="button" aria-label="Next featured phone" onClick={() => moveSlide(1)} className="rounded-lg p-2 text-white/80 transition-colors hover:bg-white/10 hover:text-white"><ChevronRight className="h-5 w-5" /></button>
+          </div>
+        )}
+      </section>
+
+      <section className="border-b border-slate-100 bg-white py-12">
+        <div className="mx-auto grid max-w-7xl grid-cols-2 gap-x-6 gap-y-8 px-4 sm:px-6 lg:grid-cols-4 lg:px-8">
+          {features.map((feature) => (
+            <div key={feature.title} className="flex gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-700"><feature.icon className="h-5 w-5" /></div>
+              <div><h2 className="font-semibold text-slate-900">{feature.title}</h2><p className="mt-1 text-sm leading-5 text-slate-500">{feature.description}</p></div>
             </div>
-          </motion.div>
-        ))}
-
-        {/* Navigation Arrows */}
-        <button
-          onClick={prevSlide}
-          className="absolute left-4 top-1/2 -translate-y-1/2 z-20 w-12 h-12 bg-white/10 backdrop-blur-sm rounded-full flex items-center justify-center text-white hover:bg-white/20 transition-colors"
-        >
-          <ChevronLeft className="w-6 h-6" />
-        </button>
-        <button
-          onClick={nextSlide}
-          className="absolute right-4 top-1/2 -translate-y-1/2 z-20 w-12 h-12 bg-white/10 backdrop-blur-sm rounded-full flex items-center justify-center text-white hover:bg-white/20 transition-colors"
-        >
-          <ChevronRight className="w-6 h-6" />
-        </button>
-
-        {/* Slide Indicators */}
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-20 flex gap-2">
-          {heroSlides.map((_, index) => (
-            <button
-              key={index}
-              onClick={() => setCurrentSlide(index)}
-              className={`w-3 h-3 rounded-full transition-all ${
-                currentSlide === index ? 'bg-blue-600 w-8' : 'bg-white/50'
-              }`}
-            />
           ))}
         </div>
       </section>
 
-      {/* Features Section */}
-      <section className="py-16 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-8">
-            {features.map((feature, index) => (
-              <motion.div
-                key={feature.title}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: index * 0.1 }}
-                className="text-center"
-              >
-                <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                  <feature.icon className="w-8 h-8 text-blue-600" />
-                </div>
-                <h3 className="font-semibold text-gray-900 mb-2">{feature.title}</h3>
-                <p className="text-sm text-gray-500">{feature.description}</p>
-              </motion.div>
-            ))}
+      <section className="bg-slate-50 py-16 sm:py-20">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="mb-9 flex items-end justify-between gap-4">
+            <div><h2 className="text-3xl font-bold tracking-tight text-slate-950">Featured products</h2><p className="mt-2 text-slate-600">Phones currently selected from our live catalogue.</p></div>
+            <Link to="/products" className="hidden items-center gap-2 font-semibold text-blue-700 hover:text-blue-800 sm:inline-flex">View all<ArrowRight className="h-4 w-4" /></Link>
           </div>
+          {featuredProducts.length === 0 ? (
+            <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center"><p className="text-slate-600">Products are loading. You can browse the full catalogue now.</p><Link to="/products" className="mt-4 inline-flex font-semibold text-blue-700 hover:text-blue-800">Browse products</Link></div>
+          ) : (
+            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">{featuredProducts.map((product) => <ProductCard key={product._id} product={product} />)}</div>
+          )}
+          <div className="mt-8 text-center sm:hidden"><Link to="/products" className="inline-flex items-center gap-2 font-semibold text-blue-700">View all products<ArrowRight className="h-4 w-4" /></Link></div>
         </div>
       </section>
 
-      {/* Featured Products Section */}
-      <section className="py-16 bg-gray-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between mb-10">
-            <div>
-              <h2 className="text-3xl font-bold text-gray-900">Featured Products</h2>
-              <p className="text-gray-500 mt-2">Handpicked premium smartphones for you</p>
-            </div>
-            <Link
-              to="/products"
-              className="hidden sm:flex items-center gap-2 text-blue-600 font-medium hover:text-blue-700 transition-colors"
-            >
-              View All
-              <ArrowRight className="w-5 h-5" />
-            </Link>
-          </div>
+      {brands.length > 0 && <section className="bg-white py-16 sm:py-20"><div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8"><div className="mb-9"><h2 className="text-3xl font-bold tracking-tight text-slate-950">Shop by brand</h2><p className="mt-2 text-slate-600">Go straight to the phones you already know.</p></div><div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">{brands.map((brand, index) => <Link key={brand.name} to={`/products?brand=${encodeURIComponent(brand.name)}`} className={`rounded-2xl border bg-gradient-to-br p-5 transition-transform hover:-translate-y-1 hover:shadow-lg ${brandThemes[index % brandThemes.length]}`}><p className="text-lg font-bold">{brand.name}</p><p className="mt-6 text-sm text-slate-600">{brand.count} {brand.count === 1 ? 'product' : 'products'}</p></Link>)}</div></div></section>}
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {featuredProducts.map((product, index) => (
-              <motion.div
-                key={product._id}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: index * 0.1 }}
-              >
-                <ProductCard product={product} />
-              </motion.div>
-            ))}
-          </div>
-
-          <div className="mt-8 text-center sm:hidden">
-            <Link
-              to="/products"
-              className="inline-flex items-center gap-2 text-blue-600 font-medium"
-            >
-              View All Products
-              <ArrowRight className="w-5 h-5" />
-            </Link>
-          </div>
-        </div>
-      </section>
-
-      {/* Brands Section */}
-      <section className="py-16 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-gray-900">Shop by Brand</h2>
-            <p className="text-gray-500 mt-2">Explore our collection of top smartphone brands</p>
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-6">
-            {brands.map((brand, index) => (
-              <motion.div
-                key={brand.name}
-                initial={{ opacity: 0, scale: 0.9 }}
-                whileInView={{ opacity: 1, scale: 1 }}
-                viewport={{ once: true }}
-                transition={{ delay: index * 0.1 }}
-              >
-                <Link
-                  to={`/products?brand=${brand.name}`}
-                  className="block group"
-                >
-                  <div className="relative aspect-square rounded-2xl overflow-hidden bg-gray-100">
-                    <img
-                      src={brand.image}
-                      alt={brand.name}
-                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
-                    <div className="absolute bottom-4 left-4 text-white">
-                      <h3 className="font-bold text-lg">{brand.name}</h3>
-                      <p className="text-sm text-gray-300">{brand.count} Products</p>
-                    </div>
-                  </div>
-                </Link>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* CTA Section */}
-      <section className="py-20 bg-gradient-to-r from-blue-600 to-blue-800">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-          >
-            <h2 className="text-3xl lg:text-4xl font-bold text-white mb-4">
-              Ready to Upgrade Your Phone?
-            </h2>
-            <p className="text-blue-100 text-lg max-w-2xl mx-auto mb-8">
-              Browse our collection of premium PTA-approved smartphones and find your perfect match today.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Link
-                to="/products"
-                className="px-8 py-4 bg-white text-blue-600 rounded-full font-semibold hover:bg-gray-100 transition-colors"
-              >
-                Shop Now
-              </Link>
-              <Link
-                to="/about"
-                className="px-8 py-4 border-2 border-white text-white rounded-full font-semibold hover:bg-white/10 transition-colors"
-              >
-                Learn More
-              </Link>
-            </div>
-          </motion.div>
-        </div>
-      </section>
+      <section className="bg-blue-700 py-16 sm:py-20"><div className="mx-auto max-w-7xl px-4 text-center sm:px-6 lg:px-8"><h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">Ready to upgrade your phone?</h2><p className="mx-auto mt-4 max-w-2xl text-lg text-blue-100">Browse premium PTA-approved smartphones and find the right fit for you.</p><div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row"><Link to="/products" className="rounded-xl bg-white px-6 py-3.5 font-semibold text-blue-700 transition-colors hover:bg-blue-50">Shop now</Link><Link to="/about" className="rounded-xl border border-white/70 px-6 py-3.5 font-semibold text-white transition-colors hover:bg-white/10">Learn more</Link></div></div></section>
     </div>
   );
 };
 
-// Product Card Component
-const ProductCard = ({ product }: { product: Product }) => {
-  return (
-    <Link to={`/products/${product._id}`} className="group">
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-xl transition-shadow duration-300">
-        {/* Image */}
-        <div className="relative aspect-square bg-gray-100 overflow-hidden">
-          <img
-            src={product.images[0]}
-            alt={product.name}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-          />
-          {product.originalPrice && product.originalPrice > product.price && (
-            <div className="absolute top-4 left-4 px-3 py-1 bg-red-500 text-white text-sm font-medium rounded-full">
-              {Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)}% OFF
-            </div>
-          )}
-          {product.ptaApproved && (
-            <div className="absolute top-4 right-4 px-3 py-1 bg-green-500 text-white text-xs font-medium rounded-full">
-              PTA Approved
-            </div>
-          )}
-        </div>
-
-        {/* Content */}
-        <div className="p-5">
-          <div className="flex items-center gap-2 mb-2">
-            <span className="text-xs font-medium text-blue-600 bg-blue-50 px-2 py-1 rounded">
-              {product.brand}
-            </span>
-            <span className="text-xs text-gray-500">{product.specifications.storage}</span>
-          </div>
-          <h3 className="font-semibold text-gray-900 mb-2 group-hover:text-blue-600 transition-colors">
-            {product.name}
-          </h3>
-          <div className="flex items-center gap-2 mb-3">
-            <div className="flex items-center gap-1">
-              <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-              <span className="text-sm font-medium">{product.rating}</span>
-            </div>
-            <span className="text-sm text-gray-500">({product.numReviews} reviews)</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="text-xl font-bold text-gray-900">{formatPrice(product.price)}</span>
-            {product.originalPrice && (
-              <span className="text-sm text-gray-400 line-through">
-                {formatPrice(product.originalPrice)}
-              </span>
-            )}
-          </div>
-        </div>
-      </div>
-    </Link>
-  );
-};
+const ProductCard = ({ product }: { product: Product }) => (
+  <Link to={`/products/${product._id}`} className="group flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white transition-shadow hover:shadow-xl">
+    <div className="aspect-[4/3] overflow-hidden bg-slate-100"><img src={product.images[0]} alt={product.name} className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" /></div>
+    <div className="flex flex-1 flex-col p-5"><div className="flex items-center justify-between gap-3 text-sm"><span className="font-medium text-blue-700">{product.brand}</span><span className="text-slate-500">{product.specifications.storage}</span></div><h3 className="mt-3 line-clamp-2 text-lg font-semibold text-slate-950 transition-colors group-hover:text-blue-700">{product.name}</h3><div className="mt-3 flex items-center gap-1.5 text-sm text-slate-600"><Star className="h-4 w-4 fill-amber-400 text-amber-400" /><span>{product.rating}</span><span>({product.numReviews})</span></div><div className="mt-5 flex items-end gap-3"><p className="text-xl font-bold text-slate-950">{formatPrice(product.price)}</p>{product.originalPrice && product.originalPrice > product.price && <p className="pb-0.5 text-sm text-slate-400 line-through">{formatPrice(product.originalPrice)}</p>}</div>{product.ptaApproved && <p className="mt-3 text-sm font-medium text-emerald-700">PTA approved</p>}</div>
+  </Link>
+);
 
 export default Home;

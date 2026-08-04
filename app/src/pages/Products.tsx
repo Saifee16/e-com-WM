@@ -613,11 +613,6 @@ const ProductCard = ({
               alt={product.name}
               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
             />
-            {product.ptaApproved && (
-              <div className="absolute top-2 left-2 px-2 py-0.5 bg-green-500 text-white text-xs rounded">
-                PTA
-              </div>
-            )}
           </div>
 
           {/* Content */}
@@ -628,6 +623,7 @@ const ProductCard = ({
                   {product.brand}
                 </span>
                 <span className="text-xs text-gray-500">{product.specifications.storage}</span>
+                {product.ptaApproved && <span className="text-xs font-medium text-emerald-700">PTA approved</span>}
               </div>
               <h3 className="font-semibold text-gray-900 mb-2 group-hover:text-blue-600 transition-colors">
                 {product.name}
@@ -677,16 +673,6 @@ const ProductCard = ({
             alt={product.name}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
           />
-          {product.originalPrice && product.originalPrice > product.price && (
-            <div className="absolute top-4 left-4 px-3 py-1 bg-red-500 text-white text-sm font-medium rounded-full">
-              {Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)}% OFF
-            </div>
-          )}
-          {product.ptaApproved && (
-            <div className="absolute top-4 right-4 px-3 py-1 bg-green-500 text-white text-xs font-medium rounded-full">
-              PTA Approved
-            </div>
-          )}
         </div>
 
         {/* Content */}
@@ -696,6 +682,7 @@ const ProductCard = ({
               {product.brand}
             </span>
             <span className="text-xs text-gray-500">{product.specifications.storage}</span>
+            {product.ptaApproved && <span className="text-xs font-medium text-emerald-700">PTA approved</span>}
           </div>
           <h3 className="font-semibold text-gray-900 mb-2 group-hover:text-blue-600 transition-colors line-clamp-2">
             {product.name}
@@ -714,6 +701,11 @@ const ProductCard = ({
                 </span>
               )}
             </div>
+            {product.originalPrice && product.originalPrice > product.price && (
+              <p className="mb-3 text-sm font-medium text-emerald-700">
+                Save {Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)}%
+              </p>
+            )}
             <button
               onClick={(e) => onAddToCart(e, product)}
               className="w-full py-3 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition-colors"

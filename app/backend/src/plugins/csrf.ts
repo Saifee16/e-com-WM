@@ -14,7 +14,7 @@ const cookieOptions = {
   secure: env.COOKIE_SECURE,
   sameSite: env.COOKIE_SAME_SITE,
   path: '/api',
-  ...(env.COOKIE_DOMAIN !== 'localhost' ? { domain: env.COOKIE_DOMAIN } : {}),
+  ...(env.COOKIE_DOMAIN ? { domain: env.COOKIE_DOMAIN } : {}),
 } as const;
 
 const matches = (cookieToken: string, headerToken: string) => {

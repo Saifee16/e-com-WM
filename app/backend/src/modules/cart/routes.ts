@@ -60,7 +60,7 @@ const setGuestCartCookie = (reply: FastifyReply, guestId: string) => {
     sameSite: env.COOKIE_SAME_SITE,
     path: '/',
     maxAge: env.REFRESH_TOKEN_TTL_DAYS * 24 * 60 * 60,
-    ...(env.COOKIE_DOMAIN !== 'localhost' ? { domain: env.COOKIE_DOMAIN } : {}),
+    ...(env.COOKIE_DOMAIN ? { domain: env.COOKIE_DOMAIN } : {}),
   });
 };
 

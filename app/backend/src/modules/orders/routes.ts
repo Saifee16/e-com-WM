@@ -115,7 +115,7 @@ const getCartForRequest = async (request: FastifyRequest) => {
 const makeOrderNumber = () => `WAH-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${randomUUID().slice(0, 8).toUpperCase()}`;
 
 export const orderRoutes: FastifyPluginAsync = async (app) => {
-  app.post('/', async (request, reply) => {
+  app.post('/', { preHandler: authenticateCustomer }, async (request, reply) => {
     const body = checkoutSchema.parse(request.body);
     const { user, cart } = await getCartForRequest(request);
 
@@ -290,6 +290,26 @@ export const orderRoutes: FastifyPluginAsync = async (app) => {
     });
 
     return ok(reply, orders.map(mapOrder));
+  });
+
+  app.get('/dashboard', { preHandler: authenticateCustomer }, async (request, reply) => {
+    const userId = request.authUser!.id;
+    const [totalOrders, deliveredOrders, wishlistItems, reviews, recentOrders] = await Promise.all([
+      prisma.order.count({ where: { userId } }),
+      prisma.order.count({ where: { userId, status: 'DELIVERED' } }),
+      prisma.wishlist.count({ where: { userId } }),
+      prisma.review.count({ where: { userId } }),
+      prisma.order.findMany({
+        where: { userId },
+        include: orderInclude,
+        orderBy: { createdAt: 'desc' },
+        take: 5,
+      }),
+    ]);
+    return ok(reply, {
+      stats: { totalOrders, deliveredOrders, wishlistItems, reviews },
+      recentOrders: recentOrders.map(mapOrder),
+    });
   });
 
   app.get('/returns', { preHandler: authenticateCustomer }, async (request, reply) => {
@@ -521,7 +541,7 @@ export const adminOrderRoutes: FastifyPluginAsync = async (app) => {
     const params = z.object({ id: z.string().uuid() }).parse(request.params);
     const body = z
       .object({
-        status: z.enum(['PENDING', 'CONFIRMED', 'PROCESSING', 'SHIPPED', 'DELIVERED']),
+        status: z.enum(['PENDING', 'CONFIRMED', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED']),
         note: z.string().trim().optional(),
       })
       .parse(request.body);
@@ -531,12 +551,20 @@ export const adminOrderRoutes: FastifyPluginAsync = async (app) => {
         data: {
           status: body.status,
           ...(body.status === 'DELIVERED' ? { paymentStatus: 'PAID' } : {}),
+          ...(body.status === 'CANCELLED'
+            ? {
+                cancelledAt: new Date(),
+                cancelledBy: `ADMIN:${request.authUser!.id}`,
+                cancellationReason: body.note?.trim() || 'Cancelled by administrator',
+              }
+            : {}),
           ...(body.note !== undefined ? { notes: body.note } : {}),
         },
         include: orderInclude,
       });
       if (body.status === 'SHIPPED') await tx.shipment.updateMany({ where: { orderId: params.id }, data: { status: 'SHIPPED', shippedAt: new Date() } });
       if (body.status === 'DELIVERED') await tx.shipment.updateMany({ where: { orderId: params.id }, data: { status: 'DELIVERED', deliveredAt: new Date() } });
+      if (body.status === 'CANCELLED') await tx.shipment.updateMany({ where: { orderId: params.id }, data: { status: 'CANCELLED' } });
       return updated;
     });
 

@@ -6,6 +6,7 @@ import {
   Edit2,
   Trash2,
   X,
+  ImagePlus,
 } from 'lucide-react';
 import { formatPrice } from '../../utils/format';
 import { useToast } from '../../contexts/ToastContext';
@@ -117,8 +118,14 @@ const AdminProducts = () => {
                     {product.brand}
                   </span>
                 </td>
-                <td className="px-6 py-4 font-medium text-gray-900">
-                  {formatPrice(product.price)}
+                <td className="px-6 py-4">
+                  <p className="font-medium text-gray-900">{formatPrice(product.price)}</p>
+                  {product.originalPrice && product.originalPrice > product.price && (
+                    <p className="text-xs text-green-700">
+                      Regular <span className="line-through text-gray-400">{formatPrice(product.originalPrice)}</span>
+                      {' - '}{Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)}% off
+                    </p>
+                  )}
                 </td>
                 <td className="px-6 py-4">
                   <span className={`font-medium ${getStatusColor(product.countInStock)}`}>
@@ -135,14 +142,20 @@ const AdminProducts = () => {
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-2">
                     <button
+                      type="button"
                       onClick={() => setEditingProduct(product)}
                       className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                      aria-label={`Edit ${product.name}`}
+                      title={`Edit ${product.name}`}
                     >
                       <Edit2 className="w-5 h-5" />
                     </button>
                     <button
+                      type="button"
                       onClick={() => handleDelete(product._id)}
                       className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                      aria-label={`Delete ${product.name}`}
+                      title={`Delete ${product.name}`}
                     >
                       <Trash2 className="w-5 h-5" />
                     </button>
@@ -195,6 +208,7 @@ const ProductModal = ({
     color: product?.specifications.color ?? '',
     imageUrl: product?.images[0] ?? '',
     condition: product?.condition ?? 'new',
+    ptaApproved: product?.ptaApproved ?? true,
     isFeatured: product?.isFeatured ?? false,
     status: product?.status ?? 'ACTIVE',
   });
@@ -236,6 +250,10 @@ const ProductModal = ({
           <form
             onSubmit={(e) => {
               e.preventDefault();
+              if (formData.originalPrice > 0 && formData.originalPrice <= formData.price) {
+                showToast('Regular price must be greater than the sale price.', 'error');
+                return;
+              }
               const payload = {
                 ...formData,
                 imageUrl: formData.imageUrl || undefined,
@@ -303,10 +321,10 @@ const ProductModal = ({
               </select>
             </div>
 
-            <div className="grid sm:grid-cols-2 gap-6">
+            <div className="grid sm:grid-cols-3 gap-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Price (PKR)
+                  Sale Price (PKR)
                 </label>
                 <input
                   type="number"
@@ -314,6 +332,20 @@ const ProductModal = ({
                   onChange={(event) => updateField('price', Number(event.target.value))}
                   className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Regular Price (PKR)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  value={formData.originalPrice}
+                  onChange={(event) => updateField('originalPrice', Number(event.target.value))}
+                  placeholder="Optional, enables a discount"
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <p className="mt-1 text-xs text-gray-500">Set above the sale price to show a per-product discount.</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -338,6 +370,33 @@ const ProductModal = ({
                 onChange={(event) => updateField('description', event.target.value)}
                 className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-[1fr_9rem] sm:items-end">
+              <div>
+                <label htmlFor="product-image-url" className="block text-sm font-medium text-gray-700 mb-2">
+                  Product Image URL
+                </label>
+                <div className="relative">
+                  <ImagePlus className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
+                  <input
+                    id="product-image-url"
+                    type="url"
+                    value={formData.imageUrl}
+                    onChange={(event) => updateField('imageUrl', event.target.value)}
+                    placeholder="https://example.com/product-image.jpg"
+                    className="w-full rounded-xl border border-gray-200 py-3 pl-12 pr-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <p className="mt-1 text-xs text-gray-500">Paste a public image URL. It becomes the product's primary image.</p>
+              </div>
+              <div className="flex aspect-square items-center justify-center overflow-hidden rounded-xl border border-dashed border-gray-300 bg-gray-50">
+                {formData.imageUrl ? (
+                  <img src={formData.imageUrl} alt="Product image preview" className="h-full w-full object-cover" />
+                ) : (
+                  <ImagePlus className="h-7 w-7 text-gray-400" aria-hidden="true" />
+                )}
+              </div>
             </div>
 
             <div className="grid sm:grid-cols-3 gap-6">
@@ -382,16 +441,21 @@ const ProductModal = ({
               </div>
             </div>
 
-            <div className="flex items-center gap-6">
-              <label className="flex items-center gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={true}
-                  readOnly
-                  className="w-5 h-5 text-blue-600 rounded"
-                />
-                <span className="text-gray-700">PTA Approved</span>
-              </label>
+            <div className="flex flex-wrap items-center gap-6">
+              <div>
+                <label htmlFor="product-pta-status" className="mb-2 block text-sm font-medium text-gray-700">
+                  PTA Status
+                </label>
+                <select
+                  id="product-pta-status"
+                  value={formData.ptaApproved ? 'approved' : 'not-approved'}
+                  onChange={(event) => updateField('ptaApproved', event.target.value === 'approved')}
+                  className="rounded-xl border border-gray-200 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="approved">PTA Approved</option>
+                  <option value="not-approved">Not PTA Approved</option>
+                </select>
+              </div>
               <label className="flex items-center gap-3 cursor-pointer">
                 <input
                   type="checkbox"

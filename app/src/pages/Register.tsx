@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Eye, EyeOff, Mail, Lock, User, Phone, ArrowRight, Smartphone } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
@@ -9,6 +9,7 @@ import { getApiErrorMessage } from '../utils/api-error';
 
 const Register = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { register } = useAuth();
   const { showToast } = useToast();
 
@@ -49,7 +50,8 @@ const Register = () => {
         phone: formData.phone,
       });
       showToast('Account created successfully!', 'success');
-      navigate('/');
+      const from = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname || '/';
+      navigate(from, { replace: true });
     } catch (error: unknown) {
       showToast(error instanceof Error ? error.message : 'Registration failed', 'error');
     } finally {
@@ -277,7 +279,7 @@ const Register = () => {
             {/* Sign In Link */}
             <p className="text-center mt-8 text-gray-600">
               Already have an account?{' '}
-              <Link to="/login" className="text-blue-600 font-medium hover:text-blue-700">
+              <Link to="/login" state={location.state} className="text-blue-600 font-medium hover:text-blue-700">
                 Sign in
               </Link>
             </p>

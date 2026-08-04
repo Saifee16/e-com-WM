@@ -43,7 +43,13 @@ const statuses: AdminOrderStatus[] = [
   'cancelled',
   'refunded',
 ];
-const mutableStatuses: AdminOrderStatus[] = ['pending', 'confirmed', 'processing', 'shipped', 'delivered'];
+const mutableStatuses: AdminOrderStatus[] = ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled'];
+
+const statusLabel = (status: AdminOrderStatus) => {
+  if (status === 'delivered') return 'Completed';
+  if (status === 'cancelled') return 'Incomplete / Cancelled';
+  return status.charAt(0).toUpperCase() + status.slice(1);
+};
 
 const mapOrderToRow = (order: ApiOrder): AdminOrderRow => ({
   _id: order.id,
@@ -168,7 +174,7 @@ const AdminOrders = () => {
             <option value="all">All Status</option>
             {statuses.map((status) => (
               <option key={status} value={status}>
-                {status.charAt(0).toUpperCase() + status.slice(1)}
+                {statusLabel(status)}
               </option>
             ))}
           </select>
@@ -226,7 +232,7 @@ const AdminOrders = () => {
                   <td className="px-6 py-4 font-medium text-gray-900">{formatPrice(order.total)}</td>
                   <td className="px-6 py-4">
                     <span className={`px-3 py-1 rounded-full text-xs font-medium capitalize ${getStatusColor(order.status)}`}>
-                      {order.status}
+                      {statusLabel(order.status)}
                     </span>
                   </td>
                   <td className="px-6 py-4 text-gray-600">{formatDate(order.date)}</td>
@@ -262,7 +268,7 @@ const AdminOrders = () => {
                               onClick={() => void updateOrderStatus(order._id, status)}
                               className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 first:rounded-t-xl last:rounded-b-xl capitalize disabled:opacity-40"
                             >
-                              Mark as {status}
+                              Mark as {statusLabel(status)}
                             </button>
                           ))}
                         </div>

@@ -115,6 +115,36 @@ export interface AdminDashboardData {
     sales: number;
     revenue: number;
   }>;
+  recentContacts: Array<{
+    id: string;
+    name: string;
+    email: string;
+    subject: string;
+    status: 'OPEN' | 'IN_PROGRESS' | 'RESOLVED';
+    createdAt: string;
+  }>;
+}
+
+export interface AdminUser {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone?: string;
+  role: 'CUSTOMER' | 'ADMIN' | 'SUPER_ADMIN';
+  status: 'ACTIVE' | 'BLOCKED';
+  createdAt: string;
+  orders: number;
+}
+
+export interface AccountDashboardData {
+  stats: {
+    totalOrders: number;
+    deliveredOrders: number;
+    wishlistItems: number;
+    reviews: number;
+  };
+  recentOrders: ApiOrder[];
 }
 
 export const GUEST_CART_ID_KEY = 'guestCartId';
@@ -150,6 +180,7 @@ const adminApi: AxiosInstance = axios.create({
 });
 
 type RetryableRequest = NonNullable<AxiosError['config']> & { _retry?: boolean };
+type CsrfRetryableRequest = RetryableRequest & { _csrfRetry?: boolean };
 let customerRefresh: Promise<unknown> | null = null;
 let adminRefresh: Promise<unknown> | null = null;
 let csrfToken: string | null = null;
@@ -173,6 +204,20 @@ const excludesRefresh = (url: string) =>
     url.startsWith(path),
   );
 
+const retryAfterCsrfRejection = async (error: AxiosError, client: AxiosInstance) => {
+  const config = error.config as CsrfRetryableRequest | undefined;
+  const errorCode = (error.response?.data as { error?: { code?: string } } | undefined)?.error?.code;
+  if (error.response?.status !== 403 || errorCode !== 'CSRF_TOKEN_INVALID' || !config || config._csrfRetry) {
+    return null;
+  }
+
+  config._csrfRetry = true;
+  csrfToken = null;
+  csrfTokenRequest = null;
+  config.headers['X-CSRF-Token'] = await ensureCsrfToken();
+  return client(config);
+};
+
 // Request interceptor keeps legacy localStorage guest carts working while
 // the hardened backend cookie remains the primary cart identity.
 api.interceptors.request.use(
@@ -193,6 +238,8 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response: AxiosResponse) => response,
   async (error: AxiosError) => {
+    const csrfRetry = await retryAfterCsrfRejection(error, api);
+    if (csrfRetry) return csrfRetry;
     const requestUrl = error.config?.url ?? '';
     const config = error.config as RetryableRequest | undefined;
     if (error.response?.status === 401 && config && !config._retry && !excludesRefresh(requestUrl)) {
@@ -202,9 +249,11 @@ api.interceptors.response.use(
         await customerRefresh;
         return api(config);
       } catch {
+        // AuthProvider owns the unauthenticated state. Redirecting from this
+        // global interceptor reloads /login while its initial profile request
+        // is still running, which creates an infinite refresh loop.
         localStorage.removeItem('token');
         localStorage.removeItem('user');
-        window.location.href = '/login';
       }
     }
     return Promise.reject(error);
@@ -215,6 +264,8 @@ api.interceptors.response.use(
 adminApi.interceptors.response.use(
   (response: AxiosResponse) => response,
   async (error: AxiosError) => {
+    const csrfRetry = await retryAfterCsrfRejection(error, adminApi);
+    if (csrfRetry) return csrfRetry;
     const requestUrl = error.config?.url ?? '';
     const config = error.config as RetryableRequest | undefined;
     if (error.response?.status === 401 && config && !config._retry && !excludesRefresh(requestUrl)) {
@@ -224,7 +275,8 @@ adminApi.interceptors.response.use(
         await adminRefresh;
         return adminApi(config);
       } catch {
-        window.location.href = '/admin/login';
+        // AdminAuthProvider and the protected admin routes handle sign-out.
+        // Do not navigate here: both auth providers mount on public pages.
       }
     }
     return Promise.reject(error);
@@ -302,6 +354,7 @@ export const cartAPI = {
 export const ordersAPI = {
   createOrder: (data: OrderPayload) => api.post('/orders', data),
   getMyOrders: () => api.get<ApiSuccess<ApiOrder[]>>('/orders/my-orders'),
+  getAccountDashboard: () => api.get<ApiSuccess<AccountDashboardData>>('/orders/dashboard'),
   getOrderById: (id: string) => api.get<ApiSuccess<ApiOrder>>(`/orders/${id}`),
   cancelOrder: (id: string, reason: string) => api.post<ApiSuccess<ApiOrder>>(`/orders/${id}/cancel`, { reason }),
   requestReturn: (id: string, data: { reason: string; details?: string }) => api.post(`/orders/${id}/returns`, data),
@@ -321,6 +374,9 @@ export const adminAPI = {
   getSalesReport: (params?: JsonObject) => adminApi.get('/sales-report', { params }),
   getTopProducts: (params?: JsonObject) => adminApi.get('/top-products', { params }),
   getTopCustomers: (params?: JsonObject) => adminApi.get('/top-customers', { params }),
+  getUsers: (params?: { search?: string }) => adminApi.get<ApiSuccess<AdminUser[]>>('/users', { params }),
+  updateUser: (id: string, data: Partial<Omit<Pick<AdminUser, 'firstName' | 'lastName' | 'email' | 'phone' | 'role' | 'status'>, 'phone'>> & { phone?: string | null }) =>
+    adminApi.patch<ApiSuccess<AdminUser>>(`/users/${id}`, data),
   getContactMessages: (params?: JsonObject) => adminApi.get('/contact-messages', { params }),
   updateContactMessage: (id: string, status: string) => adminApi.patch(`/contact-messages/${id}`, { status }),
   getReturns: () => adminApi.get('/orders/returns'),

@@ -1,7 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '../../db/prisma.js';
-import { ok } from '../../utils/responses.js';
+import { fail, ok } from '../../utils/responses.js';
 import { authenticateAdmin } from '../auth/session.js';
 
 const mapContactMessage = (message: {
@@ -29,11 +29,107 @@ const mapContactMessage = (message: {
   createdAt: message.createdAt.toISOString(),
 });
 
+const mapAdminUser = (user: {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string | null;
+  role: string;
+  status: string;
+  createdAt: Date;
+  _count: { orders: number };
+}) => ({
+  id: user.id,
+  firstName: user.firstName,
+  lastName: user.lastName,
+  email: user.email,
+  phone: user.phone ?? undefined,
+  role: user.role,
+  status: user.status,
+  createdAt: user.createdAt.toISOString(),
+  orders: user._count.orders,
+});
+
+const adminUserUpdateSchema = z.object({
+  firstName: z.string().trim().min(1).max(80).optional(),
+  lastName: z.string().trim().min(1).max(80).optional(),
+  email: z.string().email().transform((value) => value.toLowerCase()).optional(),
+  phone: z.string().trim().max(40).nullable().optional(),
+  role: z.enum(['CUSTOMER', 'ADMIN', 'SUPER_ADMIN']).optional(),
+  status: z.enum(['ACTIVE', 'BLOCKED']).optional(),
+}).refine((body) => Object.keys(body).length > 0, { message: 'At least one field is required' });
+
 export const adminRoutes: FastifyPluginAsync = async (app) => {
   app.addHook('preHandler', authenticateAdmin);
 
+  app.get('/users', async (request, reply) => {
+    const query = z.object({ search: z.string().trim().max(200).optional() }).parse(request.query);
+    const users = await prisma.user.findMany({
+      where: {
+        deletedAt: null,
+        ...(query.search
+          ? {
+              OR: [
+                { firstName: { contains: query.search, mode: 'insensitive' } },
+                { lastName: { contains: query.search, mode: 'insensitive' } },
+                { email: { contains: query.search, mode: 'insensitive' } },
+              ],
+            }
+          : {}),
+      },
+      include: { _count: { select: { orders: true } } },
+      orderBy: { createdAt: 'desc' },
+      take: 250,
+    });
+    return ok(reply, users.map(mapAdminUser));
+  });
+
+  app.patch('/users/:id', async (request, reply) => {
+    const params = z.object({ id: z.string().uuid() }).parse(request.params);
+    const body = adminUserUpdateSchema.parse(request.body);
+    const existing = await prisma.user.findFirst({ where: { id: params.id, deletedAt: null } });
+    if (!existing) return fail(reply, 404, { code: 'USER_NOT_FOUND', message: 'User not found' });
+
+    const isSelf = existing.id === request.authUser!.id;
+    if (isSelf && (body.role !== undefined || body.status !== undefined)) {
+      return fail(reply, 403, { code: 'SELF_PRIVILEGE_CHANGE_FORBIDDEN', message: 'Use a different administrator to change your role or account status' });
+    }
+    if (existing.role === 'SUPER_ADMIN' && request.authUser!.role !== 'SUPER_ADMIN' && (body.role !== undefined || body.status !== undefined)) {
+      return fail(reply, 403, { code: 'SUPER_ADMIN_PROTECTED', message: 'Only a super administrator may change this account access' });
+    }
+    if (body.email && body.email !== existing.email) {
+      const emailInUse = await prisma.user.findUnique({ where: { email: body.email }, select: { id: true } });
+      if (emailInUse) return fail(reply, 409, { code: 'EMAIL_ALREADY_REGISTERED', message: 'Email is already registered' });
+    }
+
+    const updated = await prisma.user.update({
+      where: { id: existing.id },
+      data: {
+        ...(body.firstName !== undefined ? { firstName: body.firstName } : {}),
+        ...(body.lastName !== undefined ? { lastName: body.lastName } : {}),
+        ...(body.email !== undefined ? { email: body.email } : {}),
+        ...(body.phone !== undefined ? { phone: body.phone } : {}),
+        ...(body.role !== undefined ? { role: body.role } : {}),
+        ...(body.status !== undefined ? { status: body.status } : {}),
+      },
+      include: { _count: { select: { orders: true } } },
+    });
+    await prisma.auditLog.create({
+      data: {
+        actorUserId: request.authUser!.id,
+        action: body.role !== undefined ? 'ROLE_CHANGE' : body.status !== undefined ? 'STATUS_CHANGE' : 'UPDATE',
+        entityType: 'User',
+        entityId: updated.id,
+        before: { firstName: existing.firstName, lastName: existing.lastName, email: existing.email, phone: existing.phone, role: existing.role, status: existing.status },
+        after: mapAdminUser(updated),
+      },
+    });
+    return ok(reply, mapAdminUser(updated));
+  });
+
   app.get('/dashboard', async (_request, reply) => {
-    const [products, orders, users, contacts, revenue, recentOrders, topProductGroups] = await Promise.all([
+    const [products, orders, users, contacts, revenue, recentOrders, topProductGroups, recentContacts] = await Promise.all([
       prisma.product.count({ where: { status: { not: 'ARCHIVED' } } }),
       prisma.order.count(),
       prisma.user.count({ where: { deletedAt: null } }),
@@ -78,6 +174,10 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
           },
         },
         take: 4,
+      }),
+      prisma.contactMessage.findMany({
+        orderBy: { createdAt: 'desc' },
+        take: 5,
       }),
     ]);
     const topProductRows = await prisma.product.findMany({
@@ -129,6 +229,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         sales: group._sum.quantity ?? 0,
         revenue: group._sum.lineTotalAmount ?? 0,
       })),
+      recentContacts: recentContacts.map(mapContactMessage),
     });
   });
 

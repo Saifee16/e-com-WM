@@ -26,7 +26,7 @@ const setRefreshCookie = (reply: FastifyReply, realm: AuthRealm, token: string) 
     sameSite: env.COOKIE_SAME_SITE,
     path: cookie.path,
     maxAge: env.REFRESH_TOKEN_TTL_DAYS * 24 * 60 * 60,
-    ...(env.COOKIE_DOMAIN !== 'localhost' ? { domain: env.COOKIE_DOMAIN } : {}),
+    ...(env.COOKIE_DOMAIN ? { domain: env.COOKIE_DOMAIN } : {}),
   });
 };
 
@@ -34,7 +34,7 @@ export const clearRefreshCookie = (reply: FastifyReply, realm: AuthRealm) => {
   const cookie = refreshCookie(realm);
   reply.clearCookie(cookie.name, {
     path: cookie.path,
-    ...(env.COOKIE_DOMAIN !== 'localhost' ? { domain: env.COOKIE_DOMAIN } : {}),
+    ...(env.COOKIE_DOMAIN ? { domain: env.COOKIE_DOMAIN } : {}),
   });
 };
 

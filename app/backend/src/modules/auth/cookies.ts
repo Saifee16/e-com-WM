@@ -42,7 +42,7 @@ export const issueAccessToken = (user: SessionUser, reply: FastifyReply, realm: 
     sameSite: env.COOKIE_SAME_SITE,
     path: cookie.path,
     maxAge: env.ACCESS_TOKEN_TTL_SECONDS,
-    ...(env.COOKIE_DOMAIN !== 'localhost' ? { domain: env.COOKIE_DOMAIN } : {}),
+    ...(env.COOKIE_DOMAIN ? { domain: env.COOKIE_DOMAIN } : {}),
   });
 
 };
@@ -67,7 +67,7 @@ export const clearAuthSession = (reply: FastifyReply, realm: AuthRealm) => {
 
   reply.clearCookie(cookie.name, {
     path: cookie.path,
-    ...(env.COOKIE_DOMAIN !== 'localhost' ? { domain: env.COOKIE_DOMAIN } : {}),
+    ...(env.COOKIE_DOMAIN ? { domain: env.COOKIE_DOMAIN } : {}),
   });
   clearRefreshCookie(reply, realm);
 };

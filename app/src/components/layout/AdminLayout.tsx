@@ -1,5 +1,4 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import {
   LayoutDashboard,
   Package,
@@ -32,27 +31,27 @@ const AdminLayout = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100">
+    <div className="min-h-[100dvh] bg-slate-50">
       {/* Header */}
-      <div className="bg-gray-900 text-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+      <div className="bg-slate-950 text-white">
+        <div className="mx-auto max-w-7xl px-4 py-3 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <button
                 onClick={() => navigate('/')}
-                className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors"
+                className="flex items-center gap-2 text-slate-300 transition-colors hover:text-white"
               >
                 <ArrowLeft className="w-5 h-5" />
                 Back to Store
               </button>
             </div>
             <div className="flex items-center gap-4">
-              <span className="text-sm text-gray-400">
+              <span className="hidden text-sm text-slate-300 sm:inline">
                 Admin: {adminUser?.firstName} {adminUser?.lastName}
               </span>
               <button
                 onClick={handleLogout}
-                className="flex items-center gap-2 text-red-400 hover:text-red-300 transition-colors"
+                className="flex items-center gap-2 text-red-300 transition-colors hover:text-red-200"
               >
                 <LogOut className="w-5 h-5" />
                 Logout
@@ -62,32 +61,32 @@ const AdminLayout = () => {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="flex flex-col lg:flex-row gap-8">
+      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+        <div className="flex flex-col gap-6 lg:flex-row lg:gap-8">
           {/* Sidebar */}
-          <div className="lg:w-64 flex-shrink-0">
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden sticky top-24">
-              <div className="p-4 border-b border-gray-200">
+          <div className="lg:w-60 lg:flex-shrink-0">
+            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm lg:sticky lg:top-24">
+              <div className="border-b border-slate-200 p-4">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-blue-600 text-white rounded-xl flex items-center justify-center">
                     <BarChart3 className="w-5 h-5" />
                   </div>
                   <div>
-                    <h2 className="font-bold text-gray-900">Admin Panel</h2>
-                    <p className="text-xs text-gray-500">Manage your store</p>
+                    <h2 className="font-bold text-slate-950">Admin panel</h2>
+                    <p className="text-xs text-slate-500">Manage your store</p>
                   </div>
                 </div>
               </div>
-              <nav className="p-2">
+              <nav className="flex gap-1 overflow-x-auto p-2 lg:block">
                 {menuItems.map((item) => (
                   <NavLink
                     key={item.path}
                     to={item.path}
                     className={({ isActive }) =>
-                      `flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${
+                      `flex shrink-0 items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-colors ${
                         isActive
-                          ? 'bg-blue-50 text-blue-600'
-                          : 'text-gray-700 hover:bg-gray-50'
+                          ? 'bg-blue-50 text-blue-700'
+                          : 'text-slate-700 hover:bg-slate-50'
                       }`
                     }
                   >
@@ -101,13 +100,7 @@ const AdminLayout = () => {
 
           {/* Content */}
           <div className="flex-1">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3 }}
-            >
-              <Outlet />
-            </motion.div>
+            <Outlet />
           </div>
         </div>
       </div>

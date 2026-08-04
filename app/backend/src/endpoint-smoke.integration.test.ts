@@ -710,35 +710,16 @@ describe('endpoint smoke suite', () => {
       }),
     );
 
-    parseSuccess<CartResponse>(
-      await app.inject({
-        method: 'DELETE',
-        url: '/api/cart/clear',
-        headers: { 'x-guest-id': guestId },
-      }),
-    );
-    parseSuccess<CartResponse>(
-      await app.inject({
-        method: 'POST',
-        url: '/api/cart/add',
-        headers: { 'x-guest-id': guestId },
-        payload: {
-          productId: catalogProduct.id,
-          quantity: 1,
-        },
-      }),
-    );
-
     const order = parseSuccess<OrderResponse>(
       await app.inject({
         method: 'POST',
         url: '/api/orders',
-        headers: { 'x-guest-id': guestId },
+        headers: csrfHeaders(customerCookie),
         payload: checkoutPayload(`buyer-${scope}@example.com`),
       }),
       201,
     );
-    expect(order.guestEmail).toBe(`buyer-${scope}@example.com`);
+    expect(order.guestEmail).toBeNull();
     expect(order.items).toHaveLength(1);
 
     expectError(
@@ -749,14 +730,12 @@ describe('endpoint smoke suite', () => {
       401,
       'UNAUTHENTICATED',
     );
-    expectError(
+    parseSuccess<OrderResponse>(
       await app.inject({
         method: 'GET',
         url: `/api/orders/${order.id}`,
         headers: { cookie: customerCookie },
       }),
-      403,
-      'ORDER_FORBIDDEN',
     );
     parseSuccess<OrderResponse>(
       await app.inject({
@@ -806,6 +785,56 @@ describe('endpoint smoke suite', () => {
       }),
     );
     expect(persistedStatus.status).toBe('confirmed');
+
+    const deliveredOrder = parseSuccess<OrderResponse>(
+      await app.inject({
+        method: 'PUT',
+        url: `/api/admin/orders/${order.id}/status`,
+        headers: csrfHeaders(adminCookie),
+        payload: {
+          status: 'DELIVERED',
+          note: 'Smoke test delivered',
+        },
+      }),
+    );
+    expect(deliveredOrder.status).toBe('delivered');
+
+    const returnRequest = parseSuccess<{ id: string; status: string }>(
+      await app.inject({
+        method: 'POST',
+        url: `/api/orders/${order.id}/returns`,
+        headers: csrfHeaders(customerCookie),
+        payload: {
+          reason: 'Smoke-test return request',
+          details: 'The product was delivered but is no longer needed.',
+        },
+      }),
+      201,
+    );
+    expect(returnRequest.status).toBe('pending');
+
+    const resolvedReturn = parseSuccess<{ id: string; status: string }>(
+      await app.inject({
+        method: 'PATCH',
+        url: `/api/admin/orders/returns/${returnRequest.id}`,
+        headers: csrfHeaders(adminCookie),
+        payload: {
+          status: 'APPROVED',
+          resolutionNote: 'Smoke-test refund approved and confirmed.',
+          manualRefundCompleted: true,
+        },
+      }),
+    );
+    expect(resolvedReturn.status).toBe('APPROVED');
+
+    const refundedOrder = parseSuccess<OrderResponse>(
+      await app.inject({
+        method: 'GET',
+        url: `/api/orders/${order.id}`,
+        headers: { cookie: customerCookie },
+      }),
+    );
+    expect(refundedOrder.status).toBe('refunded');
 
     const lockedVariant = await prisma.productVariant.findUniqueOrThrow({
       where: { id: catalogVariant.id },

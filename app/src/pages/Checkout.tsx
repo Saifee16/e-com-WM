@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   CreditCard,
@@ -16,6 +16,7 @@ import { ordersAPI } from '../services/api';
 
 const Checkout = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { items, totals, clearCart } = useCart();
   const { user } = useAuth();
 
@@ -46,6 +47,10 @@ const Checkout = () => {
   };
 
   const finalTotal = totals.total + shippingCosts[shippingMethod];
+
+  if (!user) {
+    return <Navigate to="/login" replace state={{ from: { pathname: location.pathname } }} />;
+  }
 
   const handleShippingSubmit = (e: React.FormEvent) => {
     e.preventDefault();

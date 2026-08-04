@@ -28,6 +28,16 @@ Use `npm.cmd` instead of `npm` in PowerShell if script execution policy blocks `
 
 PostgreSQL is published on host port `15432` and Redis on `16379` to avoid common local port conflicts with existing Postgres/Redis services.
 
+## Production Compose
+
+Copy `.env.example` to `.env` and replace every placeholder with deployment-specific values. Then run:
+
+```bash
+docker compose -f docker-compose.prod.yml up --build
+```
+
+The production frontend serves the Vite build on port `8080` and proxies `/api` to Fastify, so browser and API traffic are same-origin. Put a TLS terminator in front of that port and use the same HTTPS origin for `FRONTEND_URL` and `API_BASE_URL`; the production stack intentionally uses `COOKIE_SECURE=true` and `COOKIE_SAME_SITE=lax`. PostgreSQL and Redis are not published to the host.
+
 ## Verification
 
 ```bash
@@ -72,7 +82,7 @@ Current implemented API:
 - Customer auth under `/api/auth`
 - Public catalogue under `/api/products`
 - Customer/guest carts under `/api/cart`
-- Customer/guest checkout under `/api/orders`
+- Customer checkout under `/api/orders` (guest carts merge after sign-in or registration)
 - Admin auth and protected administration under `/api/admin`
 
 Customer and admin sessions are intentionally separate:
