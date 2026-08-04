@@ -347,7 +347,7 @@ export const cartAPI = {
   removeFromCart: (productId: string) => api.delete(`/cart/remove/${productId}`),
   clearCart: () => api.delete('/cart/clear'),
   applyPromoCode: (code: string) => api.post('/cart/promo', { code }),
-  mergeGuestCart: (guestId?: string | null) => api.post('/cart/merge', guestId ? { guestId } : {}),
+  mergeGuestCart: () => api.post('/cart/merge', {}),
 };
 
 // Orders API

@@ -11,6 +11,12 @@ const prismaMocks = vi.hoisted(() => ({
   refreshTokenCreate: vi.fn(),
   refreshTokenFindUnique: vi.fn(),
   refreshTokenUpdateMany: vi.fn(),
+  passwordResetTokenFindFirst: vi.fn(),
+  passwordResetTokenDeleteMany: vi.fn(),
+  passwordResetTokenCreate: vi.fn(),
+  queryRaw: vi.fn(),
+  transaction: vi.fn(),
+  sendPasswordResetEmail: vi.fn(),
 }));
 
 vi.mock('./db/prisma.js', () => ({
@@ -26,7 +32,18 @@ vi.mock('./db/prisma.js', () => ({
       findUnique: prismaMocks.refreshTokenFindUnique,
       updateMany: prismaMocks.refreshTokenUpdateMany,
     },
+    passwordResetToken: {
+      findFirst: prismaMocks.passwordResetTokenFindFirst,
+      deleteMany: prismaMocks.passwordResetTokenDeleteMany,
+      create: prismaMocks.passwordResetTokenCreate,
+    },
+    $queryRaw: prismaMocks.queryRaw,
+    $transaction: prismaMocks.transaction,
   },
+}));
+
+vi.mock('./modules/auth/mailer.js', () => ({
+  sendPasswordResetEmail: prismaMocks.sendPasswordResetEmail,
 }));
 
 import { buildApp } from './app.js';
@@ -53,6 +70,7 @@ describe('customer and admin auth realms', () => {
   let app: FastifyInstance;
   let customer: User;
   let admin: User;
+  let latestResetCreatedAt: Date | null = null;
 
   beforeAll(async () => {
     const now = new Date();
@@ -103,8 +121,24 @@ describe('customer and admin auth realms', () => {
     prismaMocks.refreshTokenCreate.mockResolvedValue({ id: '33333333-3333-4333-8333-333333333333' });
     prismaMocks.refreshTokenFindUnique.mockResolvedValue(null);
     prismaMocks.refreshTokenUpdateMany.mockResolvedValue({ count: 0 });
+    prismaMocks.passwordResetTokenFindFirst.mockImplementation(async () =>
+      latestResetCreatedAt ? { createdAt: latestResetCreatedAt } : null,
+    );
+    prismaMocks.passwordResetTokenDeleteMany.mockResolvedValue({ count: 0 });
+    prismaMocks.passwordResetTokenCreate.mockImplementation(async () => {
+      latestResetCreatedAt = new Date();
+      return { id: '44444444-4444-4444-8444-444444444444' };
+    });
+    prismaMocks.transaction.mockImplementation(async (callback: (tx: unknown) => unknown) => callback({
+      $queryRaw: prismaMocks.queryRaw,
+      passwordResetToken: {
+        findFirst: prismaMocks.passwordResetTokenFindFirst,
+        deleteMany: prismaMocks.passwordResetTokenDeleteMany,
+        create: prismaMocks.passwordResetTokenCreate,
+      },
+    }));
 
-    app = await buildApp();
+    app = await buildApp({ trustProxy: 1 });
   }, 30000);
 
   afterAll(async () => {
@@ -126,7 +160,7 @@ describe('customer and admin auth realms', () => {
     });
   });
 
-  it('rejects admin accounts at the customer login with 403', async () => {
+  it('returns the generic customer-login failure for admin credentials', async () => {
     const response = await app.inject({
       method: 'POST',
       url: '/api/auth/login',
@@ -136,11 +170,69 @@ describe('customer and admin auth realms', () => {
       },
     });
 
-    expect(response.statusCode).toBe(403);
+    expect(response.statusCode).toBe(401);
     expect(response.json()).toMatchObject({
       success: false,
-      error: { code: 'ADMIN_LOGIN_REQUIRED' },
+      error: { code: 'INVALID_CREDENTIALS' },
     });
+  });
+
+  it('isolates login throttling for separate forwarded client IPs', async () => {
+    const lockedClient = '198.51.100.10';
+    const otherClient = '203.0.113.20';
+    const payload = { email: 'nobody@example.com', password: 'WrongPassword123!' };
+
+    for (let attempt = 0; attempt < env.RATE_LIMIT_LOGIN_MAX; attempt += 1) {
+      const response = await app.inject({ method: 'POST', url: '/api/auth/login', headers: { 'x-forwarded-for': lockedClient }, payload });
+      expect(response.statusCode).toBe(401);
+    }
+
+    expect((await app.inject({ method: 'POST', url: '/api/auth/login', headers: { 'x-forwarded-for': lockedClient }, payload })).statusCode).toBe(429);
+    expect((await app.inject({ method: 'POST', url: '/api/auth/login', headers: { 'x-forwarded-for': otherClient }, payload })).statusCode).toBe(401);
+  });
+
+  it('limits password-reset abuse by IP and by account without revealing either result', async () => {
+    latestResetCreatedAt = null;
+    prismaMocks.passwordResetTokenCreate.mockClear();
+    const resetPayload = { email: customer.email };
+
+    const first = await app.inject({
+      method: 'POST',
+      url: '/api/auth/password-reset/request',
+      headers: { 'x-forwarded-for': '198.51.100.30' },
+      payload: resetPayload,
+    });
+    const second = await app.inject({
+      method: 'POST',
+      url: '/api/auth/password-reset/request',
+      headers: { 'x-forwarded-for': '203.0.113.40' },
+      payload: resetPayload,
+    });
+
+    expect(first.statusCode).toBe(200);
+    expect(second.statusCode).toBe(200);
+    expect(first.json()).toEqual(second.json());
+    expect(prismaMocks.passwordResetTokenCreate).toHaveBeenCalledTimes(1);
+    expect(prismaMocks.passwordResetTokenCreate.mock.calls[0]?.[0]).toMatchObject({
+      data: { requestedByIp: '198.51.100.30' },
+    });
+
+    const limitedIp = '192.0.2.50';
+    for (let attempt = 0; attempt < env.PASSWORD_RESET_IP_MAX; attempt += 1) {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/auth/password-reset/request',
+        headers: { 'x-forwarded-for': limitedIp },
+        payload: { email: `unknown-${attempt}@example.com` },
+      });
+      expect(response.statusCode).toBe(200);
+    }
+    expect((await app.inject({
+      method: 'POST',
+      url: '/api/auth/password-reset/request',
+      headers: { 'x-forwarded-for': limitedIp },
+      payload: { email: 'unknown-over-limit@example.com' },
+    })).statusCode).toBe(429);
   });
 
   it('scopes the admin login query to admin roles and rejects customer credentials', async () => {

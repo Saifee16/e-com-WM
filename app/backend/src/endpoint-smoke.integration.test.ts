@@ -343,8 +343,8 @@ describe('endpoint smoke suite', () => {
           password: adminPassword,
         },
       }),
-      403,
-      'ADMIN_LOGIN_REQUIRED',
+      401,
+      'INVALID_CREDENTIALS',
     );
 
     const adminLoginResponse = await app.inject({
@@ -690,25 +690,35 @@ describe('endpoint smoke suite', () => {
     );
     expect(removedCart.items).toHaveLength(0);
 
-    await prisma.cart.create({
-      data: {
-        guestId: mergeGuestId,
-        items: {
-          create: {
-            variantId: catalogVariant.id,
-            quantity: 1,
-          },
-        },
-      },
+    const mergeGuestCartResponse = await app.inject({
+      method: 'GET',
+      url: '/api/cart',
+      headers: { 'x-guest-id': mergeGuestId },
     });
-    parseSuccess<{ merged: boolean }>(
+    const signedMergeGuestCookie = extractCookieHeader(mergeGuestCartResponse.headers['set-cookie']);
+    const mergeGuestCart = await prisma.cart.findFirstOrThrow({ where: { guestId: mergeGuestId } });
+    await prisma.cartItem.create({
+      data: { cartId: mergeGuestCart.id, variantId: catalogVariant.id, quantity: 1 },
+    });
+
+    expect(parseSuccess<{ merged: boolean }>(
       await app.inject({
         method: 'POST',
         url: '/api/cart/merge',
         headers: csrfHeaders(customerCookie),
-        payload: { guestId: mergeGuestId },
+        payload: {},
       }),
-    );
+    ).merged).toBe(false);
+    expect(await prisma.cart.findFirst({ where: { id: mergeGuestCart.id } })).not.toBeNull();
+
+    expect(parseSuccess<{ merged: boolean }>(
+      await app.inject({
+        method: 'POST',
+        url: '/api/cart/merge',
+        headers: csrfHeaders(`${customerCookie}; ${signedMergeGuestCookie}`),
+        payload: {},
+      }),
+    ).merged).toBe(true);
 
     const order = parseSuccess<OrderResponse>(
       await app.inject({

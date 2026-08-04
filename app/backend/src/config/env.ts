@@ -14,6 +14,7 @@ const envSchema = z.object({
   REDIS_URL: z.string().url().default('redis://localhost:6379'),
   JWT_ACCESS_SECRET: z.string().min(24),
   JWT_REFRESH_SECRET: z.string().min(24),
+  TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(5).default(0),
   ACCESS_TOKEN_TTL_SECONDS: z.coerce.number().int().positive().default(900),
   REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().positive().default(30),
   PASSWORD_RESET_TOKEN_TTL_MINUTES: z.coerce.number().int().positive().default(30),
@@ -24,6 +25,9 @@ const envSchema = z.object({
   RATE_LIMIT_GLOBAL_WINDOW_SECONDS: z.coerce.number().int().positive().default(60),
   RATE_LIMIT_LOGIN_MAX: z.coerce.number().int().positive().default(10),
   RATE_LIMIT_LOGIN_WINDOW_SECONDS: z.coerce.number().int().positive().default(60),
+  PASSWORD_RESET_IP_MAX: z.coerce.number().int().positive().default(5),
+  PASSWORD_RESET_IP_WINDOW_SECONDS: z.coerce.number().int().positive().default(900),
+  PASSWORD_RESET_ACCOUNT_COOLDOWN_SECONDS: z.coerce.number().int().positive().default(300),
   EMAIL_FROM: z.string().email().default('no-reply@example.com'),
   SMTP_HOST: z.string().trim().optional().transform((value) => value || undefined),
   SMTP_PORT: z.coerce.number().int().positive().optional(),
@@ -41,6 +45,9 @@ const envSchema = z.object({
   }
   if (value.RATE_LIMIT_LOGIN_MAX >= value.RATE_LIMIT_GLOBAL_MAX) {
     context.addIssue({ code: 'custom', path: ['RATE_LIMIT_LOGIN_MAX'], message: 'RATE_LIMIT_LOGIN_MAX must be lower than RATE_LIMIT_GLOBAL_MAX' });
+  }
+  if (value.PASSWORD_RESET_IP_MAX >= value.RATE_LIMIT_GLOBAL_MAX) {
+    context.addIssue({ code: 'custom', path: ['PASSWORD_RESET_IP_MAX'], message: 'PASSWORD_RESET_IP_MAX must be lower than RATE_LIMIT_GLOBAL_MAX' });
   }
   if (value.NODE_ENV === 'production' && !value.COOKIE_SECURE) {
     context.addIssue({ code: 'custom', path: ['COOKIE_SECURE'], message: 'COOKIE_SECURE must be true in production' });

@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useState, useEffect, type ReactNode } from 'react';
 import type { User, LoginCredentials, RegisterData } from '../types';
-import { authAPI, cartAPI, clearGuestCartId, GUEST_CART_ID_KEY } from '../services/api';
+import { authAPI, cartAPI, clearGuestCartId } from '../services/api';
 import { getApiErrorMessage } from '../utils/api-error';
 
 interface AuthContextType {
@@ -57,12 +57,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const login = async (credentials: LoginCredentials) => {
     try {
-      const guestId = localStorage.getItem(GUEST_CART_ID_KEY);
       const response = await authAPI.login(credentials.email, credentials.password);
       const { data } = response.data;
       
       setUser(data);
-      await cartAPI.mergeGuestCart(guestId).catch(() => undefined);
+      await cartAPI.mergeGuestCart().catch(() => undefined);
       clearGuestCartId();
     } catch (error: unknown) {
       throw new Error(getApiErrorMessage(error, 'Login failed'));
@@ -71,12 +70,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const register = async (data: RegisterData) => {
     try {
-      const guestId = localStorage.getItem(GUEST_CART_ID_KEY);
       const response = await authAPI.register(data);
       const { data: userData } = response.data;
       
       setUser(userData);
-      await cartAPI.mergeGuestCart(guestId).catch(() => undefined);
+      await cartAPI.mergeGuestCart().catch(() => undefined);
       clearGuestCartId();
     } catch (error: unknown) {
       throw new Error(getApiErrorMessage(error, 'Registration failed'));

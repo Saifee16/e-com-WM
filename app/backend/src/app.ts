@@ -20,8 +20,10 @@ import { requestIdPlugin } from './plugins/request-id.js';
 import { csrfPreHandler } from './plugins/csrf.js';
 import { fail } from './utils/responses.js';
 
-export const buildApp = async () => {
+export const buildApp = async (options: { trustProxy?: number } = {}) => {
+  const trustProxy = options.trustProxy ?? env.TRUST_PROXY_HOPS;
   const app = Fastify({
+    ...(trustProxy > 0 ? { trustProxy } : {}),
     logger: {
       level: env.NODE_ENV === 'development' ? 'debug' : 'info',
     },
@@ -29,7 +31,10 @@ export const buildApp = async () => {
 
   await app.register(requestIdPlugin);
   await app.register(helmet);
-  await app.register(cookie);
+  // The same high-entropy server secret is used to authenticate the opaque
+  // guest-cart identifier. The browser cannot forge a cart cookie it did not
+  // receive from this backend.
+  await app.register(cookie, { secret: env.JWT_REFRESH_SECRET });
 
   const allowedOrigins = new Set([
     env.FRONTEND_URL,

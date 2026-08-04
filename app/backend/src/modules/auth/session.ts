@@ -33,14 +33,20 @@ const getAccessToken = (request: FastifyRequest, realm: AuthRealm) => {
 };
 
 export const getGuestId = (request: FastifyRequest) => {
-  const cookieGuestId = request.cookies[GUEST_CART_COOKIE];
-  if (cookieGuestId?.trim()) {
-    return cookieGuestId.trim();
-  }
+  const signedGuestId = getSignedGuestId(request);
+  if (signedGuestId) return signedGuestId;
 
   const header = request.headers['x-guest-id'];
   const guestId = Array.isArray(header) ? header[0] : header;
   return guestId?.trim() || null;
+};
+
+export const getSignedGuestId = (request: FastifyRequest) => {
+  const signedCookie = request.cookies[GUEST_CART_COOKIE];
+  if (!signedCookie) return null;
+
+  const unsigned = request.unsignCookie(signedCookie);
+  return unsigned.valid && unsigned.value?.trim() ? unsigned.value.trim() : null;
 };
 
 const getUserForRealm = async (request: FastifyRequest, realm: AuthRealm) => {

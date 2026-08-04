@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { env } from '../../config/env.js';
 import { prisma } from '../../db/prisma.js';
 import { fail, ok } from '../../utils/responses.js';
-import { authenticateCustomer, GUEST_CART_COOKIE, getAuthenticatedUser, getGuestId } from '../auth/session.js';
+import { authenticateCustomer, GUEST_CART_COOKIE, getAuthenticatedUser, getGuestId, getSignedGuestId } from '../auth/session.js';
 import { mapProduct, productInclude } from '../products/routes.js';
 
 const cartItemInclude = {
@@ -59,6 +59,7 @@ const setGuestCartCookie = (reply: FastifyReply, guestId: string) => {
     secure: env.COOKIE_SECURE,
     sameSite: env.COOKIE_SAME_SITE,
     path: '/',
+    signed: true,
     maxAge: env.REFRESH_TOKEN_TTL_DAYS * 24 * 60 * 60,
     ...(env.COOKIE_DOMAIN ? { domain: env.COOKIE_DOMAIN } : {}),
   });
@@ -318,8 +319,8 @@ export const cartRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.post('/merge', { preHandler: authenticateCustomer }, async (request, reply) => {
-    const body = z.object({ guestId: z.string().min(1).optional() }).parse(request.body);
-    const guestId = body.guestId ?? getGuestId(request);
+    z.object({}).strict().parse(request.body);
+    const guestId = getSignedGuestId(request);
 
     if (!guestId) {
       return ok(reply, { merged: false });

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { adminAuthAPI, authAPI, cartAPI, clearGuestCartId, GUEST_CART_ID_KEY } from '../services/api';
+import { adminAuthAPI, authAPI, cartAPI, clearGuestCartId } from '../services/api';
 import { useAdminAuth } from '../contexts/AdminAuthContext';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -15,7 +15,6 @@ const GoogleCallback = () => {
     const completeLogin = async () => {
       const code = searchParams.get('code');
       const mode = searchParams.get('state') === 'admin' ? 'admin' : 'customer';
-      const guestId = localStorage.getItem(GUEST_CART_ID_KEY);
 
       if (!code) {
         setMessage('Google did not return an authorization code.');
@@ -32,7 +31,7 @@ const GoogleCallback = () => {
 
         await authAPI.googleCallback(code);
         await refreshAuth();
-        await cartAPI.mergeGuestCart(guestId).catch(() => undefined);
+        await cartAPI.mergeGuestCart().catch(() => undefined);
         clearGuestCartId();
         navigate('/', { replace: true });
       } catch {

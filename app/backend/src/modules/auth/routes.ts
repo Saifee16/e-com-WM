@@ -75,25 +75,6 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
       },
     });
 
-    if (!user) {
-      const adminAccount = await prisma.user.findFirst({
-        where: {
-          email: body.email,
-          role: { in: ['ADMIN', 'SUPER_ADMIN'] },
-          status: 'ACTIVE',
-          deletedAt: null,
-        },
-        select: { id: true },
-      });
-
-      if (adminAccount) {
-        return fail(reply, 403, {
-          code: 'ADMIN_LOGIN_REQUIRED',
-          message: 'Administrator accounts must use the admin login',
-        });
-      }
-    }
-
     if (!user || !(await argon2.verify(user.passwordHash, body.password))) {
       return fail(reply, 401, {
         code: 'INVALID_CREDENTIALS',
@@ -193,7 +174,14 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     return ok(reply, toSafeUser(user));
   });
 
-  app.post('/password-reset/request', async (request, reply) => {
+  app.post('/password-reset/request', {
+    config: {
+      rateLimit: {
+        max: env.PASSWORD_RESET_IP_MAX,
+        timeWindow: `${env.PASSWORD_RESET_IP_WINDOW_SECONDS} seconds`,
+      },
+    },
+  }, async (request, reply) => {
     const body = passwordResetRequestSchema.parse(request.body);
     const user = await prisma.user.findFirst({
       where: { email: body.email, role: 'CUSTOMER', status: 'ACTIVE', deletedAt: null },
@@ -201,22 +189,36 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
 
     if (user) {
       const rawToken = randomBytes(32).toString('base64url');
-      await prisma.$transaction([
-        prisma.passwordResetToken.deleteMany({ where: { userId: user.id, consumedAt: null } }),
-        prisma.passwordResetToken.create({
+      const resetCreated = await prisma.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT id FROM users WHERE id = ${user.id}::uuid FOR UPDATE`;
+        const latest = await tx.passwordResetToken.findFirst({
+          where: { userId: user.id },
+          orderBy: { createdAt: 'desc' },
+          select: { createdAt: true },
+        });
+        if (latest && Date.now() - latest.createdAt.getTime() < env.PASSWORD_RESET_ACCOUNT_COOLDOWN_SECONDS * 1000) {
+          return false;
+        }
+
+        await tx.passwordResetToken.deleteMany({ where: { userId: user.id, consumedAt: null } });
+        await tx.passwordResetToken.create({
           data: {
             userId: user.id,
             tokenHash: hashOpaqueToken(rawToken),
             expiresAt: new Date(Date.now() + env.PASSWORD_RESET_TOKEN_TTL_MINUTES * 60 * 1000),
             requestedByIp: request.ip,
           },
-        }),
-      ]);
-      const resetUrl = `${env.FRONTEND_URL.replace(/\/$/, '')}/reset-password?token=${encodeURIComponent(rawToken)}`;
-      try {
-        await sendPasswordResetEmail(user.email, resetUrl, (details, message) => request.log.info(details, message));
-      } catch (error) {
-        request.log.error({ error, userId: user.id }, 'failed to send password reset email');
+        });
+        return true;
+      });
+
+      if (resetCreated) {
+        const resetUrl = `${env.FRONTEND_URL.replace(/\/$/, '')}/reset-password?token=${encodeURIComponent(rawToken)}`;
+        try {
+          await sendPasswordResetEmail(user.email, resetUrl, (details, message) => request.log.info(details, message));
+        } catch (error) {
+          request.log.error({ error, userId: user.id }, 'failed to send password reset email');
+        }
       }
     }
 
