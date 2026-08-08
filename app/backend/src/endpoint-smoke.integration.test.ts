@@ -1,4 +1,7 @@
 import { randomUUID } from 'node:crypto';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import type { FastifyInstance } from 'fastify';
 import type { Response as InjectResponse } from 'light-my-request';
 import argon2 from 'argon2';
@@ -32,11 +35,22 @@ interface ProductResponse {
   _id: string;
   name: string;
   slug: string;
+  brand: string;
   brandSlug: string;
   category: string;
   price: number;
   countInStock: number;
   status: string;
+  images: string[];
+  specifications: {
+    display?: string;
+    processor?: string;
+    ram?: string;
+    battery?: string;
+    camera?: string;
+    os?: string;
+    network?: string;
+  };
 }
 
 interface ProductPageResponse {
@@ -122,6 +136,23 @@ const csrfHeaders = (cookie: string) => {
   return { cookie, 'x-csrf-token': csrfCookie!.slice('csrfToken='.length) };
 };
 
+const multipartImages = (files: Array<{ filename: string; mimeType: string; contents: Buffer }>) => {
+  const boundary = `----codex-${randomUUID()}`;
+  const chunks: Buffer[] = [];
+  files.forEach((file) => {
+    chunks.push(Buffer.from(
+      `--${boundary}\r\nContent-Disposition: form-data; name="images"; filename="${file.filename}"\r\n`
+      + `Content-Type: ${file.mimeType}\r\n\r\n`,
+    ));
+    chunks.push(file.contents, Buffer.from('\r\n'));
+  });
+  chunks.push(Buffer.from(`--${boundary}--\r\n`));
+  return {
+    payload: Buffer.concat(chunks),
+    headers: { 'content-type': `multipart/form-data; boundary=${boundary}` },
+  };
+};
+
 const checkoutPayload = (email: string) => ({
   shippingInfo: {
     firstName: 'Smoke',
@@ -189,6 +220,7 @@ const cleanupScope = async (scope: string) => {
 
 describe('endpoint smoke suite', () => {
   let app: FastifyInstance;
+  let uploadDirectory: string;
   const scope = `endpoint-smoke-${randomUUID()}`;
   const adminEmail = `admin-${scope}@example.com`;
   const customerEmail = `customer-${scope}@example.com`;
@@ -200,13 +232,15 @@ describe('endpoint smoke suite', () => {
   const promoCode = scope.toUpperCase();
 
   beforeAll(async () => {
-    app = await buildApp();
+    uploadDirectory = await mkdtemp(path.join(tmpdir(), 'ecommerce-product-uploads-'));
+    app = await buildApp({ uploadDirectory });
     await cleanupScope(scope);
   });
 
   afterAll(async () => {
     await app.close();
     await cleanupScope(scope);
+    await rm(uploadDirectory, { recursive: true, force: true });
   });
 
   it('exercises public, auth, cart, checkout, admin CRUD, contact, RBAC, and CORS routes', async () => {
@@ -546,6 +580,63 @@ describe('endpoint smoke suite', () => {
       }),
     );
 
+    const pngImage = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+      'base64',
+    );
+    const imageUpload = multipartImages([
+      { filename: 'phone-front.png', mimeType: 'image/png', contents: pngImage },
+      { filename: 'phone-back.png', mimeType: 'image/png', contents: pngImage },
+    ]);
+    const uploadedImages = parseSuccess<{ urls: string[] }>(
+      await app.inject({
+        method: 'POST',
+        url: '/api/admin/products/images',
+        headers: { ...csrfHeaders(adminCookie), ...imageUpload.headers },
+        payload: imageUpload.payload,
+      }),
+      201,
+    );
+    expect(uploadedImages.urls).toHaveLength(2);
+    expect(uploadedImages.urls.every((url) => url.endsWith('.png'))).toBe(true);
+    const uploadedImageResponse = await app.inject({
+      method: 'GET',
+      url: new URL(uploadedImages.urls[0]!).pathname,
+    });
+    expect(uploadedImageResponse.statusCode).toBe(200);
+    expect(uploadedImageResponse.headers['content-type']).toBe('image/png');
+    expect(uploadedImageResponse.headers['cross-origin-resource-policy']).toBe('cross-origin');
+
+    const disguisedImage = multipartImages([
+      { filename: 'not-really-an-image.jpg', mimeType: 'image/jpeg', contents: Buffer.from('not an image') },
+    ]);
+    expectError(
+      await app.inject({
+        method: 'POST',
+        url: '/api/admin/products/images',
+        headers: { ...csrfHeaders(adminCookie), ...disguisedImage.headers },
+        payload: disguisedImage.payload,
+      }),
+      400,
+      'REQUEST_ERROR',
+    );
+
+    const tooManyFiles = multipartImages(Array.from({ length: 6 }, (_, index) => ({
+      filename: `phone-${index + 1}.png`,
+      mimeType: 'image/png',
+      contents: pngImage,
+    })));
+    expectError(
+      await app.inject({
+        method: 'POST',
+        url: '/api/admin/products/images',
+        headers: { ...csrfHeaders(adminCookie), ...tooManyFiles.headers },
+        payload: tooManyFiles.payload,
+      }),
+      413,
+      'REQUEST_ERROR',
+    );
+
     const adminProductPayload = {
       name: `Admin CRUD Phone ${scope}`,
       brand: `Admin Brand ${scope}`,
@@ -553,9 +644,18 @@ describe('endpoint smoke suite', () => {
       description: 'Product created by endpoint smoke tests.',
       price: 125_000,
       originalPrice: 135_000,
-      imageUrl: 'https://example.com/admin-crud-phone.jpg',
+      images: uploadedImages.urls,
       storage: '256GB',
       color: 'Blue',
+      specifications: {
+        display: '6.7-inch AMOLED, 120Hz',
+        processor: 'Snapdragon 8 Gen 3',
+        ram: '12GB',
+        battery: '5,000mAh',
+        camera: '50MP main + 12MP ultra-wide',
+        os: 'Android 15',
+        network: '5G, dual SIM',
+      },
       condition: 'new',
       countInStock: 6,
       isFeatured: false,
@@ -581,6 +681,61 @@ describe('endpoint smoke suite', () => {
       403,
       'ADMIN_REQUIRED',
     );
+
+    const invalidImageError = expectError(
+      await app.inject({
+        method: 'POST',
+        url: '/api/admin/products',
+        headers: csrfHeaders(adminCookie),
+        payload: { ...adminProductPayload, images: ['http://example.com/insecure-product.jpg'] },
+      }),
+      400,
+      'VALIDATION_ERROR',
+    );
+    expect(invalidImageError.details).toEqual(expect.arrayContaining([
+      expect.objectContaining({ path: ['images', 0], message: 'Product image URLs must use HTTPS' }),
+    ]));
+
+    const tooManyImagesError = expectError(
+      await app.inject({
+        method: 'POST',
+        url: '/api/admin/products',
+        headers: csrfHeaders(adminCookie),
+        payload: {
+          ...adminProductPayload,
+          images: Array.from(
+            { length: 6 },
+            (_, index) => `https://example.com/admin-crud-phone-${index + 1}.jpg`,
+          ),
+        },
+      }),
+      400,
+      'VALIDATION_ERROR',
+    );
+    expect(tooManyImagesError.details).toEqual(expect.arrayContaining([
+      expect.objectContaining({ path: ['images'], message: 'You can add up to 5 product images' }),
+    ]));
+
+    for (const invalidPayload of [
+      { ...adminProductPayload, price: -1 },
+      { ...adminProductPayload, countInStock: -1 },
+      { ...adminProductPayload, countInStock: 1.5 },
+      { ...adminProductPayload, name: '   ' },
+      { ...adminProductPayload, unexpectedField: true },
+      { ...adminProductPayload, price: String(adminProductPayload.price) },
+    ]) {
+      expectError(
+        await app.inject({
+          method: 'POST',
+          url: '/api/admin/products',
+          headers: csrfHeaders(adminCookie),
+          payload: invalidPayload,
+        }),
+        400,
+        'VALIDATION_ERROR',
+      );
+    }
+
     const createdProduct = parseSuccess<ProductResponse>(
       await app.inject({
         method: 'POST',
@@ -591,6 +746,58 @@ describe('endpoint smoke suite', () => {
       201,
     );
     expect(createdProduct.name).toBe(adminProductPayload.name);
+    expect(createdProduct.images).toEqual(adminProductPayload.images);
+    expect(createdProduct.specifications).toMatchObject(adminProductPayload.specifications);
+
+    const draftPayload = {
+      name: `Draft Phone ${scope}`,
+      brand: `Draft Brand ${scope}`,
+      description: 'Draft product with optional fields omitted.',
+      price: 99_000,
+      status: 'DRAFT',
+    };
+    const draftProduct = parseSuccess<ProductResponse>(
+      await app.inject({
+        method: 'POST',
+        url: '/api/admin/products',
+        headers: csrfHeaders(adminCookie),
+        payload: draftPayload,
+      }),
+      201,
+    );
+    expect(draftProduct.status).toBe('DRAFT');
+    const adminDrafts = parseSuccess<ProductPageResponse>(
+      await app.inject({
+        method: 'GET',
+        url: `/api/admin/products?status=DRAFT&search=${encodeURIComponent(scope)}`,
+        headers: { cookie: adminCookie },
+      }),
+    );
+    expect(adminDrafts.items.some((product) => product.id === draftProduct.id)).toBe(true);
+    expectError(
+      await app.inject({ method: 'GET', url: `/api/products/${draftProduct.id}` }),
+      404,
+      'PRODUCT_NOT_FOUND',
+    );
+
+    const minimalProduct = parseSuccess<ProductResponse>(
+      await app.inject({
+        method: 'POST',
+        url: '/api/admin/products',
+        headers: csrfHeaders(adminCookie),
+        payload: {
+          name: `Minimal Active Phone ${scope}`,
+          brand: `Minimal Brand ${scope}`,
+          description: 'Published product using only the required create fields.',
+          price: 75_000,
+        },
+      }),
+      201,
+    );
+    expect(minimalProduct.status).toBe('ACTIVE');
+    parseSuccess<ProductResponse>(
+      await app.inject({ method: 'GET', url: `/api/products/${minimalProduct.id}` }),
+    );
 
     const corsResponse = await app.inject({
       method: 'OPTIONS',
@@ -614,13 +821,19 @@ describe('endpoint smoke suite', () => {
         url: `/api/admin/products/${createdProduct.id}`,
         headers: csrfHeaders(adminCookie),
         payload: {
+          brand: `Updated Admin Brand ${scope}`,
+          category: `Updated Category ${scope}`,
           price: 119_000,
           countInStock: 8,
+          specifications: { ram: '16GB', network: '5G, eSIM' },
         },
       }),
     );
     expect(updatedProduct.price).toBe(119_000);
     expect(updatedProduct.countInStock).toBe(8);
+    expect(updatedProduct.brand).toBe(`Updated Admin Brand ${scope}`);
+    expect(updatedProduct.category).toBe(`updated-category-${scope}`);
+    expect(updatedProduct.specifications).toMatchObject({ ram: '16GB', network: '5G, eSIM' });
 
     parseSuccess<{ deleted: boolean }>(
       await app.inject({
@@ -629,6 +842,15 @@ describe('endpoint smoke suite', () => {
         headers: csrfHeaders(adminCookie),
       }),
     );
+    for (const productId of [draftProduct.id, minimalProduct.id]) {
+      parseSuccess<{ deleted: boolean }>(
+        await app.inject({
+          method: 'DELETE',
+          url: `/api/admin/products/${productId}`,
+          headers: csrfHeaders(adminCookie),
+        }),
+      );
+    }
     expectError(
       await app.inject({
         method: 'GET',
@@ -724,7 +946,10 @@ describe('endpoint smoke suite', () => {
       await app.inject({
         method: 'POST',
         url: '/api/orders',
-        headers: csrfHeaders(customerCookie),
+        headers: {
+          ...csrfHeaders(customerCookie),
+          'idempotency-key': randomUUID(),
+        },
         payload: checkoutPayload(`buyer-${scope}@example.com`),
       }),
       201,
@@ -795,6 +1020,21 @@ describe('endpoint smoke suite', () => {
       }),
     );
     expect(persistedStatus.status).toBe('confirmed');
+
+    for (const status of ['PROCESSING', 'SHIPPED'] as const) {
+      const transitionedOrder = parseSuccess<OrderResponse>(
+        await app.inject({
+          method: 'PUT',
+          url: `/api/admin/orders/${order.id}/status`,
+          headers: csrfHeaders(adminCookie),
+          payload: {
+            status,
+            note: `Smoke test ${status.toLowerCase()}`,
+          },
+        }),
+      );
+      expect(transitionedOrder.status).toBe(status.toLowerCase());
+    }
 
     const deliveredOrder = parseSuccess<OrderResponse>(
       await app.inject({

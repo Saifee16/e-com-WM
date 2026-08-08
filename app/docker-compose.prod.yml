@@ -44,6 +44,8 @@ services:
       context: ./backend
       target: production
     restart: unless-stopped
+    volumes:
+      - product_uploads:/app/uploads
     environment:
       NODE_ENV: production
       PORT: 4000
@@ -64,6 +66,20 @@ services:
       PASSWORD_RESET_IP_MAX: ${PASSWORD_RESET_IP_MAX:-5}
       PASSWORD_RESET_IP_WINDOW_SECONDS: ${PASSWORD_RESET_IP_WINDOW_SECONDS:-900}
       PASSWORD_RESET_ACCOUNT_COOLDOWN_SECONDS: ${PASSWORD_RESET_ACCOUNT_COOLDOWN_SECONDS:-300}
+      PUBLIC_FORM_RATE_LIMIT_MAX: ${PUBLIC_FORM_RATE_LIMIT_MAX:-10}
+      PUBLIC_FORM_RATE_LIMIT_WINDOW_SECONDS: ${PUBLIC_FORM_RATE_LIMIT_WINDOW_SECONDS:-900}
+      EMAIL_FROM: ${EMAIL_FROM:?Set EMAIL_FROM in .env}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-}
+      FACEBOOK_APP_ID: ${FACEBOOK_APP_ID:-}
+      FACEBOOK_APP_SECRET: ${FACEBOOK_APP_SECRET:-}
+      FACEBOOK_REDIRECT_URI: ${FACEBOOK_REDIRECT_URI:-}
+      FACEBOOK_GRAPH_API_VERSION: ${FACEBOOK_GRAPH_API_VERSION:-}
     depends_on:
       postgres:
         condition: service_healthy
@@ -98,3 +114,4 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  product_uploads:

@@ -19,23 +19,42 @@ const cartItemInclude = {
 } satisfies Prisma.CartItemInclude;
 
 type CartItemWithRelations = Prisma.CartItemGetPayload<{ include: typeof cartItemInclude }>;
+type CartPromo = {
+  code: string;
+  type: 'PERCENTAGE' | 'FIXED_AMOUNT' | 'FREE_SHIPPING';
+  valueAmount: number | null;
+  valuePercent: number | null;
+  maxDiscountAmount: number | null;
+};
 
-const calculateTotals = (items: CartItemWithRelations[]) => {
+const calculateTotals = (items: CartItemWithRelations[], promo?: CartPromo | null) => {
   const subtotal = items.reduce((total, item) => total + item.variant.priceAmount * item.quantity, 0);
   const itemCount = items.reduce((total, item) => total + item.quantity, 0);
-  const shipping = subtotal >= 100_000 || subtotal === 0 ? 0 : 500;
+  const freeShipping = promo?.type === 'FREE_SHIPPING';
+  const shipping = freeShipping || subtotal >= 100_000 || subtotal === 0 ? 0 : 500;
   const tax = Math.round(subtotal * 0.02);
+  const discount = promo?.type === 'PERCENTAGE'
+    ? Math.min(
+        Math.round((subtotal * (promo.valuePercent ?? 0)) / 100),
+        promo.maxDiscountAmount ?? subtotal,
+      )
+    : promo?.type === 'FIXED_AMOUNT'
+      ? Math.min(promo.valueAmount ?? 0, subtotal)
+      : 0;
 
   return {
     subtotal,
     itemCount,
     shipping,
     tax,
-    total: subtotal + shipping + tax,
+    discount,
+    freeShipping,
+    promoCode: promo?.code,
+    total: subtotal + shipping + tax - discount,
   };
 };
 
-const mapCart = (items: CartItemWithRelations[]) => ({
+const mapCart = (items: CartItemWithRelations[], promo?: CartPromo | null) => ({
   items: items.map((item) => {
     const product = mapProduct(item.variant.product);
     return {
@@ -50,7 +69,7 @@ const mapCart = (items: CartItemWithRelations[]) => ({
       ptaApproved: product.ptaApproved,
     };
   }),
-  totals: calculateTotals(items),
+  totals: calculateTotals(items, promo),
 });
 
 const setGuestCartCookie = (reply: FastifyReply, guestId: string) => {
@@ -108,6 +127,14 @@ const loadCartItems = async (cartId: string) => {
   });
 };
 
+const loadCartResponse = async (cartId: string) => {
+  const [items, cart] = await Promise.all([
+    loadCartItems(cartId),
+    prisma.cart.findUnique({ where: { id: cartId }, select: { promoCode: true } }),
+  ]);
+  return mapCart(items, cart?.promoCode);
+};
+
 const findPrimaryVariant = async (productId: string) => {
   return prisma.productVariant.findFirst({
     where: {
@@ -137,7 +164,7 @@ export const cartRoutes: FastifyPluginAsync = async (app) => {
       return ok(reply, mapCart([]));
     }
 
-    return ok(reply, mapCart(await loadCartItems(cart.id)));
+    return ok(reply, await loadCartResponse(cart.id));
   });
 
   app.post('/add', async (request, reply) => {
@@ -206,7 +233,7 @@ export const cartRoutes: FastifyPluginAsync = async (app) => {
       return stockError(reply);
     }
 
-    return ok(reply, mapCart(await loadCartItems(cart.id)));
+    return ok(reply, await loadCartResponse(cart.id));
   });
 
   app.put('/update/:productId', async (request, reply) => {
@@ -253,7 +280,7 @@ export const cartRoutes: FastifyPluginAsync = async (app) => {
       }
     }
 
-    return ok(reply, mapCart(await loadCartItems(cart.id)));
+    return ok(reply, await loadCartResponse(cart.id));
   });
 
   app.delete('/remove/:productId', async (request, reply) => {
@@ -272,7 +299,7 @@ export const cartRoutes: FastifyPluginAsync = async (app) => {
       },
     });
 
-    return ok(reply, mapCart(await loadCartItems(cart.id)));
+    return ok(reply, await loadCartResponse(cart.id));
   });
 
   app.delete('/clear', async (request, reply) => {
@@ -302,10 +329,34 @@ export const cartRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const totals = calculateTotals(await loadCartItems(cart.id));
+    const now = new Date();
+    const userUsage = owner.user && promo.perUserLimit
+      ? await prisma.order.count({
+          where: {
+            userId: owner.user.id,
+            promoCodeId: promo.id,
+            status: { notIn: ['CANCELLED', 'REFUNDED'] },
+          },
+        })
+      : 0;
+    if (
+      (promo.startsAt && promo.startsAt > now)
+      || (promo.expiresAt && promo.expiresAt <= now)
+      || (promo.usageLimit !== null && promo.usageCount >= promo.usageLimit)
+      || (promo.perUserLimit !== null && owner.user !== null && userUsage >= promo.perUserLimit)
+      || totals.subtotal < promo.minOrderAmount
+    ) {
+      return fail(reply, 409, {
+        code: 'PROMO_NOT_ELIGIBLE',
+        message: 'This promo code is not eligible for the current cart',
+      });
+    }
     const discount =
-      promo.valuePercent !== null
-        ? Math.min(Math.round((totals.subtotal * promo.valuePercent) / 100), promo.maxDiscountAmount ?? totals.subtotal)
-        : promo.valueAmount ?? 0;
+      promo.type === 'PERCENTAGE'
+        ? Math.min(Math.round((totals.subtotal * (promo.valuePercent ?? 0)) / 100), promo.maxDiscountAmount ?? totals.subtotal)
+        : promo.type === 'FIXED_AMOUNT'
+          ? Math.min(promo.valueAmount ?? 0, totals.subtotal)
+          : 0;
 
     await prisma.cart.update({
       where: { id: cart.id },
@@ -315,6 +366,7 @@ export const cartRoutes: FastifyPluginAsync = async (app) => {
     return ok(reply, {
       discount,
       discountRate: promo.valuePercent ?? 0,
+      freeShipping: promo.type === 'FREE_SHIPPING',
     });
   });
 

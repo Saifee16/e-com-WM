@@ -1,11 +1,35 @@
 import axios, { AxiosError } from 'axios';
 import type { AxiosInstance, AxiosResponse } from 'axios';
-import type { Product } from '../types';
+import type { Product, ProductSpecs } from '../types';
 
 type JsonObject = Record<string, unknown>;
-type ProductPayload = JsonObject;
 type OrderPayload = JsonObject;
 type ContactPayload = { name: string; email: string; subject: string; message: string };
+
+export interface ProductCreateRequest {
+  name: string;
+  brand: string;
+  category: string;
+  description: string;
+  price: number;
+  originalPrice?: number;
+  imageUrl?: string;
+  images?: string[];
+  storage?: string;
+  color?: string;
+  specifications?: Pick<ProductSpecs, 'display' | 'processor' | 'ram' | 'battery' | 'camera' | 'os' | 'network'>;
+  condition: 'new' | 'used' | 'refurbished';
+  countInStock: number;
+  ptaApproved: boolean;
+  isFeatured: boolean;
+  status: 'DRAFT' | 'ACTIVE' | 'ARCHIVED';
+}
+
+export type ProductUpdateRequest = Partial<ProductCreateRequest>;
+
+interface ProductImageUploadResponse {
+  urls: string[];
+}
 
 interface ApiSuccess<T> {
   success: true;
@@ -147,11 +171,7 @@ export interface AccountDashboardData {
   recentOrders: ApiOrder[];
 }
 
-export const GUEST_CART_ID_KEY = 'guestCartId';
-
-export const getGuestCartId = () => {
-  return localStorage.getItem(GUEST_CART_ID_KEY);
-};
+const GUEST_CART_ID_KEY = 'guestCartId';
 
 export const clearGuestCartId = () => {
   localStorage.removeItem(GUEST_CART_ID_KEY);
@@ -218,16 +238,10 @@ const retryAfterCsrfRejection = async (error: AxiosError, client: AxiosInstance)
   return client(config);
 };
 
-// Request interceptor keeps legacy localStorage guest carts working while
-// the hardened backend cookie remains the primary cart identity.
 api.interceptors.request.use(
   async (config) => {
     if (csrfMethods.has(config.method?.toLowerCase() ?? '') && config.url !== '/auth/csrf') {
       config.headers['X-CSRF-Token'] = await ensureCsrfToken();
-    }
-    const legacyGuestId = getGuestCartId();
-    if (legacyGuestId && !config.url?.startsWith('/auth/')) {
-      config.headers['X-Guest-Id'] = legacyGuestId;
     }
     return config;
   },
@@ -300,7 +314,9 @@ export const authAPI = {
   register: (data: { firstName: string; lastName: string; email: string; password: string; phone?: string }) =>
     api.post('/auth/register', data),
   googleStart: () => api.get('/auth/google/start'),
-  googleCallback: (code: string) => api.post('/auth/google/callback', { code }),
+  googleCallback: (code: string, state: string) => api.post('/auth/google/callback', { code, state }),
+  facebookStart: () => api.get('/auth/facebook/start'),
+  facebookCallback: (code: string, state: string) => api.post('/auth/facebook/callback', { code, state }),
   getProfile: () => api.get('/auth/profile'),
   logout: () => api.post('/auth/logout'),
   updateProfile: (data: Partial<{ firstName: string; lastName: string; phone: string }>) =>
@@ -316,7 +332,9 @@ export const adminAuthAPI = {
   login: (email: string, password: string) =>
     adminApi.post('/auth/login', { email, password }),
   googleStart: () => adminApi.get('/auth/google/start'),
-  googleCallback: (code: string) => adminApi.post('/auth/google/callback', { code }),
+  googleCallback: (code: string, state: string) => adminApi.post('/auth/google/callback', { code, state }),
+  facebookStart: () => adminApi.get('/auth/facebook/start'),
+  facebookCallback: (code: string, state: string) => adminApi.post('/auth/facebook/callback', { code, state }),
   getProfile: () => adminApi.get('/auth/profile'),
   logout: () => adminApi.post('/auth/logout'),
 };
@@ -329,11 +347,21 @@ export const productsAPI = {
   getProductsByBrand: (brand: string) => api.get(`/products/brand/${brand}`),
   getBrands: () => api.get('/products/brands'),
   getCategories: () => api.get('/products/categories'),
+  getAdminProducts: (params?: ProductQueryParams) => adminApi.get<ApiSuccess<ProductPage>>('/products', { params }),
   submitReview: (productId: string, data: { rating: number; title?: string; body: string }) =>
     api.post(`/products/${productId}/reviews`, data),
   // Admin only
-  createProduct: (data: ProductPayload) => adminApi.post('/products', data),
-  updateProduct: (id: string, data: ProductPayload) => adminApi.put(`/products/${id}`, data),
+  uploadProductImages: async (files: File[]) => {
+    const formData = new FormData();
+    files.forEach((file) => formData.append('images', file));
+    const response = await adminApi.post<ApiSuccess<ProductImageUploadResponse>>('/products/images', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 30_000,
+    });
+    return response.data.data.urls;
+  },
+  createProduct: (data: ProductCreateRequest) => adminApi.post('/products', data),
+  updateProduct: (id: string, data: ProductUpdateRequest) => adminApi.put(`/products/${id}`, data),
   deleteProduct: (id: string) => adminApi.delete(`/products/${id}`),
 };
 
@@ -352,7 +380,8 @@ export const cartAPI = {
 
 // Orders API
 export const ordersAPI = {
-  createOrder: (data: OrderPayload) => api.post('/orders', data),
+  createOrder: (data: OrderPayload, idempotencyKey: string) =>
+    api.post('/orders', data, { headers: { 'Idempotency-Key': idempotencyKey } }),
   getMyOrders: () => api.get<ApiSuccess<ApiOrder[]>>('/orders/my-orders'),
   getAccountDashboard: () => api.get<ApiSuccess<AccountDashboardData>>('/orders/dashboard'),
   getOrderById: (id: string) => api.get<ApiSuccess<ApiOrder>>(`/orders/${id}`),

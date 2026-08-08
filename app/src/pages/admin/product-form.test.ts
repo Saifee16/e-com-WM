@@ -1,0 +1,124 @@
+import { describe, expect, it } from 'vitest';
+import {
+  MAX_PRODUCT_IMAGES,
+  ProductFormValidationError,
+  createProductFormState,
+  toProductCreateRequest,
+} from './product-form';
+
+describe('admin product form contract', () => {
+  it('converts HTML numeric input strings and omits empty optional fields', () => {
+    const request = toProductCreateRequest({
+      ...createProductFormState(null),
+      name: '  Launch Phone  ',
+      price: '125000',
+      originalPrice: '',
+      countInStock: '6',
+      description: '  A complete product description.  ',
+      storage: '',
+      color: ' ',
+      existingImageUrls: [],
+      imageFiles: [],
+      status: 'DRAFT',
+    });
+
+    expect(request).toMatchObject({
+      name: 'Launch Phone',
+      description: 'A complete product description.',
+      price: 125000,
+      countInStock: 6,
+      status: 'DRAFT',
+    });
+    expect(request).not.toHaveProperty('originalPrice');
+    expect(request).not.toHaveProperty('imageUrl');
+    expect(request).not.toHaveProperty('images');
+    expect(request).not.toHaveProperty('storage');
+    expect(request).not.toHaveProperty('color');
+  });
+
+  it.each([
+    ['negative price', { price: '-1' }, 'Sale price must be a whole number of 0 or more.'],
+    ['fractional stock', { countInStock: '1.5' }, 'Stock quantity must be a whole number of 0 or more.'],
+    ['missing name', { name: '   ' }, 'Product name is required.'],
+    [
+      'unsupported image type',
+      { imageFiles: [new File(['gif'], 'phone.gif', { type: 'image/gif' })] },
+      'phone.gif must be a JPG, JPEG, or PNG image.',
+    ],
+  ])('rejects %s before submission', (_case, override, message) => {
+    const form = {
+      ...createProductFormState(null),
+      name: 'Launch Phone',
+      price: '125000',
+      countInStock: '6',
+      description: 'A complete product description.',
+      ...override,
+    };
+
+    expect(() => toProductCreateRequest(form)).toThrow(new ProductFormValidationError(message));
+  });
+
+  it('accepts up to five JPG or PNG files selected from the device', () => {
+    const imageFiles = Array.from(
+      { length: MAX_PRODUCT_IMAGES },
+      (_, index) => new File(['image'], `phone-${index + 1}.jpg`, { type: 'image/jpeg' }),
+    );
+    const request = toProductCreateRequest({
+      ...createProductFormState(null),
+      name: 'Launch Phone',
+      price: '125000',
+      originalPrice: '135000',
+      countInStock: '6',
+      description: 'A complete product description.',
+      imageFiles,
+    });
+
+    expect(request).not.toHaveProperty('images');
+    expect(request.originalPrice).toBe(135000);
+  });
+
+  it('includes comparison specifications entered in the add product form', () => {
+    const request = toProductCreateRequest({
+      ...createProductFormState(null),
+      name: 'Compare Phone',
+      price: '125000',
+      countInStock: '6',
+      description: 'A phone with complete comparison data.',
+      display: ' 6.7-inch AMOLED, 120Hz ',
+      processor: ' Snapdragon 8 Gen 3 ',
+      ram: ' 12GB ',
+      battery: ' 5,000mAh ',
+      camera: ' 50MP main + 12MP ultra-wide ',
+      os: ' Android 15 ',
+      network: ' 5G, dual SIM ',
+    });
+
+    expect(request.specifications).toEqual({
+      display: '6.7-inch AMOLED, 120Hz',
+      processor: 'Snapdragon 8 Gen 3',
+      ram: '12GB',
+      battery: '5,000mAh',
+      camera: '50MP main + 12MP ultra-wide',
+      os: 'Android 15',
+      network: '5G, dual SIM',
+    });
+  });
+
+  it('rejects more than five product images', () => {
+    const form = {
+      ...createProductFormState(null),
+      name: 'Launch Phone',
+      price: '125000',
+      countInStock: '6',
+      description: 'A complete product description.',
+      imageFiles: Array.from(
+        { length: MAX_PRODUCT_IMAGES + 1 },
+        (_, index) => new File(['image'], `phone-${index + 1}.png`, { type: 'image/png' }),
+      ),
+    };
+
+    expect(() => toProductCreateRequest(form)).toThrow(
+      new ProductFormValidationError('You can add up to 5 product images.'),
+    );
+  });
+});

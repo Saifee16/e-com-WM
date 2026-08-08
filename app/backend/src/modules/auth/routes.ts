@@ -7,6 +7,7 @@ import { env } from '../../config/env.js';
 import { fail, ok } from '../../utils/responses.js';
 import { clearAuthSession, issueAccessToken, issueAuthSession } from './cookies.js';
 import { exchangeGoogleUser, getGoogleAuthUrl } from './google.js';
+import { exchangeFacebookUser, getFacebookAuthUrl } from './facebook.js';
 import { authenticateCustomer, toSafeUser } from './session.js';
 import { sendPasswordResetEmail } from './mailer.js';
 import { revokeRefreshFamily, rotateRefreshToken } from './refresh.js';
@@ -38,6 +39,7 @@ const passwordChangeSchema = z.object({
 
 const googleCallbackSchema = z.object({
   code: z.string().min(1),
+  state: z.string().min(32),
 });
 
 const passwordResetRequestSchema = z.object({
@@ -90,7 +92,14 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     return reply.send(await issueAuthSession(user, request, reply, 'customer'));
   });
 
-  app.post('/register', async (request, reply) => {
+  app.post('/register', {
+    config: {
+      rateLimit: {
+        max: env.RATE_LIMIT_LOGIN_MAX,
+        timeWindow: `${env.RATE_LIMIT_LOGIN_WINDOW_SECONDS} seconds`,
+      },
+    },
+  }, async (request, reply) => {
     const body = registerSchema.parse(request.body);
     const existing = await prisma.user.findUnique({
       where: { email: body.email },
@@ -126,7 +135,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
 
   app.post('/google/callback', async (request, reply) => {
     const body = googleCallbackSchema.parse(request.body);
-    const googleUser = await exchangeGoogleUser(body.code, reply);
+    const googleUser = await exchangeGoogleUser(body.code, body.state, request, reply, 'customer');
     if (!googleUser) return;
 
     const existingUser = await prisma.user.findUnique({
@@ -137,6 +146,12 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
       return fail(reply, 403, {
         code: 'ADMIN_LOGIN_REQUIRED',
         message: 'Administrator accounts must use the admin login',
+      });
+    }
+    if (existingUser && (existingUser.status !== 'ACTIVE' || existingUser.deletedAt)) {
+      return fail(reply, 403, {
+        code: 'ACCOUNT_UNAVAILABLE',
+        message: 'This account is not available for sign in',
       });
     }
 
@@ -160,6 +175,46 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
       data: { lastLoginAt: new Date() },
     });
 
+    return reply.send(await issueAuthSession(user, request, reply, 'customer'));
+  });
+
+  app.get('/facebook/start', async (_request, reply) => {
+    const authUrl = getFacebookAuthUrl(reply, 'customer');
+    if (!authUrl) return;
+    return ok(reply, { authUrl });
+  });
+
+  app.post('/facebook/callback', async (request, reply) => {
+    const body = googleCallbackSchema.parse(request.body);
+    const facebookUser = await exchangeFacebookUser(body.code, body.state, request, reply, 'customer');
+    if (!facebookUser) return;
+
+    const existingUser = await prisma.user.findUnique({ where: { email: facebookUser.email } });
+    if (existingUser && existingUser.role !== 'CUSTOMER') {
+      return fail(reply, 403, {
+        code: 'ADMIN_LOGIN_REQUIRED',
+        message: 'Administrator accounts must use the admin login',
+      });
+    }
+    if (existingUser && (existingUser.status !== 'ACTIVE' || existingUser.deletedAt)) {
+      return fail(reply, 403, {
+        code: 'ACCOUNT_UNAVAILABLE',
+        message: 'This account is not available for sign in',
+      });
+    }
+
+    const displayName = facebookUser.name ?? facebookUser.email.split('@')[0] ?? 'Facebook User';
+    const user = existingUser ?? await prisma.user.create({
+      data: {
+        email: facebookUser.email,
+        passwordHash: await argon2.hash(`facebook:${randomUUID()}`),
+        firstName: facebookUser.first_name ?? displayName.split(' ')[0] ?? 'Facebook',
+        lastName: facebookUser.last_name ?? (displayName.split(' ').slice(1).join(' ') || 'User'),
+        role: 'CUSTOMER',
+        emailVerifiedAt: new Date(),
+      },
+    });
+    await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
     return reply.send(await issueAuthSession(user, request, reply, 'customer'));
   });
 

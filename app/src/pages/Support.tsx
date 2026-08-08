@@ -13,9 +13,18 @@ import {
   CreditCard,
   RefreshCcw,
   Send,
+  MapPin,
 } from 'lucide-react';
 import { contactAPI, ordersAPI } from '../services/api';
 import { useToast } from '../contexts/ToastContext';
+import {
+  CONTACT_EMAIL,
+  CONTACT_PHONE_NUMBERS,
+  SHOP_ADDRESS,
+  SHOP_LOCATION_LABEL,
+  SHOP_MAPS_URL,
+  SHOP_WHATSAPP_URL,
+} from '../config/contact';
 
 const Support = () => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -109,18 +118,18 @@ const Support = () => {
     {
       icon: Phone,
       title: 'Phone Support',
-      info: '+92 312 2995584',
+      info: CONTACT_PHONE_NUMBERS.map((phone) => phone.label).join(' • '),
       description: 'Available 24/7',
       action: 'Call Now',
-      href: 'tel:+923122995584',
+      href: CONTACT_PHONE_NUMBERS[0].href,
     },
     {
       icon: Mail,
       title: 'Email Support',
-      info: 'mobileswahab@gmail.com',
+      info: CONTACT_EMAIL,
       description: 'Response within 24 hours',
       action: 'Send Email',
-      href: 'mailto:mobileswahab@gmail.com',
+      href: `mailto:${CONTACT_EMAIL}`,
     },
     {
       icon: MessageCircle,
@@ -128,7 +137,16 @@ const Support = () => {
       info: 'Instant support',
       description: 'Instant response',
       action: 'Open WhatsApp',
-      href: 'https://wa.me/923122995584',
+      href: SHOP_WHATSAPP_URL,
+    },
+    {
+      icon: MapPin,
+      title: 'Shop Location',
+      info: SHOP_LOCATION_LABEL,
+      description: SHOP_ADDRESS,
+      action: 'Open in Maps',
+      href: SHOP_MAPS_URL,
+      newTab: true,
     },
   ];
 
@@ -205,7 +223,7 @@ const Support = () => {
       {/* Contact Methods */}
       <section id="contact" className="py-16 scroll-mt-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid md:grid-cols-3 gap-8">
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
             {contactMethods.map((method, index) => (
               <motion.div
                 key={method.title}
@@ -223,6 +241,8 @@ const Support = () => {
                 <p className="text-gray-500 mb-6">{method.description}</p>
                 <a
                   href={method.href}
+                  target={method.newTab ? '_blank' : undefined}
+                  rel={method.newTab ? 'noreferrer' : undefined}
                   className="inline-block px-6 py-3 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition-colors"
                 >
                   {method.action}
@@ -408,7 +428,7 @@ const Support = () => {
               Our support team is ready to assist you with any questions or concerns.
             </p>
             <a
-              href="mailto:mobileswahab@gmail.com"
+              href={`mailto:${CONTACT_EMAIL}`}
               className="inline-block px-8 py-4 bg-white text-blue-600 rounded-full font-semibold hover:bg-gray-100 transition-colors"
             >
               Contact Support

@@ -13,7 +13,6 @@ import {
   Plus,
   ShoppingCart,
   ChevronRight,
-  GitCompare,
 } from 'lucide-react';
 import type { Product } from '../types';
 import { formatPrice } from '../utils/format';
@@ -95,22 +94,6 @@ const ProductDetail = () => {
     if (!product) return;
     await addToCart(product, quantity);
     navigate('/checkout');
-  };
-
-  const handleAddToCompare = () => {
-    if (!product) return;
-    const saved = localStorage.getItem('compareList');
-    const ids = saved ? (JSON.parse(saved) as string[]) : [];
-    if (ids.includes(product._id)) {
-      showToast('Product is already in compare', 'info');
-      return;
-    }
-    if (ids.length >= 4) {
-      showToast('You can compare up to 4 products', 'error');
-      return;
-    }
-    localStorage.setItem('compareList', JSON.stringify([...ids, product._id]));
-    showToast('Product added to compare', 'success');
   };
 
   const handleWishlist = async () => {
@@ -310,12 +293,6 @@ const ProductDetail = () => {
                 </button>
                 <button onClick={handleWishlist} aria-label="Toggle wishlist" className="p-4 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
                   <Heart className={`w-6 h-6 ${isWishlisted ? 'fill-red-500 text-red-500' : 'text-gray-600'}`} />
-                </button>
-                <button
-                  onClick={handleAddToCompare}
-                  className="p-4 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
-                >
-                  <GitCompare className="w-6 h-6 text-gray-600" />
                 </button>
                 <button className="p-4 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
                   <Share2 className="w-6 h-6 text-gray-600" />

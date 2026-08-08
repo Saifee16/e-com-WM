@@ -4,43 +4,51 @@ import { adminAuthAPI, authAPI, cartAPI, clearGuestCartId } from '../services/ap
 import { useAdminAuth } from '../contexts/AdminAuthContext';
 import { useAuth } from '../contexts/AuthContext';
 
-const GoogleCallback = () => {
+interface OAuthCallbackProps {
+  provider?: 'google' | 'facebook';
+}
+
+const GoogleCallback = ({ provider = 'google' }: OAuthCallbackProps) => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { refreshAuth } = useAuth();
   const { refreshAdminAuth } = useAdminAuth();
-  const [message, setMessage] = useState('Completing Google sign in...');
+  const providerLabel = provider === 'google' ? 'Google' : 'Facebook';
+  const [message, setMessage] = useState(`Completing ${providerLabel} sign in...`);
 
   useEffect(() => {
     const completeLogin = async () => {
       const code = searchParams.get('code');
-      const mode = searchParams.get('state') === 'admin' ? 'admin' : 'customer';
+      const state = searchParams.get('state');
+      const mode = state?.startsWith(`${provider}:admin:`) ? 'admin' : 'customer';
 
-      if (!code) {
-        setMessage('Google did not return an authorization code.');
+      if (!code || !state || !state.startsWith(`${provider}:${mode}:`)) {
+        setMessage(`${providerLabel} did not return a valid authorization response.`);
         return;
       }
 
       try {
         if (mode === 'admin') {
-          await adminAuthAPI.googleCallback(code);
+          if (provider === 'google') await adminAuthAPI.googleCallback(code, state);
+          else await adminAuthAPI.facebookCallback(code, state);
           await refreshAdminAuth();
           navigate('/admin/dashboard', { replace: true });
           return;
         }
 
-        await authAPI.googleCallback(code);
+        if (provider === 'google') await authAPI.googleCallback(code, state);
+        else await authAPI.facebookCallback(code, state);
         await refreshAuth();
         await cartAPI.mergeGuestCart().catch(() => undefined);
         clearGuestCartId();
         navigate('/', { replace: true });
       } catch {
-        setMessage('Google sign in failed. Please try again.');
+        setMessage(`${providerLabel} sign in failed. Please try again.`);
       }
     };
 
     void completeLogin();
-  }, [navigate, refreshAdminAuth, refreshAuth, searchParams]);
+  }, [navigate, provider, providerLabel, refreshAdminAuth, refreshAuth, searchParams]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">

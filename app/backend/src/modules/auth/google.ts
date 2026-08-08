@@ -1,7 +1,10 @@
-import type { FastifyReply } from 'fastify';
+import { createHash } from 'node:crypto';
+import type { FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { env } from '../../config/env.js';
 import { fail } from '../../utils/responses.js';
+import { consumeOAuthContext, issueOAuthContext } from './oauth-context.js';
+import type { AuthRealm } from './tokens.js';
 
 const googleUserSchema = z.object({
   email: z.string().email().transform((value) => value.toLowerCase()),
@@ -23,7 +26,7 @@ const missingGoogleOAuthConfig = () => {
   return missing;
 };
 
-export const getGoogleAuthUrl = (reply: FastifyReply, state: 'customer' | 'admin') => {
+export const getGoogleAuthUrl = (reply: FastifyReply, realm: AuthRealm) => {
   const missing = missingGoogleOAuthConfig();
   if (missing.length > 0) {
     fail(reply, 503, {
@@ -34,6 +37,8 @@ export const getGoogleAuthUrl = (reply: FastifyReply, state: 'customer' | 'admin
     return null;
   }
 
+  const context = issueOAuthContext(reply, 'google', realm, true);
+  const codeChallenge = createHash('sha256').update(context.codeVerifier!).digest('base64url');
   const params = new URLSearchParams({
     client_id: env.GOOGLE_CLIENT_ID!,
     redirect_uri: env.GOOGLE_REDIRECT_URI!,
@@ -41,13 +46,21 @@ export const getGoogleAuthUrl = (reply: FastifyReply, state: 'customer' | 'admin
     scope: 'openid email profile',
     access_type: 'offline',
     prompt: 'select_account',
-    state,
+    state: context.state,
+    code_challenge: codeChallenge,
+    code_challenge_method: 'S256',
   });
 
   return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
 };
 
-export const exchangeGoogleUser = async (code: string, reply: FastifyReply): Promise<GoogleUser | null> => {
+export const exchangeGoogleUser = async (
+  code: string,
+  state: string,
+  request: FastifyRequest,
+  reply: FastifyReply,
+  realm: AuthRealm,
+): Promise<GoogleUser | null> => {
   const missing = missingGoogleOAuthConfig();
   if (missing.length > 0) {
     fail(reply, 503, {
@@ -57,6 +70,9 @@ export const exchangeGoogleUser = async (code: string, reply: FastifyReply): Pro
     });
     return null;
   }
+
+  const context = consumeOAuthContext(request, reply, 'google', realm, state);
+  if (!context?.codeVerifier) return null;
 
   const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
@@ -67,6 +83,7 @@ export const exchangeGoogleUser = async (code: string, reply: FastifyReply): Pro
       client_secret: env.GOOGLE_CLIENT_SECRET!,
       redirect_uri: env.GOOGLE_REDIRECT_URI!,
       grant_type: 'authorization_code',
+      code_verifier: context.codeVerifier,
     }),
   });
 

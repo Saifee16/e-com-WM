@@ -72,6 +72,15 @@ const Register = () => {
     }
   };
 
+  const handleFacebookRegister = async () => {
+    try {
+      const response = await authAPI.facebookStart();
+      window.location.href = response.data.data.authUrl;
+    } catch (error: unknown) {
+      showToast(getApiErrorMessage(error, 'Facebook Login is not configured'), 'error');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <motion.div
@@ -95,12 +104,13 @@ const Register = () => {
             <form onSubmit={handleSubmit} className="space-y-5">
               <div className="grid sm:grid-cols-2 gap-5">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label htmlFor="register-first-name" className="block text-sm font-medium text-gray-700 mb-2">
                     First Name
                   </label>
                   <div className="relative">
                     <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                     <input
+                      id="register-first-name"
                       type="text"
                       name="firstName"
                       required
@@ -112,12 +122,13 @@ const Register = () => {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label htmlFor="register-last-name" className="block text-sm font-medium text-gray-700 mb-2">
                     Last Name
                   </label>
                   <div className="relative">
                     <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                     <input
+                      id="register-last-name"
                       type="text"
                       name="lastName"
                       required
@@ -131,12 +142,13 @@ const Register = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="register-email" className="block text-sm font-medium text-gray-700 mb-2">
                   Email Address
                 </label>
                 <div className="relative">
                   <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                   <input
+                    id="register-email"
                     type="email"
                     name="email"
                     required
@@ -149,12 +161,13 @@ const Register = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="register-phone" className="block text-sm font-medium text-gray-700 mb-2">
                   Phone Number
                 </label>
                 <div className="relative">
                   <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                   <input
+                    id="register-phone"
                     type="tel"
                     name="phone"
                     value={formData.phone}
@@ -166,12 +179,13 @@ const Register = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="register-password" className="block text-sm font-medium text-gray-700 mb-2">
                   Password
                 </label>
                 <div className="relative">
                   <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                   <input
+                    id="register-password"
                     type={showPassword ? 'text' : 'password'}
                     name="password"
                     required
@@ -182,6 +196,7 @@ const Register = () => {
                   />
                   <button
                     type="button"
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                   >
@@ -191,12 +206,13 @@ const Register = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="register-confirm-password" className="block text-sm font-medium text-gray-700 mb-2">
                   Confirm Password
                 </label>
                 <div className="relative">
                   <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                   <input
+                    id="register-confirm-password"
                     type={showConfirmPassword ? 'text' : 'password'}
                     name="confirmPassword"
                     required
@@ -207,6 +223,7 @@ const Register = () => {
                   />
                   <button
                     type="button"
+                    aria-label={showConfirmPassword ? 'Hide confirmation password' : 'Show confirmation password'}
                     onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                     className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                   >
@@ -270,7 +287,7 @@ const Register = () => {
                 <img src="https://www.google.com/favicon.ico" alt="Google" className="w-5 h-5" />
                 <span className="text-sm font-medium">Google</span>
               </button>
-              <button className="flex items-center justify-center gap-2 px-4 py-3 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
+              <button type="button" onClick={handleFacebookRegister} className="flex items-center justify-center gap-2 px-4 py-3 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
                 <img src="https://www.facebook.com/favicon.ico" alt="Facebook" className="w-5 h-5" />
                 <span className="text-sm font-medium">Facebook</span>
               </button>

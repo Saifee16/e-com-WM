@@ -70,11 +70,8 @@ const Home = () => {
 
   const heroProducts = useMemo(() => featuredProducts.slice(0, 3), [featuredProducts]);
   const slideCount = Math.max(heroProducts.length, 1);
-  const activeProduct = heroProducts[currentSlide] ?? null;
-
-  useEffect(() => {
-    setCurrentSlide((slide) => Math.min(slide, slideCount - 1));
-  }, [slideCount]);
+  const visibleSlide = Math.min(currentSlide, slideCount - 1);
+  const activeProduct = heroProducts[visibleSlide] ?? null;
 
   useEffect(() => {
     if (heroProducts.length < 2) return undefined;
@@ -148,7 +145,7 @@ const Home = () => {
           <div className="absolute bottom-6 left-1/2 flex -translate-x-1/2 items-center gap-2">
             <button type="button" aria-label="Previous featured phone" onClick={() => moveSlide(-1)} className="rounded-lg p-2 text-white/80 transition-colors hover:bg-white/10 hover:text-white"><ChevronLeft className="h-5 w-5" /></button>
             {heroProducts.map((product, index) => (
-              <button key={product._id} type="button" aria-label={`Show ${product.name}`} onClick={() => setCurrentSlide(index)} className={`h-2 rounded-full transition-all ${currentSlide === index ? 'w-8 bg-white' : 'w-2 bg-white/40 hover:bg-white/70'}`} />
+              <button key={product._id} type="button" aria-label={`Show ${product.name}`} onClick={() => setCurrentSlide(index)} className={`h-2 rounded-full transition-all ${visibleSlide === index ? 'w-8 bg-white' : 'w-2 bg-white/40 hover:bg-white/70'}`} />
             ))}
             <button type="button" aria-label="Next featured phone" onClick={() => moveSlide(1)} className="rounded-lg p-2 text-white/80 transition-colors hover:bg-white/10 hover:text-white"><ChevronRight className="h-5 w-5" /></button>
           </div>

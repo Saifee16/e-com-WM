@@ -35,6 +35,8 @@ const defaultTotals: CartTotals = {
   itemCount: 0,
   shipping: 0,
   tax: 0,
+  discount: 0,
+  freeShipping: false,
   total: 0,
 };
 

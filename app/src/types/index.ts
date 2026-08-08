@@ -124,6 +124,9 @@ export interface CartTotals {
   itemCount: number;
   shipping: number;
   tax: number;
+  discount: number;
+  freeShipping: boolean;
+  promoCode?: string;
   total: number;
 }
 

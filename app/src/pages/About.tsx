@@ -9,6 +9,13 @@ import {
   Mail,
   Clock,
 } from 'lucide-react';
+import {
+  CONTACT_EMAIL,
+  CONTACT_PHONE_NUMBERS,
+  SHOP_ADDRESS,
+  SHOP_LOCATION_LABEL,
+  SHOP_MAPS_URL,
+} from '../config/contact';
 
 const About = () => {
   const stats = [
@@ -113,7 +120,7 @@ const About = () => {
               <p className="text-gray-600 mb-4 leading-relaxed">
                 Founded in 2020, Wahab Mobiles started with a simple mission: to provide Pakistanis 
                 with access to genuine, PTA-approved smartphones at competitive prices. What began 
-                as a small shop in Lahore has grown into one of the most trusted mobile retailers 
+                as a small shop in Hyderabad has grown into one of the most trusted mobile retailers
                 in the country.
               </p>
               <p className="text-gray-600 mb-4 leading-relaxed">
@@ -234,9 +241,9 @@ const About = () => {
 
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-8">
             {[
-              { icon: Phone, title: 'Phone', info: '+92 312 2995584' },
-              { icon: Mail, title: 'Email', info: 'mobileswahab@gmail.com' },
-              { icon: MapPin, title: 'Address', info: 'Lahore, Pakistan' },
+              { icon: Phone, title: 'Phone', info: CONTACT_PHONE_NUMBERS.map((phone) => phone.label).join(' • ') },
+              { icon: Mail, title: 'Email', info: CONTACT_EMAIL },
+              { icon: MapPin, title: 'Location', info: SHOP_LOCATION_LABEL, detail: SHOP_ADDRESS, href: SHOP_MAPS_URL },
               { icon: Clock, title: 'Hours', info: 'Mon-Sat: 10AM - 8PM' },
             ].map((contact, index) => (
               <motion.div
@@ -251,7 +258,19 @@ const About = () => {
                   <contact.icon className="w-6 h-6 text-blue-600" />
                 </div>
                 <h3 className="font-semibold text-gray-900 mb-1">{contact.title}</h3>
-                <p className="text-gray-600">{contact.info}</p>
+                {contact.href ? (
+                  <a
+                    href={contact.href}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-blue-600 hover:text-blue-700 hover:underline"
+                  >
+                    {contact.info}
+                  </a>
+                ) : (
+                  <p className="text-gray-600">{contact.info}</p>
+                )}
+                {contact.detail && <p className="mt-2 text-sm text-gray-500">{contact.detail}</p>}
               </motion.div>
             ))}
           </div>

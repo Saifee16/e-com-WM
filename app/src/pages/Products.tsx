@@ -11,7 +11,6 @@ import {
   Star,
   Search,
   SlidersHorizontal,
-  GitCompare,
 } from 'lucide-react';
 import { priceRanges, storageOptions } from '../data/products';
 import type { Product } from '../types';
@@ -196,23 +195,6 @@ const Products = () => {
     } catch {
       // CartContext shows the backend error toast.
     }
-  };
-
-  const handleAddToCompare = (e: React.MouseEvent, product: Product) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const saved = localStorage.getItem('compareList');
-    const ids = saved ? (JSON.parse(saved) as string[]) : [];
-    if (ids.includes(product._id)) {
-      showToast('Product is already in compare', 'info');
-      return;
-    }
-    if (ids.length >= 4) {
-      showToast('You can compare up to 4 products', 'error');
-      return;
-    }
-    localStorage.setItem('compareList', JSON.stringify([...ids, product._id]));
-    showToast('Product added to compare', 'success');
   };
 
   const toggleBrand = (brand: string) => {
@@ -551,7 +533,6 @@ const Products = () => {
                       product={product}
                       viewMode={viewMode}
                       onAddToCart={handleAddToCart}
-                      onAddToCompare={handleAddToCompare}
                     />
                   </motion.div>
                 ))}
@@ -595,12 +576,10 @@ const ProductCard = ({
   product,
   viewMode,
   onAddToCart,
-  onAddToCompare,
 }: {
   product: Product;
   viewMode: 'grid' | 'list';
   onAddToCart: (e: React.MouseEvent, product: Product) => void;
-  onAddToCompare: (e: React.MouseEvent, product: Product) => void;
 }) => {
   if (viewMode === 'list') {
     return (
@@ -649,12 +628,6 @@ const ProductCard = ({
                 className="px-6 py-3 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition-colors"
               >
                 Add to Cart
-              </button>
-              <button
-                onClick={(e) => onAddToCompare(e, product)}
-                className="px-4 py-3 border border-gray-200 rounded-xl font-medium hover:bg-gray-50 transition-colors"
-              >
-                <GitCompare className="w-5 h-5" />
               </button>
             </div>
           </div>
@@ -711,13 +684,6 @@ const ProductCard = ({
               className="w-full py-3 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition-colors"
             >
               Add to Cart
-            </button>
-            <button
-              onClick={(e) => onAddToCompare(e, product)}
-              className="mt-2 w-full py-3 border border-gray-200 rounded-xl font-medium hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
-            >
-              <GitCompare className="w-4 h-4" />
-              Compare
             </button>
           </div>
         </div>

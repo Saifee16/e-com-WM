@@ -1,9 +1,12 @@
 import type { FastifyPluginAsync } from 'fastify';
 import type { Prisma } from '@prisma/client';
 import { z } from 'zod';
+import path from 'node:path';
 import { prisma } from '../../db/prisma.js';
+import { env } from '../../config/env.js';
 import { fail, ok } from '../../utils/responses.js';
 import { authenticateAdmin, authenticateCustomer } from '../auth/session.js';
+import { saveProductImages } from './image-upload.js';
 
 const slugify = (value: string) =>
   value
@@ -24,6 +27,10 @@ export type ProductWithRelations = Prisma.ProductGetPayload<{ include: typeof pr
 
 export const mapProduct = (product: ProductWithRelations) => {
   const variant = product.variants.find((item) => item.isActive) ?? product.variants[0];
+  const storedSpecifications =
+    product.specifications && typeof product.specifications === 'object' && !Array.isArray(product.specifications)
+      ? product.specifications as Record<string, unknown>
+      : {};
   const primaryImage = product.images[0]?.url ?? 'https://placehold.co/800x800?text=Product';
   const rating =
     product.reviews.length > 0
@@ -46,6 +53,13 @@ export const mapProduct = (product: ProductWithRelations) => {
     specifications: {
       storage: variant?.storage ?? undefined,
       color: variant?.color ?? undefined,
+      display: typeof storedSpecifications.display === 'string' ? storedSpecifications.display : undefined,
+      processor: typeof storedSpecifications.processor === 'string' ? storedSpecifications.processor : undefined,
+      ram: typeof storedSpecifications.ram === 'string' ? storedSpecifications.ram : undefined,
+      battery: typeof storedSpecifications.battery === 'string' ? storedSpecifications.battery : undefined,
+      camera: typeof storedSpecifications.camera === 'string' ? storedSpecifications.camera : undefined,
+      os: typeof storedSpecifications.os === 'string' ? storedSpecifications.os : undefined,
+      network: typeof storedSpecifications.network === 'string' ? storedSpecifications.network : undefined,
     },
     condition: (variant?.condition ?? 'new') as 'new' | 'used' | 'refurbished',
     ptaApproved: product.ptaApproved,
@@ -87,23 +101,50 @@ const productQuerySchema = z.object({
   },
 );
 
+const productUploadUrlPrefix = `${env.API_BASE_URL.replace(/\/+$/, '')}/api/uploads/products/`;
+const imageUrlSchema = z.string().url().max(2048).refine(
+  (value) => new URL(value).protocol === 'https:' || value.startsWith(productUploadUrlPrefix),
+  'Product image URLs must use HTTPS',
+);
+
+const productSpecificationsSchema = z.object({
+  display: z.string().trim().min(1).max(160).optional(),
+  processor: z.string().trim().min(1).max(160).optional(),
+  ram: z.string().trim().min(1).max(80).optional(),
+  battery: z.string().trim().min(1).max(160).optional(),
+  camera: z.string().trim().min(1).max(240).optional(),
+  os: z.string().trim().min(1).max(120).optional(),
+  network: z.string().trim().min(1).max(120).optional(),
+}).strict();
+
 const productPayloadSchema = z.object({
   name: z.string().trim().min(1).max(200),
   brand: z.string().trim().min(1).max(80),
   category: z.string().trim().min(1).max(80).default('Smartphones'),
   description: z.string().trim().min(1).max(5000),
-  price: z.coerce.number().int().nonnegative(),
-  originalPrice: z.coerce.number().int().nonnegative().optional(),
-  imageUrl: z.string().url().optional(),
-  images: z.array(z.string().url()).optional(),
-  storage: z.string().trim().max(40).optional(),
-  color: z.string().trim().max(80).optional(),
+  price: z.number().int().nonnegative(),
+  originalPrice: z.number().int().nonnegative().optional(),
+  imageUrl: imageUrlSchema.optional(),
+  images: z.array(imageUrlSchema).max(5, 'You can add up to 5 product images').optional(),
+  storage: z.string().trim().min(1).max(40).optional(),
+  color: z.string().trim().min(1).max(80).optional(),
+  specifications: productSpecificationsSchema.optional(),
   condition: z.enum(['new', 'used', 'refurbished']).default('new'),
-  countInStock: z.coerce.number().int().nonnegative().default(0),
-  ptaApproved: z.coerce.boolean().default(true),
-  isFeatured: z.coerce.boolean().default(false),
+  countInStock: z.number().int().nonnegative().default(0),
+  ptaApproved: z.boolean().default(true),
+  isFeatured: z.boolean().default(false),
   status: z.enum(['DRAFT', 'ACTIVE', 'ARCHIVED']).default('ACTIVE'),
-});
+}).strict();
+
+const productCreateSchema = productPayloadSchema.refine(
+  (product) => product.originalPrice === undefined || product.originalPrice > product.price,
+  {
+    message: 'Regular price must be greater than the sale price',
+    path: ['originalPrice'],
+  },
+);
+
+const productUpdateSchema = productPayloadSchema.partial();
 
 const getOrCreateBrand = async (name: string) => {
   const slug = slugify(name);
@@ -195,6 +236,30 @@ export const productRoutes: FastifyPluginAsync = async (app) => {
       ...(query.featured === true ? { isFeatured: true } : {}),
       ...(brandSlugs?.length ? { brand: { slug: { in: brandSlugs } } } : {}),
       ...(query.category ? { category: { slug: slugify(query.category) } } : {}),
+      ...(
+        query.minPrice !== undefined
+        || query.maxPrice !== undefined
+        || query.storage !== undefined
+        || query.condition !== undefined
+          ? {
+              variants: {
+                some: {
+                  isActive: true,
+                  ...(query.minPrice !== undefined || query.maxPrice !== undefined
+                    ? {
+                        priceAmount: {
+                          ...(query.minPrice !== undefined ? { gte: query.minPrice } : {}),
+                          ...(query.maxPrice !== undefined ? { lte: query.maxPrice } : {}),
+                        },
+                      }
+                    : {}),
+                  ...(query.storage !== undefined ? { storage: query.storage } : {}),
+                  ...(query.condition !== undefined ? { condition: query.condition } : {}),
+                },
+              },
+            }
+          : {}
+      ),
       ...(query.search
         ? {
             OR: [
@@ -207,10 +272,15 @@ export const productRoutes: FastifyPluginAsync = async (app) => {
         : {}),
     };
 
+    const databasePaginated = query.sort === 'newest';
+    const databaseTotal = databasePaginated ? await prisma.product.count({ where }) : null;
     const products = await prisma.product.findMany({
       where,
       include: productInclude,
       orderBy: { createdAt: 'desc' },
+      ...(databasePaginated
+        ? { skip: (query.page - 1) * query.limit, take: query.limit }
+        : {}),
     });
 
     const filtered = products
@@ -236,10 +306,10 @@ export const productRoutes: FastifyPluginAsync = async (app) => {
       return comparison || left.id.localeCompare(right.id);
     });
 
-    const total = filtered.length;
+    const total = databaseTotal ?? filtered.length;
     const totalPages = Math.ceil(total / query.limit);
     const offset = (query.page - 1) * query.limit;
-    const items = filtered.slice(offset, offset + query.limit);
+    const items = databasePaginated ? filtered : filtered.slice(offset, offset + query.limit);
 
     return ok(reply, {
       items,
@@ -323,7 +393,7 @@ export const productRoutes: FastifyPluginAsync = async (app) => {
       include: productInclude,
     });
 
-    if (!product || product.status === 'ARCHIVED') {
+    if (!product || product.status !== 'ACTIVE') {
       return fail(reply, 404, {
         code: 'PRODUCT_NOT_FOUND',
         message: 'Product not found',
@@ -334,11 +404,64 @@ export const productRoutes: FastifyPluginAsync = async (app) => {
   });
 };
 
-export const adminProductRoutes: FastifyPluginAsync = async (app) => {
+interface AdminProductRoutesOptions {
+  uploadDirectory: string;
+}
+
+export const adminProductRoutes: FastifyPluginAsync<AdminProductRoutesOptions> = async (app, options) => {
   app.addHook('preHandler', authenticateAdmin);
 
+  app.post('/images', async (request, reply) => {
+    const urls = await saveProductImages(
+      request,
+      path.join(options.uploadDirectory, 'products'),
+      env.API_BASE_URL,
+    );
+    return ok(reply.status(201), { urls });
+  });
+
+  app.get('/', async (request, reply) => {
+    const query = z.object({
+      search: z.string().trim().max(200).optional(),
+      status: z.enum(['DRAFT', 'ACTIVE', 'ARCHIVED']).optional(),
+      page: z.coerce.number().int().positive().default(1),
+      limit: z.coerce.number().int().positive().max(100).default(50),
+    }).parse(request.query);
+    const where: Prisma.ProductWhereInput = {
+      ...(query.status ? { status: query.status } : {}),
+      ...(query.search
+        ? {
+            OR: [
+              { name: { contains: query.search, mode: 'insensitive' } },
+              { brand: { name: { contains: query.search, mode: 'insensitive' } } },
+              { category: { name: { contains: query.search, mode: 'insensitive' } } },
+            ],
+          }
+        : {}),
+    };
+    const [total, products] = await Promise.all([
+      prisma.product.count({ where }),
+      prisma.product.findMany({
+        where,
+        include: productInclude,
+        orderBy: { createdAt: 'desc' },
+        skip: (query.page - 1) * query.limit,
+        take: query.limit,
+      }),
+    ]);
+    return ok(reply, {
+      items: products.map(mapProduct),
+      pagination: {
+        page: query.page,
+        limit: query.limit,
+        total,
+        totalPages: Math.ceil(total / query.limit),
+      },
+    });
+  });
+
   app.post('/', async (request, reply) => {
-    const body = productPayloadSchema.parse(request.body);
+    const body = productCreateSchema.parse(request.body);
     const brand = await getOrCreateBrand(body.brand);
     const category = await getOrCreateCategory(body.category);
     const slug = await getUniqueProductSlug(body.name);
@@ -355,6 +478,7 @@ export const adminProductRoutes: FastifyPluginAsync = async (app) => {
         status: body.status,
         isFeatured: body.isFeatured,
         ptaApproved: body.ptaApproved,
+        ...(body.specifications ? { specifications: body.specifications } : {}),
         variants: {
           create: {
             sku: `${slug.toUpperCase()}-${Date.now()}`,
@@ -398,7 +522,7 @@ export const adminProductRoutes: FastifyPluginAsync = async (app) => {
 
   app.put('/:id', async (request, reply) => {
     const params = z.object({ id: z.string().uuid() }).parse(request.params);
-    const body = productPayloadSchema.partial().parse(request.body);
+    const body = productUpdateSchema.parse(request.body);
     const existing = await prisma.product.findUnique({
       where: { id: params.id },
       include: productInclude,
@@ -416,6 +540,18 @@ export const adminProductRoutes: FastifyPluginAsync = async (app) => {
     const slug = body.name ? await getUniqueProductSlug(body.name, params.id) : existing.slug;
     const variant = existing.variants[0];
 
+    if (
+      variant
+      && (body.originalPrice ?? variant.compareAtPriceAmount) !== null
+      && (body.originalPrice ?? variant.compareAtPriceAmount)! <= (body.price ?? variant.priceAmount)
+    ) {
+      return fail(reply, 400, {
+        code: 'VALIDATION_ERROR',
+        message: 'Validation failed',
+        details: [{ path: ['originalPrice'], message: 'Regular price must be greater than the sale price' }],
+      });
+    }
+
     if (variant) {
       await prisma.productVariant.update({
         where: { id: variant.id },
@@ -430,18 +566,20 @@ export const adminProductRoutes: FastifyPluginAsync = async (app) => {
       });
     }
 
-    const imageUrls = body.images?.length ? body.images : body.imageUrl ? [body.imageUrl] : null;
-    if (imageUrls) {
+    const imageUrls = body.images !== undefined ? body.images : body.imageUrl ? [body.imageUrl] : null;
+    if (imageUrls !== null) {
       await prisma.productImage.deleteMany({ where: { productId: params.id } });
-      await prisma.productImage.createMany({
-        data: imageUrls.map((url, index) => ({
-          productId: params.id,
-          url,
-          altText: body.name ?? existing.name,
-          sortOrder: index,
-          isPrimary: index === 0,
-        })),
-      });
+      if (imageUrls.length) {
+        await prisma.productImage.createMany({
+          data: imageUrls.map((url, index) => ({
+            productId: params.id,
+            url,
+            altText: body.name ?? existing.name,
+            sortOrder: index,
+            isPrimary: index === 0,
+          })),
+        });
+      }
     }
 
     const updated = await prisma.product.update({
@@ -449,14 +587,15 @@ export const adminProductRoutes: FastifyPluginAsync = async (app) => {
       data: {
         slug,
         ...(body.name !== undefined ? { name: body.name } : {}),
-        ...(brand ? { brandId: brand.id } : {}),
-        ...(category ? { categoryId: category.id } : {}),
+        ...(brand ? { brand: { connect: { id: brand.id } } } : {}),
+        ...(category ? { category: { connect: { id: category.id } } } : {}),
         ...(body.description !== undefined
           ? { description: body.description, shortDescription: body.description.slice(0, 140) }
           : {}),
         ...(body.status !== undefined ? { status: body.status } : {}),
         ...(body.isFeatured !== undefined ? { isFeatured: body.isFeatured } : {}),
         ...(body.ptaApproved !== undefined ? { ptaApproved: body.ptaApproved } : {}),
+        ...(body.specifications !== undefined ? { specifications: body.specifications } : {}),
       },
       include: productInclude,
     });

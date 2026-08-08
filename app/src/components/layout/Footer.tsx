@@ -4,15 +4,18 @@ import {
   Phone,
   Mail,
   MapPin,
-  Facebook,
-  Instagram,
-  Music2,
-  Youtube,
   CreditCard,
   Shield,
   Truck,
   RotateCcw,
 } from 'lucide-react';
+import {
+  CONTACT_EMAIL,
+  CONTACT_PHONE_NUMBERS,
+  SHOP_ADDRESS,
+  SHOP_LOCATION_LABEL,
+  SHOP_MAPS_URL,
+} from '../../config/contact';
 
 const Footer = () => {
   const footerLinks = {
@@ -41,6 +44,7 @@ const Footer = () => {
       { name: 'Careers', path: '/about#careers' },
       { name: 'Terms of Service', path: '/terms' },
       { name: 'Privacy Policy', path: '/privacy' },
+      { name: 'Data Deletion', path: '/data-deletion' },
     ],
   };
 
@@ -94,39 +98,38 @@ const Footer = () => {
             
             {/* Contact Info */}
             <div className="mt-6 space-y-3">
-              <div className="flex items-center gap-3 text-sm text-gray-400">
+              <div className="flex items-start gap-3 text-sm text-gray-400">
                 <Phone className="w-4 h-4 text-blue-400" />
-                <span>+92 312 2995584</span>
+                <div className="flex flex-col gap-1">
+                  {CONTACT_PHONE_NUMBERS.map((phone) => (
+                    <a key={phone.href} href={phone.href} className="hover:text-white transition-colors">
+                      {phone.label}
+                    </a>
+                  ))}
+                </div>
               </div>
               <div className="flex items-center gap-3 text-sm text-gray-400">
                 <Mail className="w-4 h-4 text-blue-400" />
-                <span>mobileswahab@gmail.com</span>
+                <a href={`mailto:${CONTACT_EMAIL}`} className="hover:text-white transition-colors">
+                  {CONTACT_EMAIL}
+                </a>
               </div>
-              <div className="flex items-center gap-3 text-sm text-gray-400">
-                <MapPin className="w-4 h-4 text-blue-400" />
-                <span>Lahore, Pakistan</span>
+              <div className="flex items-start gap-3 text-sm text-gray-400">
+                <MapPin className="mt-0.5 w-4 h-4 shrink-0 text-blue-400" />
+                <div>
+                  <p>{SHOP_ADDRESS}</p>
+                  <a
+                    href={SHOP_MAPS_URL}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-1 inline-block text-blue-400 hover:text-blue-300 transition-colors"
+                  >
+                    {SHOP_LOCATION_LABEL}
+                  </a>
+                </div>
               </div>
             </div>
 
-            {/* Social Links */}
-            <div className="flex gap-3 mt-6">
-              {[
-                { icon: Facebook, href: '#' },
-                { icon: Instagram, href: '#' },
-                { icon: Youtube, href: '#' },
-                { icon: Music2, href: '#' },
-              ].map(({ icon: Icon, href }, index) => (
-                <motion.a
-                  key={index}
-                  href={href}
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 0.9 }}
-                  className="w-10 h-10 bg-gray-800 rounded-full flex items-center justify-center hover:bg-blue-600 transition-colors"
-                >
-                  <Icon className="w-5 h-5" />
-                </motion.a>
-              ))}
-            </div>
           </div>
 
           {/* Links Columns */}

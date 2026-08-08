@@ -28,6 +28,8 @@ const envSchema = z.object({
   PASSWORD_RESET_IP_MAX: z.coerce.number().int().positive().default(5),
   PASSWORD_RESET_IP_WINDOW_SECONDS: z.coerce.number().int().positive().default(900),
   PASSWORD_RESET_ACCOUNT_COOLDOWN_SECONDS: z.coerce.number().int().positive().default(300),
+  PUBLIC_FORM_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(10),
+  PUBLIC_FORM_RATE_LIMIT_WINDOW_SECONDS: z.coerce.number().int().positive().default(900),
   EMAIL_FROM: z.string().email().default('no-reply@example.com'),
   SMTP_HOST: z.string().trim().optional().transform((value) => value || undefined),
   SMTP_PORT: z.coerce.number().int().positive().optional(),
@@ -36,6 +38,10 @@ const envSchema = z.object({
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
   GOOGLE_REDIRECT_URI: z.string().url().optional(),
+  FACEBOOK_APP_ID: z.string().optional(),
+  FACEBOOK_APP_SECRET: z.string().optional(),
+  FACEBOOK_REDIRECT_URI: z.string().url().optional(),
+  FACEBOOK_GRAPH_API_VERSION: z.string().regex(/^v\d+\.\d+$/).optional(),
 }).superRefine((value, context) => {
   if ((value.SMTP_USER && !value.SMTP_PASS) || (!value.SMTP_USER && value.SMTP_PASS)) {
     context.addIssue({ code: 'custom', path: ['SMTP_USER'], message: 'SMTP_USER and SMTP_PASS must be configured together' });
@@ -49,6 +55,9 @@ const envSchema = z.object({
   if (value.PASSWORD_RESET_IP_MAX >= value.RATE_LIMIT_GLOBAL_MAX) {
     context.addIssue({ code: 'custom', path: ['PASSWORD_RESET_IP_MAX'], message: 'PASSWORD_RESET_IP_MAX must be lower than RATE_LIMIT_GLOBAL_MAX' });
   }
+  if (value.PUBLIC_FORM_RATE_LIMIT_MAX >= value.RATE_LIMIT_GLOBAL_MAX) {
+    context.addIssue({ code: 'custom', path: ['PUBLIC_FORM_RATE_LIMIT_MAX'], message: 'PUBLIC_FORM_RATE_LIMIT_MAX must be lower than RATE_LIMIT_GLOBAL_MAX' });
+  }
   if (value.NODE_ENV === 'production' && !value.COOKIE_SECURE) {
     context.addIssue({ code: 'custom', path: ['COOKIE_SECURE'], message: 'COOKIE_SECURE must be true in production' });
   }
@@ -56,11 +65,16 @@ const envSchema = z.object({
     context.addIssue({ code: 'custom', path: ['COOKIE_SECURE'], message: 'COOKIE_SECURE must be true when COOKIE_SAME_SITE is none' });
   }
   const frontendUrl = new URL(value.FRONTEND_URL);
+  const apiUrl = new URL(value.API_BASE_URL);
   const localHttpFrontend =
     frontendUrl.protocol === 'http:' &&
     ['localhost', '127.0.0.1', '::1'].includes(frontendUrl.hostname);
   if (value.NODE_ENV === 'production' && frontendUrl.protocol !== 'https:' && !localHttpFrontend) {
     context.addIssue({ code: 'custom', path: ['FRONTEND_URL'], message: 'FRONTEND_URL must use HTTPS in production' });
+  }
+  const localHttpApi = apiUrl.protocol === 'http:' && ['localhost', '127.0.0.1', '::1'].includes(apiUrl.hostname);
+  if (value.NODE_ENV === 'production' && apiUrl.protocol !== 'https:' && !localHttpApi) {
+    context.addIssue({ code: 'custom', path: ['API_BASE_URL'], message: 'API_BASE_URL must use HTTPS in production' });
   }
 });
 

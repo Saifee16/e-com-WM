@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Plus,
@@ -12,6 +12,29 @@ import { formatPrice } from '../../utils/format';
 import { useToast } from '../../contexts/ToastContext';
 import type { Product } from '../../types';
 import { productsAPI } from '../../services/api';
+import { getApiErrorMessage } from '../../utils/api-error';
+import {
+  MAX_PRODUCT_IMAGES,
+  ProductFormValidationError,
+  createProductFormState,
+  toProductCreateRequest,
+  validateProductImageSelection,
+  type ProductFormState,
+} from './product-form';
+
+const comparisonFields = [
+  { key: 'display', label: 'Display', placeholder: 'e.g. 6.7-inch AMOLED, 120Hz' },
+  { key: 'processor', label: 'Processor', placeholder: 'e.g. Snapdragon 8 Gen 3' },
+  { key: 'ram', label: 'RAM', placeholder: 'e.g. 12GB' },
+  { key: 'battery', label: 'Battery', placeholder: 'e.g. 5,000mAh, 65W charging' },
+  { key: 'camera', label: 'Camera', placeholder: 'e.g. 50MP main + 12MP ultra-wide' },
+  { key: 'os', label: 'Operating System', placeholder: 'e.g. Android 15' },
+  { key: 'network', label: 'Network', placeholder: 'e.g. 5G, dual SIM' },
+] as const satisfies ReadonlyArray<{
+  key: 'display' | 'processor' | 'ram' | 'battery' | 'camera' | 'os' | 'network';
+  label: string;
+  placeholder: string;
+}>;
 
 const AdminProducts = () => {
   const { showToast } = useToast();
@@ -22,7 +45,7 @@ const AdminProducts = () => {
 
   const loadProducts = async () => {
     try {
-      const response = await productsAPI.getProducts({ limit: 100 });
+      const response = await productsAPI.getAdminProducts({ limit: 100 });
       setProductList(response.data.data.items);
     } catch {
       showToast('Failed to load products', 'error');
@@ -54,6 +77,12 @@ const AdminProducts = () => {
     if (count === 0) return 'text-red-600';
     if (count < 5) return 'text-yellow-600';
     return 'text-green-600';
+  };
+
+  const getPublicationStatusColor = (status: Product['status']) => {
+    if (status === 'DRAFT') return 'bg-amber-100 text-amber-700';
+    if (status === 'ARCHIVED') return 'bg-gray-200 text-gray-700';
+    return 'bg-green-100 text-green-700';
   };
 
   return (
@@ -133,11 +162,16 @@ const AdminProducts = () => {
                   </span>
                 </td>
                 <td className="px-6 py-4">
-                  <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                    product.isFeatured ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-600'
-                  }`}>
-                    {product.isFeatured ? 'Featured' : 'Standard'}
-                  </span>
+                  <div className="flex flex-wrap gap-2">
+                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${getPublicationStatusColor(product.status)}`}>
+                      {product.status ?? 'ACTIVE'}
+                    </span>
+                    {product.isFeatured && (
+                      <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-medium text-blue-700">
+                        Featured
+                      </span>
+                    )}
+                  </div>
                 </td>
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-2">
@@ -196,25 +230,41 @@ const ProductModal = ({
 }) => {
   const { showToast } = useToast();
   const isEditing = !!product;
-  const [formData, setFormData] = useState({
-    name: product?.name ?? '',
-    brand: product?.brand ?? 'Apple',
-    category: product?.categoryName ?? product?.category ?? 'Smartphones',
-    price: product?.price ?? 0,
-    originalPrice: product?.originalPrice ?? 0,
-    countInStock: product?.countInStock ?? 0,
-    description: product?.description ?? '',
-    storage: product?.specifications.storage ?? '',
-    color: product?.specifications.color ?? '',
-    imageUrl: product?.images[0] ?? '',
-    condition: product?.condition ?? 'new',
-    ptaApproved: product?.ptaApproved ?? true,
-    isFeatured: product?.isFeatured ?? false,
-    status: product?.status ?? 'ACTIVE',
-  });
+  const [formData, setFormData] = useState<ProductFormState>(() => createProductFormState(product));
+  const [isSaving, setIsSaving] = useState(false);
 
-  const updateField = (field: keyof typeof formData, value: string | number | boolean) => {
+  const updateField = <Key extends keyof ProductFormState>(field: Key, value: ProductFormState[Key]) => {
     setFormData((current) => ({ ...current, [field]: value }));
+  };
+
+  const imagePreviews = useMemo(
+    () => formData.imageFiles.map((file) => ({ file, url: URL.createObjectURL(file) })),
+    [formData.imageFiles],
+  );
+  const imageCount = formData.existingImageUrls.length + formData.imageFiles.length;
+
+  useEffect(() => () => {
+    imagePreviews.forEach(({ url }) => URL.revokeObjectURL(url));
+  }, [imagePreviews]);
+
+  const selectImageFiles = (files: File[]) => {
+    try {
+      validateProductImageSelection(formData.existingImageUrls, [...formData.imageFiles, ...files]);
+      updateField('imageFiles', [...formData.imageFiles, ...files]);
+    } catch (imageError) {
+      showToast(
+        imageError instanceof ProductFormValidationError ? imageError.message : 'Unable to select images',
+        'error',
+      );
+    }
+  };
+
+  const removeExistingImage = (index: number) => {
+    updateField('existingImageUrls', formData.existingImageUrls.filter((_, imageIndex) => imageIndex !== index));
+  };
+
+  const removeImageFile = (index: number) => {
+    updateField('imageFiles', formData.imageFiles.filter((_, imageIndex) => imageIndex !== index));
   };
 
   if (!isOpen) return null;
@@ -248,27 +298,37 @@ const ProductModal = ({
           </div>
 
           <form
-            onSubmit={(e) => {
+            onSubmit={async (e) => {
               e.preventDefault();
-              if (formData.originalPrice > 0 && formData.originalPrice <= formData.price) {
-                showToast('Regular price must be greater than the sale price.', 'error');
-                return;
+              setIsSaving(true);
+              try {
+                const basePayload = toProductCreateRequest(formData);
+                const uploadedImageUrls = formData.imageFiles.length
+                  ? await productsAPI.uploadProductImages(formData.imageFiles)
+                  : [];
+                const payload = {
+                  ...basePayload,
+                  images: [...formData.existingImageUrls, ...uploadedImageUrls],
+                };
+                if (isEditing) {
+                  await productsAPI.updateProduct(product._id, payload);
+                } else {
+                  await productsAPI.createProduct(payload);
+                }
+                showToast(isEditing ? 'Product updated' : 'Product added', 'success');
+                await onSaved();
+                onClose();
+              } catch (saveError) {
+                const fallback = isEditing ? 'Failed to update product' : 'Failed to add product';
+                showToast(
+                  saveError instanceof ProductFormValidationError
+                    ? saveError.message
+                    : getApiErrorMessage(saveError, fallback),
+                  'error',
+                );
+              } finally {
+                setIsSaving(false);
               }
-              const payload = {
-                ...formData,
-                imageUrl: formData.imageUrl || undefined,
-                originalPrice: formData.originalPrice || undefined,
-              };
-              const request = isEditing
-                ? productsAPI.updateProduct(product._id, payload)
-                : productsAPI.createProduct(payload);
-              request
-                .then(async () => {
-                  showToast(isEditing ? 'Product updated' : 'Product added', 'success');
-                  await onSaved();
-                  onClose();
-                })
-                .catch(() => showToast(isEditing ? 'Failed to update product' : 'Failed to add product', 'error'));
             }}
             className="p-6 space-y-6"
           >
@@ -278,9 +338,12 @@ const ProductModal = ({
                   Product Name
                 </label>
                 <input
+                  id="product-name"
                   type="text"
                   value={formData.name}
                   onChange={(event) => updateField('name', event.target.value)}
+                  required
+                  maxLength={200}
                   className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
@@ -314,8 +377,10 @@ const ProductModal = ({
                 className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option>Smartphones</option>
+                <option>Tablets</option>
                 <option>Smart Watches</option>
                 <option>Gadgets</option>
+                <option>Wearables</option>
                 <option>Headphones</option>
                 <option>Speakers</option>
               </select>
@@ -329,7 +394,10 @@ const ProductModal = ({
                 <input
                   type="number"
                   value={formData.price}
-                  onChange={(event) => updateField('price', Number(event.target.value))}
+                  onChange={(event) => updateField('price', event.target.value)}
+                  min="0"
+                  step="1"
+                  required
                   className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
@@ -340,8 +408,9 @@ const ProductModal = ({
                 <input
                   type="number"
                   min="0"
+                  step="1"
                   value={formData.originalPrice}
-                  onChange={(event) => updateField('originalPrice', Number(event.target.value))}
+                  onChange={(event) => updateField('originalPrice', event.target.value)}
                   placeholder="Optional, enables a discount"
                   className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
@@ -354,7 +423,10 @@ const ProductModal = ({
                 <input
                   type="number"
                   value={formData.countInStock}
-                  onChange={(event) => updateField('countInStock', Number(event.target.value))}
+                  onChange={(event) => updateField('countInStock', event.target.value)}
+                  min="0"
+                  step="1"
+                  required
                   className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
@@ -368,38 +440,102 @@ const ProductModal = ({
                 rows={4}
                 value={formData.description}
                 onChange={(event) => updateField('description', event.target.value)}
+                required
+                maxLength={5000}
                 className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-[1fr_9rem] sm:items-end">
-              <div>
-                <label htmlFor="product-image-url" className="block text-sm font-medium text-gray-700 mb-2">
-                  Product Image URL
-                </label>
-                <div className="relative">
-                  <ImagePlus className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
-                  <input
-                    id="product-image-url"
-                    type="url"
-                    value={formData.imageUrl}
-                    onChange={(event) => updateField('imageUrl', event.target.value)}
-                    placeholder="https://example.com/product-image.jpg"
-                    className="w-full rounded-xl border border-gray-200 py-3 pl-12 pr-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
+            <div>
+              <div className="mb-3 flex items-center justify-between gap-4">
+                <div>
+                  <h4 className="text-sm font-medium text-gray-700">Product Images</h4>
+                  <p className="mt-1 text-xs text-gray-500">
+                    Upload up to {MAX_PRODUCT_IMAGES} JPG, JPEG, or PNG files. The first image is primary.
+                  </p>
                 </div>
-                <p className="mt-1 text-xs text-gray-500">Paste a public image URL. It becomes the product's primary image.</p>
+                <span className="shrink-0 text-xs font-medium text-gray-500">
+                  {imageCount}/{MAX_PRODUCT_IMAGES}
+                </span>
               </div>
-              <div className="flex aspect-square items-center justify-center overflow-hidden rounded-xl border border-dashed border-gray-300 bg-gray-50">
-                {formData.imageUrl ? (
-                  <img src={formData.imageUrl} alt="Product image preview" className="h-full w-full object-cover" />
-                ) : (
-                  <ImagePlus className="h-7 w-7 text-gray-400" aria-hidden="true" />
-                )}
-              </div>
+
+              <label
+                htmlFor="product-image-files"
+                className={`flex min-h-32 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed px-6 py-5 text-center transition-colors ${
+                  imageCount >= MAX_PRODUCT_IMAGES
+                    ? 'cursor-not-allowed border-gray-200 bg-gray-50 text-gray-400'
+                    : 'border-blue-200 bg-blue-50/50 text-blue-700 hover:border-blue-400 hover:bg-blue-50'
+                }`}
+              >
+                <ImagePlus className="mb-2 h-7 w-7" aria-hidden="true" />
+                <span className="text-sm font-semibold">
+                  {imageCount >= MAX_PRODUCT_IMAGES ? 'Maximum of 5 images reached' : 'Choose images from your device'}
+                </span>
+                <span className="mt-1 text-xs text-gray-500">Maximum 5 MB per image</span>
+              </label>
+              <input
+                id="product-image-files"
+                type="file"
+                accept="image/jpeg,image/png,.jpg,.jpeg,.png"
+                multiple
+                disabled={imageCount >= MAX_PRODUCT_IMAGES}
+                className="sr-only"
+                onChange={(event) => {
+                  selectImageFiles(Array.from(event.target.files ?? []));
+                  event.target.value = '';
+                }}
+              />
+
+              {imageCount > 0 && (
+                <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                  {formData.existingImageUrls.map((imageUrl, index) => (
+                    <div key={imageUrl} className="relative overflow-hidden rounded-xl border border-gray-200 bg-gray-50">
+                      <img src={imageUrl} alt={`Product image ${index + 1}`} className="aspect-square w-full object-cover" />
+                      {index === 0 && (
+                        <span className="absolute left-2 top-2 rounded-full bg-blue-600 px-2 py-1 text-[10px] font-semibold text-white">
+                          Primary
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => removeExistingImage(index)}
+                        className="absolute right-2 top-2 rounded-full bg-white/90 p-1.5 text-gray-600 shadow-sm hover:text-red-600"
+                        aria-label={`Remove image ${index + 1}`}
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
+
+                  {imagePreviews.map(({ file, url }, index) => {
+                    const imageNumber = formData.existingImageUrls.length + index + 1;
+                    return (
+                      <div key={`${file.name}-${file.lastModified}-${index}`} className="overflow-hidden rounded-xl border border-gray-200 bg-gray-50">
+                        <div className="relative">
+                          <img src={url} alt={`Selected product image ${imageNumber}`} className="aspect-square w-full object-cover" />
+                          {imageNumber === 1 && (
+                            <span className="absolute left-2 top-2 rounded-full bg-blue-600 px-2 py-1 text-[10px] font-semibold text-white">
+                              Primary
+                            </span>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => removeImageFile(index)}
+                            className="absolute right-2 top-2 rounded-full bg-white/90 p-1.5 text-gray-600 shadow-sm hover:text-red-600"
+                            aria-label={`Remove ${file.name}`}
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
+                        <p className="truncate px-2 py-2 text-xs text-gray-600" title={file.name}>{file.name}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
-            <div className="grid sm:grid-cols-3 gap-6">
+            <div className="grid sm:grid-cols-2 gap-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Storage
@@ -418,30 +554,78 @@ const ProductModal = ({
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  RAM
-                </label>
-                <select className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500">
-                  <option>4GB</option>
-                  <option>6GB</option>
-                  <option>8GB</option>
-                  <option>12GB</option>
-                  <option>16GB</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
                   Color
                 </label>
                 <input
                   type="text"
                   value={formData.color}
                   onChange={(event) => updateField('color', event.target.value)}
+                  maxLength={80}
                   className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-6">
+            <section aria-labelledby="comparison-specifications-heading">
+              <div className="mb-4">
+                <h4 id="comparison-specifications-heading" className="text-sm font-semibold text-gray-900">
+                  Comparison specifications
+                </h4>
+                <p className="mt-1 text-xs text-gray-500">
+                  These details appear on the Compare page, so customers can make a meaningful side-by-side choice.
+                </p>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                {comparisonFields.map((field) => (
+                  <div key={field.key}>
+                    <label htmlFor={`product-${field.key}`} className="mb-2 block text-sm font-medium text-gray-700">
+                      {field.label}
+                    </label>
+                    <input
+                      id={`product-${field.key}`}
+                      type="text"
+                      value={formData[field.key]}
+                      onChange={(event) => updateField(field.key, event.target.value)}
+                      placeholder={field.placeholder}
+                      maxLength={field.key === 'camera' ? 240 : 160}
+                      className="w-full rounded-xl border border-gray-200 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            <div className="grid gap-6 sm:grid-cols-3">
+              <div>
+                <label htmlFor="product-condition" className="mb-2 block text-sm font-medium text-gray-700">
+                  Condition
+                </label>
+                <select
+                  id="product-condition"
+                  value={formData.condition}
+                  onChange={(event) => updateField('condition', event.target.value as ProductFormState['condition'])}
+                  className="w-full rounded-xl border border-gray-200 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="new">New</option>
+                  <option value="used">Used</option>
+                  <option value="refurbished">Refurbished</option>
+                </select>
+              </div>
+              <div>
+                <label htmlFor="product-status" className="mb-2 block text-sm font-medium text-gray-700">
+                  Publication status
+                </label>
+                <select
+                  id="product-status"
+                  value={formData.status}
+                  onChange={(event) => updateField('status', event.target.value as ProductFormState['status'])}
+                  className="w-full rounded-xl border border-gray-200 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="ACTIVE">Published</option>
+                  <option value="DRAFT">Draft</option>
+                  <option value="ARCHIVED">Archived</option>
+                </select>
+              </div>
               <div>
                 <label htmlFor="product-pta-status" className="mb-2 block text-sm font-medium text-gray-700">
                   PTA Status
@@ -456,7 +640,7 @@ const ProductModal = ({
                   <option value="not-approved">Not PTA Approved</option>
                 </select>
               </div>
-              <label className="flex items-center gap-3 cursor-pointer">
+              <label className="flex items-center gap-3 cursor-pointer sm:col-span-3">
                 <input
                   type="checkbox"
                   checked={formData.isFeatured}
@@ -477,9 +661,10 @@ const ProductModal = ({
               </button>
               <button
                 type="submit"
-                className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition-colors"
+                disabled={isSaving}
+                className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {isEditing ? 'Update Product' : 'Add Product'}
+                {isSaving ? 'Saving…' : isEditing ? 'Update Product' : 'Add Product'}
               </button>
             </div>
           </form>

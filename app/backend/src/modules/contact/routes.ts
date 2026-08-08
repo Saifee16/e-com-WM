@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '../../db/prisma.js';
+import { env } from '../../config/env.js';
 import { ok } from '../../utils/responses.js';
 import { authenticateCustomer, getAuthenticatedUser } from '../auth/session.js';
 
@@ -12,7 +13,14 @@ const contactSchema = z.object({
 });
 
 export const contactRoutes: FastifyPluginAsync = async (app) => {
-  app.post('/', async (request, reply) => {
+  app.post('/', {
+    config: {
+      rateLimit: {
+        max: env.PUBLIC_FORM_RATE_LIMIT_MAX,
+        timeWindow: `${env.PUBLIC_FORM_RATE_LIMIT_WINDOW_SECONDS} seconds`,
+      },
+    },
+  }, async (request, reply) => {
     const body = contactSchema.parse(request.body);
     const user = await getAuthenticatedUser(request);
     const message = await prisma.contactMessage.create({

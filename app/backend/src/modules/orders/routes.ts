@@ -3,6 +3,7 @@ import type { Prisma } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { prisma } from '../../db/prisma.js';
+import { env } from '../../config/env.js';
 import { fail, ok } from '../../utils/responses.js';
 import { authenticateAdmin, authenticateCustomer, getAuthenticatedUser, getGuestId } from '../auth/session.js';
 
@@ -117,6 +118,12 @@ const makeOrderNumber = () => `WAH-${new Date().toISOString().slice(0, 10).repla
 export const orderRoutes: FastifyPluginAsync = async (app) => {
   app.post('/', { preHandler: authenticateCustomer }, async (request, reply) => {
     const body = checkoutSchema.parse(request.body);
+    const idempotencyKey = z.string().uuid().parse(request.headers['idempotency-key']);
+    const existingOrder = await prisma.order.findFirst({
+      where: { idempotencyKey, userId: request.authUser!.id },
+      include: orderInclude,
+    });
+    if (existingOrder) return ok(reply, mapOrder(existingOrder));
     const { user, cart } = await getCartForRequest(request);
 
     if (!cart) {
@@ -138,9 +145,21 @@ export const orderRoutes: FastifyPluginAsync = async (app) => {
       shippingMethod: body.shippingMethod,
     };
 
-    let checkoutError: 'CART_EMPTY' | 'INSUFFICIENT_STOCK' | 'PRODUCT_NOT_AVAILABLE' | null = null;
+    let checkoutError:
+      | 'CART_EMPTY'
+      | 'INSUFFICIENT_STOCK'
+      | 'PRODUCT_NOT_AVAILABLE'
+      | 'PROMO_NOT_ELIGIBLE'
+      | null = null;
+    let isReplay = false;
     const order = await prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT id FROM cart_items WHERE cart_id = ${cart.id}::uuid FOR UPDATE`;
+      const replay = await tx.order.findUnique({ where: { idempotencyKey }, include: orderInclude });
+      if (replay) {
+        if (replay.userId !== request.authUser!.id) throw new Error('IDEMPOTENCY_KEY_CONFLICT');
+        isReplay = true;
+        return replay;
+      }
       const lockedCart = await tx.cart.findUnique({
         where: { id: cart.id },
         include: checkoutCartInclude,
@@ -183,14 +202,47 @@ export const orderRoutes: FastifyPluginAsync = async (app) => {
         0,
       );
       const tax = Math.round(subtotal * 0.02);
-      const shipping = shippingCosts[body.shippingMethod];
-      const discount =
-        lockedCart.promoCode?.valuePercent !== null && lockedCart.promoCode?.valuePercent !== undefined
-          ? Math.min(
-              Math.round((subtotal * lockedCart.promoCode.valuePercent) / 100),
-              lockedCart.promoCode.maxDiscountAmount ?? subtotal,
-            )
-          : lockedCart.promoCode?.valueAmount ?? 0;
+      let shipping = body.shippingMethod === 'standard' && subtotal >= 100_000
+        ? 0
+        : shippingCosts[body.shippingMethod];
+      let discount = 0;
+      let appliedPromoId: string | null = null;
+
+      if (lockedCart.promoCodeId) {
+        await tx.$queryRaw`SELECT id FROM promo_codes WHERE id = ${lockedCart.promoCodeId}::uuid FOR UPDATE`;
+        const promo = await tx.promoCode.findUnique({ where: { id: lockedCart.promoCodeId } });
+        const now = new Date();
+        const userUsage = promo?.perUserLimit
+          ? await tx.order.count({
+              where: {
+                userId: request.authUser!.id,
+                promoCodeId: lockedCart.promoCodeId,
+                status: { notIn: ['CANCELLED', 'REFUNDED'] },
+              },
+            })
+          : 0;
+        const isEligible = Boolean(
+          promo?.isActive
+          && (!promo.startsAt || promo.startsAt <= now)
+          && (!promo.expiresAt || promo.expiresAt > now)
+          && (promo.usageLimit === null || promo.usageCount < promo.usageLimit)
+          && (promo.perUserLimit === null || userUsage < promo.perUserLimit)
+          && subtotal >= promo.minOrderAmount,
+        );
+        if (!promo || !isEligible) throw new Error('PROMO_NOT_ELIGIBLE');
+
+        appliedPromoId = promo.id;
+        if (promo.type === 'FREE_SHIPPING') {
+          shipping = 0;
+        } else if (promo.type === 'PERCENTAGE') {
+          discount = Math.min(
+            Math.round((subtotal * (promo.valuePercent ?? 0)) / 100),
+            promo.maxDiscountAmount ?? subtotal,
+          );
+        } else {
+          discount = Math.min(promo.valueAmount ?? 0, subtotal);
+        }
+      }
       const total = subtotal + tax + shipping - discount;
 
       const created = await tx.order.create({
@@ -204,6 +256,7 @@ export const orderRoutes: FastifyPluginAsync = async (app) => {
           shippingAmount: shipping,
           taxAmount: tax,
           totalAmount: total,
+          idempotencyKey,
           ...(lockedCart.promoCodeId ? { promoCode: { connect: { id: lockedCart.promoCodeId } } } : {}),
           shippingAddressSnapshot: addressSnapshot,
           billingAddressSnapshot: addressSnapshot,
@@ -245,12 +298,22 @@ export const orderRoutes: FastifyPluginAsync = async (app) => {
         });
       }
 
+      if (appliedPromoId) {
+        await tx.promoCode.update({
+          where: { id: appliedPromoId },
+          data: { usageCount: { increment: 1 } },
+        });
+      }
+
       await tx.cartItem.deleteMany({ where: { cartId: cart.id } });
       return created;
     }).catch((error: unknown) => {
       if (
         error instanceof Error &&
-        (error.message === 'CART_EMPTY' || error.message === 'INSUFFICIENT_STOCK' || error.message === 'PRODUCT_NOT_AVAILABLE')
+        (error.message === 'CART_EMPTY'
+          || error.message === 'INSUFFICIENT_STOCK'
+          || error.message === 'PRODUCT_NOT_AVAILABLE'
+          || error.message === 'PROMO_NOT_ELIGIBLE')
       ) {
         checkoutError = error.message;
         return null;
@@ -259,6 +322,13 @@ export const orderRoutes: FastifyPluginAsync = async (app) => {
     });
 
     if (!order) {
+      if (checkoutError === 'PROMO_NOT_ELIGIBLE') {
+        await prisma.cart.update({ where: { id: cart.id }, data: { promoCodeId: null } });
+        return fail(reply, 409, {
+          code: 'PROMO_NOT_ELIGIBLE',
+          message: 'The promotion is no longer eligible and was removed. Review the total and try again.',
+        });
+      }
       if (checkoutError === 'CART_EMPTY') {
         return fail(reply, 400, {
           code: 'CART_EMPTY',
@@ -279,7 +349,7 @@ export const orderRoutes: FastifyPluginAsync = async (app) => {
       });
     }
 
-    return ok(reply.status(201), mapOrder(order));
+    return ok(isReplay ? reply : reply.status(201), mapOrder(order));
   });
 
   app.get('/my-orders', { preHandler: authenticateCustomer }, async (request, reply) => {
@@ -331,7 +401,14 @@ export const orderRoutes: FastifyPluginAsync = async (app) => {
     })));
   });
 
-  app.post('/guest/:orderNumber/returns', async (request, reply) => {
+  app.post('/guest/:orderNumber/returns', {
+    config: {
+      rateLimit: {
+        max: env.PUBLIC_FORM_RATE_LIMIT_MAX,
+        timeWindow: `${env.PUBLIC_FORM_RATE_LIMIT_WINDOW_SECONDS} seconds`,
+      },
+    },
+  }, async (request, reply) => {
     const params = z.object({ orderNumber: z.string().trim().min(1) }).parse(request.params);
     const body = z.object({
       email: z.string().email().transform((value) => value.toLowerCase()),
@@ -542,10 +619,47 @@ export const adminOrderRoutes: FastifyPluginAsync = async (app) => {
     const body = z
       .object({
         status: z.enum(['PENDING', 'CONFIRMED', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED']),
-        note: z.string().trim().optional(),
+        note: z.string().trim().max(1000).optional(),
       })
       .parse(request.body);
     const order = await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM orders WHERE id = ${params.id}::uuid FOR UPDATE`;
+      const existing = await tx.order.findUnique({ where: { id: params.id }, include: orderInclude });
+      if (!existing) return null;
+      if (existing.status === body.status) return existing;
+
+      const allowedTransitions: Record<string, string[]> = {
+        PENDING: ['CONFIRMED', 'CANCELLED'],
+        CONFIRMED: ['PROCESSING', 'CANCELLED'],
+        PROCESSING: ['SHIPPED', 'CANCELLED'],
+        SHIPPED: ['DELIVERED'],
+        DELIVERED: [],
+        CANCELLED: [],
+        REFUNDED: [],
+      };
+      if (!allowedTransitions[existing.status]?.includes(body.status)) {
+        return 'INVALID_TRANSITION' as const;
+      }
+
+      if (body.status === 'CANCELLED') {
+        for (const item of existing.items) {
+          await tx.productVariant.update({
+            where: { id: item.variantId },
+            data: { stockQuantity: { increment: item.quantity } },
+          });
+        }
+        await tx.inventoryMovement.createMany({
+          data: existing.items.map((item) => ({
+            variantId: item.variantId,
+            orderId: existing.id,
+            adminUserId: request.authUser!.id,
+            type: 'RELEASE',
+            quantityDelta: item.quantity,
+            reason: 'Administrator cancellation',
+          })),
+        });
+      }
+
       const updated = await tx.order.update({
         where: { id: params.id },
         data: {
@@ -565,8 +679,26 @@ export const adminOrderRoutes: FastifyPluginAsync = async (app) => {
       if (body.status === 'SHIPPED') await tx.shipment.updateMany({ where: { orderId: params.id }, data: { status: 'SHIPPED', shippedAt: new Date() } });
       if (body.status === 'DELIVERED') await tx.shipment.updateMany({ where: { orderId: params.id }, data: { status: 'DELIVERED', deliveredAt: new Date() } });
       if (body.status === 'CANCELLED') await tx.shipment.updateMany({ where: { orderId: params.id }, data: { status: 'CANCELLED' } });
+      await tx.auditLog.create({
+        data: {
+          actorUserId: request.authUser!.id,
+          action: 'STATUS_CHANGE',
+          entityType: 'Order',
+          entityId: updated.id,
+          before: { status: existing.status },
+          after: { status: updated.status, note: body.note ?? null },
+        },
+      });
       return updated;
     });
+
+    if (!order) return fail(reply, 404, { code: 'ORDER_NOT_FOUND', message: 'Order not found' });
+    if (order === 'INVALID_TRANSITION') {
+      return fail(reply, 409, {
+        code: 'ORDER_STATUS_TRANSITION_INVALID',
+        message: 'That order status transition is not allowed',
+      });
+    }
 
     return ok(reply, mapOrder(order));
   });

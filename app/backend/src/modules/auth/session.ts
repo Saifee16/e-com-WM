@@ -1,6 +1,7 @@
 import type { User } from '@prisma/client';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { prisma } from '../../db/prisma.js';
+import { env } from '../../config/env.js';
 import { fail } from '../../utils/responses.js';
 import { verifyAccessToken, type AuthRealm } from './tokens.js';
 
@@ -35,6 +36,10 @@ const getAccessToken = (request: FastifyRequest, realm: AuthRealm) => {
 export const getGuestId = (request: FastifyRequest) => {
   const signedGuestId = getSignedGuestId(request);
   if (signedGuestId) return signedGuestId;
+
+  // Kept only for local/integration migration scenarios. Production cart
+  // ownership is exclusively the signed, httpOnly cookie issued by the API.
+  if (env.NODE_ENV === 'production') return null;
 
   const header = request.headers['x-guest-id'];
   const guestId = Array.isArray(header) ? header[0] : header;

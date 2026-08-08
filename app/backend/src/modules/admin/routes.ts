@@ -252,6 +252,8 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     const params = z.object({ id: z.string().uuid() }).parse(request.params);
     const body = z.object({ status: z.enum(['OPEN', 'IN_PROGRESS', 'RESOLVED']) }).parse(request.body);
     const now = new Date();
+    const existing = await prisma.contactMessage.findUnique({ where: { id: params.id }, select: { id: true } });
+    if (!existing) return fail(reply, 404, { code: 'CONTACT_MESSAGE_NOT_FOUND', message: 'Contact message not found' });
     const message = await prisma.contactMessage.update({
       where: { id: params.id },
       data: {

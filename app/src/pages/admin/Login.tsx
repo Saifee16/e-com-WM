@@ -47,10 +47,12 @@ const AdminLogin = () => {
 
         <form onSubmit={handleSubmit} className="p-8 space-y-5">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Admin Email</label>
+            <label htmlFor="admin-email" className="block text-sm font-medium text-gray-700 mb-2">Admin Email</label>
             <div className="relative">
               <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
               <input
+                id="admin-email"
+                name="email"
                 type="email"
                 required
                 value={email}
@@ -61,10 +63,12 @@ const AdminLogin = () => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Password</label>
+            <label htmlFor="admin-password" className="block text-sm font-medium text-gray-700 mb-2">Password</label>
             <div className="relative">
               <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
               <input
+                id="admin-password"
+                name="password"
                 type="password"
                 required
                 value={password}

@@ -1,15 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
-import {
-  X,
-  Plus,
-  Smartphone,
-  ArrowRight,
-} from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { ArrowRight, Plus, Search, Smartphone, X } from 'lucide-react';
 import type { Product } from '../types';
-import { formatPrice } from '../utils/format';
 import { productsAPI } from '../services/api';
+import { formatPrice } from '../utils/format';
 
 interface CompareSpec {
   key: string;
@@ -18,13 +13,37 @@ interface CompareSpec {
   getValue: (product: Product) => string | number | undefined;
 }
 
+const compareTabs = [
+  { id: 'all', label: 'All products', matches: () => true },
+  { id: 'smartphones', label: 'Smartphones', matches: (category: string) => /phone|mobile/.test(category) },
+  { id: 'gadgets', label: 'Gadgets', matches: (category: string) => /gadget|tablet|laptop|accessor/.test(category) },
+  { id: 'wearables', label: 'Wearables', matches: (category: string) => /wearable|watch|fitness|band/.test(category) },
+  { id: 'headphones', label: 'Headphones', matches: (category: string) => /headphone|earbud|headset/.test(category) },
+  { id: 'audio', label: 'Audio', matches: (category: string) => /speaker|audio/.test(category) },
+] as const;
+
+const specs: CompareSpec[] = [
+  { key: 'brand', label: 'Brand', tone: 'brand', getValue: (product) => product.brand },
+  { key: 'price', label: 'Price', tone: 'price', getValue: (product) => product.price },
+  { key: 'display', label: 'Display', getValue: (product) => product.specifications.display },
+  { key: 'processor', label: 'Processor', getValue: (product) => product.specifications.processor },
+  { key: 'ram', label: 'RAM', getValue: (product) => product.specifications.ram },
+  { key: 'storage', label: 'Storage', getValue: (product) => product.specifications.storage },
+  { key: 'battery', label: 'Battery', getValue: (product) => product.specifications.battery },
+  { key: 'camera', label: 'Camera', getValue: (product) => product.specifications.camera },
+  { key: 'os', label: 'Operating System', getValue: (product) => product.specifications.os },
+  { key: 'network', label: 'Network', getValue: (product) => product.specifications.network },
+  { key: 'ptaApproved', label: 'PTA Approved', getValue: (product) => (product.ptaApproved ? 'Yes' : 'No') },
+  { key: 'condition', label: 'Condition', getValue: (product) => product.condition },
+  { key: 'rating', label: 'Rating', getValue: (product) => `${product.rating}/5` },
+];
+
 const Compare = () => {
   const [compareList, setCompareList] = useState<Product[]>([]);
   const [allProducts, setAllProducts] = useState<Product[]>([]);
   const [isAddingProduct, setIsAddingProduct] = useState(false);
   const [isHydrated, setIsHydrated] = useState(false);
 
-  // Load compare list from localStorage
   useEffect(() => {
     const loadCompareProducts = async () => {
       const saved = localStorage.getItem('compareList');
@@ -43,146 +62,91 @@ const Compare = () => {
     });
   }, []);
 
-  // Save compare list to localStorage
   useEffect(() => {
     if (!isHydrated) return;
-    const ids = compareList.map((p) => p._id);
-    localStorage.setItem('compareList', JSON.stringify(ids));
+    localStorage.setItem('compareList', JSON.stringify(compareList.map((product) => product._id)));
   }, [compareList, isHydrated]);
 
   const addToCompare = (product: Product) => {
     if (compareList.length >= 4) {
-      alert('You can compare up to 4 products at a time');
+      window.alert('You can compare up to 4 products at a time.');
       return;
     }
-    if (!compareList.find((p) => p._id === product._id)) {
-      setCompareList([...compareList, product]);
+    if (!compareList.some((item) => item._id === product._id)) {
+      setCompareList((current) => [...current, product]);
     }
     setIsAddingProduct(false);
   };
 
-  const removeFromCompare = (productId: string) => {
-    setCompareList(compareList.filter((p) => p._id !== productId));
-  };
-
-  const clearCompare = () => {
-    setCompareList([]);
-  };
-
   const availableProducts = allProducts.filter(
-    (p) => !compareList.find((cp) => cp._id === p._id)
+    (product) => !compareList.some((item) => item._id === product._id),
   );
 
   if (compareList.length === 0) {
     return (
       <div className="min-h-screen bg-gray-50 py-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="text-center"
-          >
-            <div className="w-32 h-32 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
-              <Smartphone className="w-16 h-16 text-gray-400" />
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center">
+            <div className="mx-auto mb-6 flex h-32 w-32 items-center justify-center rounded-full bg-gray-100">
+              <Smartphone className="h-16 w-16 text-gray-400" aria-hidden="true" />
             </div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">No Products to Compare</h2>
-            <p className="text-gray-500 mb-8 max-w-md mx-auto">
-              Add products to compare their specifications and find the perfect phone for you.
+            <h1 className="mb-4 text-2xl font-bold text-gray-900">Compare products</h1>
+            <p className="mx-auto mb-8 max-w-md text-gray-500">
+              Choose up to four products here, then compare their price, display, processor, battery, camera, and more.
             </p>
             <button
               onClick={() => setIsAddingProduct(true)}
-              className="inline-flex items-center gap-2 px-8 py-4 bg-blue-600 text-white rounded-full font-semibold hover:bg-blue-700 transition-colors"
+              className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-8 py-4 font-semibold text-white transition-colors hover:bg-blue-700"
             >
-              <Plus className="w-5 h-5" />
-              Add Products
+              <Plus className="h-5 w-5" aria-hidden="true" />
+              Choose products
             </button>
           </motion.div>
-
-          {/* Add Product Modal */}
-          <AddProductModal
-            isOpen={isAddingProduct}
-            onClose={() => setIsAddingProduct(false)}
-            products={availableProducts}
-            onSelect={addToCompare}
-          />
+          <AddProductModal isOpen={isAddingProduct} onClose={() => setIsAddingProduct(false)} products={availableProducts} onSelect={addToCompare} />
         </div>
       </div>
     );
   }
 
-  const specs: CompareSpec[] = [
-    { key: 'brand', label: 'Brand', tone: 'brand', getValue: (p) => p.brand },
-    { key: 'price', label: 'Price', tone: 'price', getValue: (p) => p.price },
-    { key: 'display', label: 'Display', getValue: (p) => p.specifications.display },
-    { key: 'processor', label: 'Processor', getValue: (p) => p.specifications.processor },
-    { key: 'ram', label: 'RAM', getValue: (p) => p.specifications.ram },
-    { key: 'storage', label: 'Storage', getValue: (p) => p.specifications.storage },
-    { key: 'battery', label: 'Battery', getValue: (p) => p.specifications.battery },
-    { key: 'camera', label: 'Camera', getValue: (p) => p.specifications.camera },
-    { key: 'os', label: 'Operating System', getValue: (p) => p.specifications.os },
-    { key: 'network', label: 'Network', getValue: (p) => p.specifications.network },
-    { key: 'ptaApproved', label: 'PTA Approved', getValue: (p) => (p.ptaApproved ? 'Yes' : 'No') },
-    { key: 'condition', label: 'Condition', getValue: (p) => p.condition },
-    { key: 'rating', label: 'Rating', getValue: (p) => `${p.rating}/5` },
-  ];
-
   return (
     <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="mb-8 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Compare Products</h1>
-            <p className="text-gray-500 mt-1">
-              Comparing {compareList.length} product{compareList.length !== 1 ? 's' : ''}
-            </p>
+            <h1 className="text-3xl font-bold text-gray-900">Compare products</h1>
+            <p className="mt-1 text-gray-500">Comparing {compareList.length} of 4 products</p>
           </div>
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-3">
             {compareList.length < 4 && (
-              <button
-                onClick={() => setIsAddingProduct(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition-colors"
-              >
-                <Plus className="w-5 h-5" />
-                Add Product
+              <button onClick={() => setIsAddingProduct(true)} className="flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 font-medium text-white transition-colors hover:bg-blue-700">
+                <Plus className="h-5 w-5" aria-hidden="true" />
+                Add product
               </button>
             )}
-            <button
-              onClick={clearCompare}
-              className="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-xl font-medium hover:bg-gray-50 transition-colors"
-            >
-              <X className="w-5 h-5" />
-              Clear All
+            <button onClick={() => setCompareList([])} className="flex items-center gap-2 rounded-xl border border-gray-200 px-4 py-2 font-medium text-gray-700 transition-colors hover:bg-gray-50">
+              <X className="h-5 w-5" aria-hidden="true" />
+              Clear all
             </button>
           </div>
         </div>
 
-        {/* Comparison Table */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden overflow-x-auto">
+        <div className="overflow-x-auto rounded-2xl border border-gray-200 bg-white shadow-sm">
           <table className="w-full min-w-[800px]">
             <thead>
               <tr>
-                <th className="p-6 text-left font-semibold text-gray-900 bg-gray-50 sticky left-0 z-10 min-w-[200px]">
-                  Feature
-                </th>
+                <th className="sticky left-0 z-10 min-w-[190px] bg-gray-50 p-6 text-left font-semibold text-gray-900">Feature</th>
                 {compareList.map((product) => (
-                  <th key={product._id} className="p-6 text-center min-w-[250px]">
+                  <th key={product._id} className="min-w-[230px] p-6 text-center">
                     <div className="relative">
-                      <button
-                        onClick={() => removeFromCompare(product._id)}
-                        className="absolute -top-2 -right-2 w-8 h-8 bg-red-100 text-red-500 rounded-full flex items-center justify-center hover:bg-red-200 transition-colors"
-                      >
-                        <X className="w-4 h-4" />
+                      <button onClick={() => setCompareList((current) => current.filter((item) => item._id !== product._id))} aria-label={`Remove ${product.name} from comparison`} className="absolute -right-2 -top-2 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-red-100 text-red-500 transition-colors hover:bg-red-200">
+                        <X className="h-4 w-4" aria-hidden="true" />
                       </button>
                       <Link to={`/products/${product._id}`}>
-                        <div className="aspect-square bg-gray-100 rounded-xl overflow-hidden mb-4">
-                          <img
-                            src={product.images[0]}
-                            alt={product.name}
-                            className="w-full h-full object-cover"
-                          />
+                        <div className="mb-4 aspect-square overflow-hidden rounded-xl bg-gray-100">
+                          <img src={product.images[0]} alt={product.name} className="h-full w-full object-cover" />
                         </div>
-                        <h3 className="font-semibold text-gray-900 line-clamp-2">{product.name}</h3>
+                        <h2 className="line-clamp-2 font-semibold text-gray-900">{product.name}</h2>
+                        <p className="mt-1 text-sm font-medium text-blue-600">{product.categoryName ?? product.category}</p>
                       </Link>
                     </div>
                   </th>
@@ -192,40 +156,23 @@ const Compare = () => {
             <tbody>
               {specs.map((spec, index) => (
                 <tr key={spec.key} className={index % 2 === 0 ? 'bg-gray-50/50' : ''}>
-                  <td className="p-6 font-medium text-gray-700 bg-gray-50 sticky left-0 z-10">
-                    {spec.label}
-                  </td>
-                  {compareList.map((product) => (
-                    <td key={product._id} className="p-6 text-center">
-                      {spec.tone === 'price' ? (
-                        <span className="text-xl font-bold text-blue-600">
-                          {formatPrice(Number(spec.getValue(product) ?? 0))}
-                        </span>
-                      ) : spec.tone === 'brand' ? (
-                        <span className="inline-block px-3 py-1 bg-blue-100 text-blue-600 rounded-full text-sm font-medium">
-                          {spec.getValue(product) ?? '-'}
-                        </span>
-                      ) : (
-                        <span className="text-gray-600">
-                          {spec.getValue(product) ?? '-'}
-                        </span>
-                      )}
-                    </td>
-                  ))}
+                  <td className="sticky left-0 z-10 bg-gray-50 p-5 font-medium text-gray-700">{spec.label}</td>
+                  {compareList.map((product) => {
+                    const value = spec.getValue(product);
+                    return (
+                      <td key={product._id} className="p-5 text-center">
+                        {spec.tone === 'price' ? <span className="text-xl font-bold text-blue-600">{formatPrice(Number(value ?? 0))}</span> : spec.tone === 'brand' ? <span className="inline-block rounded-full bg-blue-100 px-3 py-1 text-sm font-medium text-blue-700">{value ?? '-'}</span> : <span className="text-gray-600">{value ?? '-'}</span>}
+                      </td>
+                    );
+                  })}
                 </tr>
               ))}
               <tr>
-                <td className="p-6 font-medium text-gray-700 bg-gray-50 sticky left-0 z-10">
-                  Action
-                </td>
+                <td className="sticky left-0 z-10 bg-gray-50 p-5 font-medium text-gray-700">Action</td>
                 {compareList.map((product) => (
-                  <td key={product._id} className="p-6">
-                    <Link
-                      to={`/products/${product._id}`}
-                      className="w-full py-3 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
-                    >
-                      View Details
-                      <ArrowRight className="w-4 h-4" />
+                  <td key={product._id} className="p-5">
+                    <Link to={`/products/${product._id}`} className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 py-3 font-medium text-white transition-colors hover:bg-blue-700">
+                      View details <ArrowRight className="h-4 w-4" aria-hidden="true" />
                     </Link>
                   </td>
                 ))}
@@ -234,108 +181,58 @@ const Compare = () => {
           </table>
         </div>
 
-        {/* Add Product Modal */}
-        <AddProductModal
-          isOpen={isAddingProduct}
-          onClose={() => setIsAddingProduct(false)}
-          products={availableProducts}
-          onSelect={addToCompare}
-        />
+        <AddProductModal isOpen={isAddingProduct} onClose={() => setIsAddingProduct(false)} products={availableProducts} onSelect={addToCompare} />
       </div>
     </div>
   );
 };
 
-// Add Product Modal Component
-const AddProductModal = ({
-  isOpen,
-  onClose,
-  products,
-  onSelect,
-}: {
-  isOpen: boolean;
-  onClose: () => void;
-  products: Product[];
-  onSelect: (product: Product) => void;
-}) => {
+const AddProductModal = ({ isOpen, onClose, products, onSelect }: { isOpen: boolean; onClose: () => void; products: Product[]; onSelect: (product: Product) => void }) => {
+  const [activeTab, setActiveTab] = useState<(typeof compareTabs)[number]['id']>('all');
+  const [searchInput, setSearchInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
-
-  const filteredProducts = products.filter(
-    (p) =>
-      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.brand.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const tab = compareTabs.find((item) => item.id === activeTab) ?? compareTabs[0];
+  const normalizedSearch = searchQuery.trim().toLowerCase();
+  const filteredProducts = products.filter((product) => {
+    const category = `${product.categoryName ?? ''} ${product.category}`.toLowerCase();
+    const searchable = `${product.name} ${product.brand} ${category}`.toLowerCase();
+    return tab.matches(category) && (!normalizedSearch || searchable.includes(normalizedSearch));
+  });
 
   return (
     <AnimatePresence>
       {isOpen && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
-          onClick={onClose}
-        >
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.9 }}
-            className="bg-white rounded-3xl shadow-xl w-full max-w-2xl max-h-[80vh] overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Header */}
-            <div className="p-6 border-b border-gray-200">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-xl font-bold text-gray-900">Add Product to Compare</h3>
-                <button
-                  onClick={onClose}
-                  className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center hover:bg-gray-200 transition-colors"
-                >
-                  <X className="w-5 h-5" />
-                </button>
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm" onClick={onClose}>
+          <motion.div initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.96 }} className="max-h-[85vh] w-full max-w-3xl overflow-hidden rounded-3xl bg-white shadow-xl" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="compare-picker-title">
+            <div className="border-b border-gray-200 p-6">
+              <div className="mb-4 flex items-start justify-between gap-4">
+                <div>
+                  <h2 id="compare-picker-title" className="text-xl font-bold text-gray-900">Choose products to compare</h2>
+                  <p className="mt-1 text-sm text-gray-500">Browse by category, then search by product or brand.</p>
+                </div>
+                <button onClick={onClose} aria-label="Close product picker" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-600 transition-colors hover:bg-gray-200"><X className="h-5 w-5" aria-hidden="true" /></button>
               </div>
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search products..."
-                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+              <div className="flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label="Product categories">
+                {compareTabs.map((item) => (
+                  <button key={item.id} role="tab" aria-selected={activeTab === item.id} onClick={() => setActiveTab(item.id)} className={`shrink-0 rounded-full px-4 py-2 text-sm font-medium transition-colors ${activeTab === item.id ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-blue-50 hover:text-blue-700'}`}>{item.label}</button>
+                ))}
+              </div>
+              <form className="mt-4 flex gap-2" onSubmit={(event) => { event.preventDefault(); setSearchQuery(searchInput); }}>
+                <label className="sr-only" htmlFor="compare-product-search">Search products</label>
+                <input id="compare-product-search" value={searchInput} onChange={(event) => setSearchInput(event.target.value)} placeholder="Search products or brands" className="min-w-0 flex-1 rounded-xl border border-gray-200 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                <button type="submit" className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-3 font-medium text-white transition-colors hover:bg-blue-700"><Search className="h-5 w-5" aria-hidden="true" />Search</button>
+              </form>
             </div>
-
-            {/* Product List */}
-            <div className="p-6 overflow-y-auto max-h-[50vh]">
-              {filteredProducts.length === 0 ? (
-                <div className="text-center py-8">
-                  <p className="text-gray-500">No products found</p>
-                </div>
-              ) : (
-                <div className="grid sm:grid-cols-2 gap-4">
-                  {filteredProducts.map((product) => (
-                    <button
-                      key={product._id}
-                      onClick={() => onSelect(product)}
-                      className="flex items-center gap-4 p-4 border border-gray-200 rounded-xl hover:border-blue-500 hover:bg-blue-50 transition-colors text-left"
-                    >
-                      <div className="w-20 h-20 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
-                        <img
-                          src={product.images[0]}
-                          alt={product.name}
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-gray-900 line-clamp-2">{product.name}</p>
-                        <p className="text-sm text-gray-500">{product.brand}</p>
-                        <p className="text-lg font-bold text-blue-600 mt-1">
-                          {formatPrice(product.price)}
-                        </p>
-                      </div>
-                      <Plus className="w-6 h-6 text-blue-600" />
-                    </button>
-                  ))}
-                </div>
-              )}
+            <div className="max-h-[52vh] overflow-y-auto p-6">
+              {filteredProducts.length === 0 ? <div className="py-10 text-center"><p className="font-medium text-gray-900">No matching products</p><p className="mt-1 text-sm text-gray-500">Try another category or search term.</p></div> : <div className="grid gap-4 sm:grid-cols-2">
+                {filteredProducts.map((product) => (
+                  <button key={product._id} onClick={() => onSelect(product)} className="flex items-center gap-4 rounded-xl border border-gray-200 p-4 text-left transition-colors hover:border-blue-500 hover:bg-blue-50">
+                    <div className="h-20 w-20 shrink-0 overflow-hidden rounded-lg bg-gray-100"><img src={product.images[0]} alt="" className="h-full w-full object-cover" /></div>
+                    <div className="min-w-0 flex-1"><p className="line-clamp-2 font-medium text-gray-900">{product.name}</p><p className="text-sm text-gray-500">{product.brand} · {product.categoryName ?? product.category}</p><p className="mt-1 text-lg font-bold text-blue-600">{formatPrice(product.price)}</p></div>
+                    <Plus className="h-6 w-6 shrink-0 text-blue-600" aria-hidden="true" />
+                  </button>
+                ))}
+              </div>}
             </div>
           </motion.div>
         </motion.div>

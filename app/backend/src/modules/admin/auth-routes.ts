@@ -5,6 +5,7 @@ import { prisma } from '../../db/prisma.js';
 import { fail, ok } from '../../utils/responses.js';
 import { clearAuthSession, issueAccessToken, issueAuthSession } from '../auth/cookies.js';
 import { exchangeGoogleUser, getGoogleAuthUrl } from '../auth/google.js';
+import { exchangeFacebookUser, getFacebookAuthUrl } from '../auth/facebook.js';
 import { authenticateAdmin, toSafeUser } from '../auth/session.js';
 import { revokeRefreshFamily, rotateRefreshToken } from '../auth/refresh.js';
 import { env } from '../../config/env.js';
@@ -16,6 +17,7 @@ const loginSchema = z.object({
 
 const googleCallbackSchema = z.object({
   code: z.string().min(1),
+  state: z.string().min(32),
 });
 const emptyBodySchema = z.undefined();
 
@@ -62,7 +64,7 @@ export const adminAuthRoutes: FastifyPluginAsync = async (app) => {
 
   app.post('/google/callback', async (request, reply) => {
     const body = googleCallbackSchema.parse(request.body);
-    const googleUser = await exchangeGoogleUser(body.code, reply);
+    const googleUser = await exchangeGoogleUser(body.code, body.state, request, reply, 'admin');
     if (!googleUser) return;
 
     const user = await prisma.user.findFirst({
@@ -86,6 +88,36 @@ export const adminAuthRoutes: FastifyPluginAsync = async (app) => {
       data: { lastLoginAt: new Date() },
     });
 
+    return reply.send(await issueAuthSession(user, request, reply, 'admin'));
+  });
+
+  app.get('/facebook/start', async (_request, reply) => {
+    const authUrl = getFacebookAuthUrl(reply, 'admin');
+    if (!authUrl) return;
+    return ok(reply, { authUrl });
+  });
+
+  app.post('/facebook/callback', async (request, reply) => {
+    const body = googleCallbackSchema.parse(request.body);
+    const facebookUser = await exchangeFacebookUser(body.code, body.state, request, reply, 'admin');
+    if (!facebookUser) return;
+
+    const user = await prisma.user.findFirst({
+      where: {
+        email: facebookUser.email,
+        role: { in: ['ADMIN', 'SUPER_ADMIN'] },
+        status: 'ACTIVE',
+        deletedAt: null,
+      },
+    });
+    if (!user) {
+      return fail(reply, 403, {
+        code: 'ADMIN_REQUIRED',
+        message: 'Facebook admin login is only available for existing admin users',
+      });
+    }
+
+    await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
     return reply.send(await issueAuthSession(user, request, reply, 'admin'));
   });
 

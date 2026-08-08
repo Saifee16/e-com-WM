@@ -50,6 +50,15 @@ const Login = () => {
     }
   };
 
+  const handleFacebookLogin = async () => {
+    try {
+      const response = await authAPI.facebookStart();
+      window.location.href = response.data.data.authUrl;
+    } catch (error: unknown) {
+      showToast(getApiErrorMessage(error, 'Facebook Login is not configured'), 'error');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <motion.div
@@ -72,12 +81,14 @@ const Login = () => {
           <div className="p-8">
             <form onSubmit={handleSubmit} className="space-y-6">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="login-email" className="block text-sm font-medium text-gray-700 mb-2">
                   Email Address
                 </label>
                 <div className="relative">
                   <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                   <input
+                    id="login-email"
+                    name="email"
                     type="email"
                     required
                     value={email}
@@ -89,12 +100,14 @@ const Login = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="login-password" className="block text-sm font-medium text-gray-700 mb-2">
                   Password
                 </label>
                 <div className="relative">
                   <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                   <input
+                    id="login-password"
+                    name="password"
                     type={showPassword ? 'text' : 'password'}
                     required
                     value={password}
@@ -104,6 +117,7 @@ const Login = () => {
                   />
                   <button
                     type="button"
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                   >
@@ -112,11 +126,7 @@ const Login = () => {
                 </div>
               </div>
 
-              <div className="flex items-center justify-between">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" className="w-4 h-4 text-blue-600 rounded border-gray-300" />
-                  <span className="text-sm text-gray-600">Remember me</span>
-                </label>
+              <div className="flex items-center justify-end">
                 <Link to="/forgot-password" className="text-sm text-blue-600 hover:text-blue-700">
                   Forgot password?
                 </Link>
@@ -158,7 +168,7 @@ const Login = () => {
                 <img src="https://www.google.com/favicon.ico" alt="Google" className="w-5 h-5" />
                 <span className="text-sm font-medium">Google</span>
               </button>
-              <button className="flex items-center justify-center gap-2 px-4 py-3 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
+              <button type="button" onClick={handleFacebookLogin} className="flex items-center justify-center gap-2 px-4 py-3 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
                 <img src="https://www.facebook.com/favicon.ico" alt="Facebook" className="w-5 h-5" />
                 <span className="text-sm font-medium">Facebook</span>
               </button>

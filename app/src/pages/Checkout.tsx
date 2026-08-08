@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -13,12 +13,16 @@ import { useCart } from '../contexts/CartContext';
 import { useAuth } from '../contexts/AuthContext';
 import { formatPrice } from '../utils/format';
 import { ordersAPI } from '../services/api';
+import { useToast } from '../contexts/ToastContext';
+import { getApiErrorMessage } from '../utils/api-error';
 
 const Checkout = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { items, totals, clearCart } = useCart();
   const { user } = useAuth();
+  const { showToast } = useToast();
+  const idempotencyKey = useRef(crypto.randomUUID());
 
   const [step, setStep] = useState(1);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -46,7 +50,11 @@ const Checkout = () => {
     pickup: 0,
   };
 
-  const finalTotal = totals.total + shippingCosts[shippingMethod];
+  const qualifiesForFreeStandardShipping = shippingMethod === 'standard' && totals.subtotal >= 100_000;
+  const selectedShipping = totals.freeShipping || qualifiesForFreeStandardShipping
+    ? 0
+    : shippingCosts[shippingMethod];
+  const finalTotal = totals.subtotal + totals.tax + selectedShipping - (totals.discount ?? 0);
 
   if (!user) {
     return <Navigate to="/login" replace state={{ from: { pathname: location.pathname } }} />;
@@ -63,17 +71,15 @@ const Checkout = () => {
     setIsProcessing(true);
 
     try {
-      const response = await ordersAPI.createOrder({
-        shippingInfo,
-        paymentMethod,
-        shippingMethod,
-      });
+      const response = await ordersAPI.createOrder(
+        { shippingInfo, paymentMethod, shippingMethod },
+        idempotencyKey.current,
+      );
       setOrderNumber(response.data.data.orderNumber);
       setOrderComplete(true);
       await clearCart();
-    } catch {
-      setIsProcessing(false);
-      return;
+    } catch (error: unknown) {
+      showToast(getApiErrorMessage(error, 'Unable to place the order. Please try again.'), 'error');
     }
     setIsProcessing(false);
   };
@@ -116,7 +122,7 @@ const Checkout = () => {
               <p className="text-xl font-bold text-gray-900">{orderNumber}</p>
             </div>
             <p className="text-sm text-gray-500 mb-8">
-              You will receive an email confirmation shortly with your order details.
+              You can track the latest status from your orders page.
             </p>
             <div className="flex gap-4">
               {user && (
@@ -408,8 +414,14 @@ const Checkout = () => {
                 </div>
                 <div className="flex justify-between text-gray-600">
                   <span>Shipping</span>
-                  <span>{formatPrice(shippingCosts[shippingMethod])}</span>
+                  <span>{selectedShipping === 0 ? 'Free' : formatPrice(selectedShipping)}</span>
                 </div>
+                {(totals.discount ?? 0) > 0 && (
+                  <div className="flex justify-between text-emerald-700">
+                    <span>Discount</span>
+                    <span>-{formatPrice(totals.discount)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between text-gray-600">
                   <span>Tax</span>
                   <span>{formatPrice(totals.tax)}</span>

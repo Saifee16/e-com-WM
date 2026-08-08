@@ -1,5 +1,6 @@
 generator client {
   provider = "prisma-client-js"
+  engineType = "binary"
 }
 
 datasource db {
@@ -228,6 +229,7 @@ model Product {
   status           ProductStatus    @default(DRAFT)
   isFeatured       Boolean          @default(false) @map("is_featured")
   ptaApproved      Boolean          @default(true) @map("pta_approved")
+  specifications   Json?            @db.JsonB
   metaTitle        String?          @map("meta_title")
   metaDescription  String?          @map("meta_description")
   createdAt        DateTime         @default(now()) @map("created_at")

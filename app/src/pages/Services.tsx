@@ -10,6 +10,7 @@ import {
   Clock,
   Package,
 } from 'lucide-react';
+import { CONTACT_EMAIL, CONTACT_PHONE_NUMBERS } from '../config/contact';
 
 const Services = () => {
   const services = [
@@ -260,13 +261,13 @@ const Services = () => {
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <a
-                href="tel:+923122995584"
+                href={CONTACT_PHONE_NUMBERS[0].href}
                 className="px-8 py-4 bg-white text-blue-600 rounded-full font-semibold hover:bg-gray-100 transition-colors"
               >
                 Call Us Now
               </a>
               <a
-                href="mailto:mobileswahab@gmail.com"
+                href={`mailto:${CONTACT_EMAIL}`}
                 className="px-8 py-4 border-2 border-white text-white rounded-full font-semibold hover:bg-white/10 transition-colors"
               >
                 Email Support

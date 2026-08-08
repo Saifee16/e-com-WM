@@ -15,6 +15,7 @@ import {
 import { useAuth } from '../../contexts/AuthContext';
 import { useCart } from '../../contexts/CartContext';
 import CartDrawer from '../cart/CartDrawer';
+import { CONTACT_PHONE_NUMBERS } from '../../config/contact';
 
 const Navbar = () => {
   const [isScrolled, setIsScrolled] = useState(false);
@@ -69,9 +70,16 @@ const Navbar = () => {
       {/* Top Bar */}
       <div className="bg-slate-950 px-4 py-2 text-white">
         <div className="max-w-7xl mx-auto flex justify-between items-center text-sm">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <Phone className="w-4 h-4" />
-            <span>+92 312 2995584</span>
+            {CONTACT_PHONE_NUMBERS.map((phone, index) => (
+              <span key={phone.href} className="flex items-center gap-3">
+                {index > 0 && <span className="text-slate-500" aria-hidden="true">•</span>}
+                <a href={phone.href} className="transition-colors hover:text-blue-300">
+                  {phone.label}
+                </a>
+              </span>
+            ))}
           </div>
           <div className="hidden md:flex items-center gap-6">
             <span>Free shipping on orders over Rs. 100,000</span>
@@ -126,6 +134,8 @@ const Navbar = () => {
             <div className="flex items-center gap-2 lg:gap-4">
               {/* Search Button */}
               <motion.button
+                type="button"
+                aria-label="Search products"
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.9 }}
                 onClick={() => setIsSearchOpen(true)}
@@ -135,7 +145,7 @@ const Navbar = () => {
               </motion.button>
 
               {/* Cart */}
-              <button type="button" onClick={() => setIsCartOpen(true)} className="relative">
+              <button type="button" aria-label="Open shopping cart" onClick={() => setIsCartOpen(true)} className="relative">
                 <motion.div
                   whileHover={{ scale: 1.1 }}
                   whileTap={{ scale: 0.9 }}
@@ -158,6 +168,8 @@ const Navbar = () => {
               {isAuthenticated ? (
                 <div className="relative">
                   <motion.button
+                    type="button"
+                    aria-label="Open account menu"
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                     onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
@@ -211,8 +223,9 @@ const Navbar = () => {
                   </AnimatePresence>
                 </div>
               ) : (
-                <Link to="/login">
+                <Link to="/login" aria-label="Sign in">
                   <motion.button
+                    type="button"
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                     className="hidden lg:flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-full text-sm font-medium hover:bg-blue-700 transition-colors"
@@ -225,6 +238,9 @@ const Navbar = () => {
 
               {/* Mobile Menu Button */}
               <motion.button
+                type="button"
+                aria-label={isMobileMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
+                aria-expanded={isMobileMenuOpen}
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.9 }}
                 onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
