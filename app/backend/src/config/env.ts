@@ -5,20 +5,42 @@ const stringBoolean = z
   .union([z.boolean(), z.enum(['true', 'false'])])
   .transform((value) => value === true || value === 'true');
 
+const emptyStringToUndefined = (value: unknown) =>
+  typeof value === 'string' && value.trim() === '' ? undefined : value;
+
+const optionalString = z.preprocess(emptyStringToUndefined, z.string().optional());
+const optionalTrimmedString = z.preprocess(emptyStringToUndefined, z.string().trim().optional());
+const optionalUrl = z.preprocess(emptyStringToUndefined, z.string().url().optional());
+const optionalPositiveInteger = z.preprocess(
+  emptyStringToUndefined,
+  z.coerce.number().int().positive().optional(),
+);
+
+const isRedisUrl = (value: string) => {
+  try {
+    const url = new URL(value);
+    return (url.protocol === 'redis:' || url.protocol === 'rediss:') && url.hostname.length > 0;
+  } catch {
+    return false;
+  }
+};
+
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().positive().default(4000),
   API_BASE_URL: z.string().url().default('http://localhost:4000'),
   FRONTEND_URL: z.string().url().default('http://localhost:5173'),
   DATABASE_URL: z.string().min(1),
-  REDIS_URL: z.string().url().default('redis://localhost:6379'),
+  REDIS_URL: z.string().trim().min(1).refine(isRedisUrl, {
+    message: 'must be a redis:// or rediss:// URL with a hostname',
+  }).default('redis://localhost:6379'),
   JWT_ACCESS_SECRET: z.string().min(24),
   JWT_REFRESH_SECRET: z.string().min(24),
   TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(5).default(0),
   ACCESS_TOKEN_TTL_SECONDS: z.coerce.number().int().positive().default(900),
   REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().positive().default(30),
   PASSWORD_RESET_TOKEN_TTL_MINUTES: z.coerce.number().int().positive().default(30),
-  COOKIE_DOMAIN: z.string().trim().optional().transform((value) => value || undefined),
+  COOKIE_DOMAIN: optionalTrimmedString,
   COOKIE_SECURE: stringBoolean.default(false),
   COOKIE_SAME_SITE: z.enum(['lax', 'strict', 'none']).default('lax'),
   RATE_LIMIT_GLOBAL_MAX: z.coerce.number().int().positive().default(300),
@@ -31,17 +53,20 @@ const envSchema = z.object({
   PUBLIC_FORM_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(10),
   PUBLIC_FORM_RATE_LIMIT_WINDOW_SECONDS: z.coerce.number().int().positive().default(900),
   EMAIL_FROM: z.string().email().default('no-reply@example.com'),
-  SMTP_HOST: z.string().trim().optional().transform((value) => value || undefined),
-  SMTP_PORT: z.coerce.number().int().positive().optional(),
-  SMTP_USER: z.string().trim().optional().transform((value) => value || undefined),
-  SMTP_PASS: z.string().optional().transform((value) => value || undefined),
-  GOOGLE_CLIENT_ID: z.string().optional(),
-  GOOGLE_CLIENT_SECRET: z.string().optional(),
-  GOOGLE_REDIRECT_URI: z.string().url().optional(),
-  FACEBOOK_APP_ID: z.string().optional(),
-  FACEBOOK_APP_SECRET: z.string().optional(),
-  FACEBOOK_REDIRECT_URI: z.string().url().optional(),
-  FACEBOOK_GRAPH_API_VERSION: z.string().regex(/^v\d+\.\d+$/).optional(),
+  SMTP_HOST: optionalTrimmedString,
+  SMTP_PORT: optionalPositiveInteger,
+  SMTP_USER: optionalTrimmedString,
+  SMTP_PASS: optionalString,
+  GOOGLE_CLIENT_ID: optionalString,
+  GOOGLE_CLIENT_SECRET: optionalString,
+  GOOGLE_REDIRECT_URI: optionalUrl,
+  FACEBOOK_APP_ID: optionalString,
+  FACEBOOK_APP_SECRET: optionalString,
+  FACEBOOK_REDIRECT_URI: optionalUrl,
+  FACEBOOK_GRAPH_API_VERSION: z.preprocess(
+    emptyStringToUndefined,
+    z.string().regex(/^v\d+\.\d+$/).optional(),
+  ),
 }).superRefine((value, context) => {
   if ((value.SMTP_USER && !value.SMTP_PASS) || (!value.SMTP_USER && value.SMTP_PASS)) {
     context.addIssue({ code: 'custom', path: ['SMTP_USER'], message: 'SMTP_USER and SMTP_PASS must be configured together' });
