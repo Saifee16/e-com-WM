@@ -124,10 +124,7 @@ The repository builds, lints, type-checks, and passes all automated tests. Check
 | `PUBLIC_FORM_RATE_LIMIT_MAX` | Yes/default | Contact/guest-return abuse limit | Security policy | `10` |
 | `PUBLIC_FORM_RATE_LIMIT_WINDOW_SECONDS` | Yes/default | Public-form limit window | Security policy | `900` |
 | `EMAIL_FROM` | Yes | Transactional sender | Verified email domain/provider | Verified sender address |
-| `SMTP_HOST` | Yes for email flows | SMTP server | Email provider | Provider host |
-| `SMTP_PORT` | Yes for email flows | SMTP port | Email provider | Provider TLS/submission port |
-| `SMTP_USER` | Yes for email flows | SMTP credential | Email provider | Secret-manager value |
-| `SMTP_PASS` | Yes for email flows | SMTP credential | Email provider | Secret-manager value |
+| `RESEND_API_KEY` | Yes for email flows | Resend sending credential | Resend dashboard | Secret-manager value |
 | `GOOGLE_CLIENT_ID` | Yes for Google login | Google OAuth client | Google Cloud Console | Web application client ID |
 | `GOOGLE_CLIENT_SECRET` | Yes for Google login | Google OAuth secret | Google Cloud Console | Secret-manager value |
 | `GOOGLE_REDIRECT_URI` | Yes for Google login | Exact OAuth callback | Final domain | `https://YOUR_DOMAIN/auth/google/callback` |
@@ -167,7 +164,7 @@ None. The implemented and tested payment method is cash on delivery. Do not add 
 
 ### Email
 
-Provision a transactional SMTP account and verified sending domain; set `EMAIL_FROM`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, and `SMTP_PASS`. Configure SPF, DKIM, and DMARC.
+Provision a Resend sending API key and verified sending domain; set `EMAIL_FROM` and `RESEND_API_KEY`. Configure SPF, DKIM, and DMARC.
 
 ### Storage
 

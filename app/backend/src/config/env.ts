@@ -11,10 +11,6 @@ const emptyStringToUndefined = (value: unknown) =>
 const optionalString = z.preprocess(emptyStringToUndefined, z.string().optional());
 const optionalTrimmedString = z.preprocess(emptyStringToUndefined, z.string().trim().optional());
 const optionalUrl = z.preprocess(emptyStringToUndefined, z.string().url().optional());
-const optionalPositiveInteger = z.preprocess(
-  emptyStringToUndefined,
-  z.coerce.number().int().positive().optional(),
-);
 
 const isRedisUrl = (value: string) => {
   try {
@@ -53,10 +49,7 @@ const envSchema = z.object({
   PUBLIC_FORM_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(10),
   PUBLIC_FORM_RATE_LIMIT_WINDOW_SECONDS: z.coerce.number().int().positive().default(900),
   EMAIL_FROM: z.string().email().default('no-reply@example.com'),
-  SMTP_HOST: optionalTrimmedString,
-  SMTP_PORT: optionalPositiveInteger,
-  SMTP_USER: optionalTrimmedString,
-  SMTP_PASS: optionalString,
+  RESEND_API_KEY: optionalString,
   GOOGLE_CLIENT_ID: optionalString,
   GOOGLE_CLIENT_SECRET: optionalString,
   GOOGLE_REDIRECT_URI: optionalUrl,
@@ -68,12 +61,6 @@ const envSchema = z.object({
     z.string().regex(/^v\d+\.\d+$/).optional(),
   ),
 }).superRefine((value, context) => {
-  if ((value.SMTP_USER && !value.SMTP_PASS) || (!value.SMTP_USER && value.SMTP_PASS)) {
-    context.addIssue({ code: 'custom', path: ['SMTP_USER'], message: 'SMTP_USER and SMTP_PASS must be configured together' });
-  }
-  if (value.SMTP_HOST && !value.SMTP_PORT) {
-    context.addIssue({ code: 'custom', path: ['SMTP_PORT'], message: 'SMTP_PORT is required when SMTP_HOST is configured' });
-  }
   if (value.RATE_LIMIT_LOGIN_MAX >= value.RATE_LIMIT_GLOBAL_MAX) {
     context.addIssue({ code: 'custom', path: ['RATE_LIMIT_LOGIN_MAX'], message: 'RATE_LIMIT_LOGIN_MAX must be lower than RATE_LIMIT_GLOBAL_MAX' });
   }
