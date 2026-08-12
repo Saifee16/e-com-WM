@@ -72,15 +72,6 @@ const Register = () => {
     }
   };
 
-  const handleFacebookRegister = async () => {
-    try {
-      const response = await authAPI.facebookStart();
-      window.location.href = response.data.data.authUrl;
-    } catch (error: unknown) {
-      showToast(getApiErrorMessage(error, 'Facebook Login is not configured'), 'error');
-    }
-  };
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <motion.div
@@ -278,18 +269,14 @@ const Register = () => {
             </div>
 
             {/* Social Login */}
-            <div className="grid grid-cols-2 gap-4">
+            <div>
               <button
                 type="button"
                 onClick={handleGoogleRegister}
-                className="flex items-center justify-center gap-2 px-4 py-3 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
+                className="flex w-full items-center justify-center gap-2 px-4 py-3 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
               >
                 <img src="https://www.google.com/favicon.ico" alt="Google" className="w-5 h-5" />
                 <span className="text-sm font-medium">Google</span>
-              </button>
-              <button type="button" onClick={handleFacebookRegister} className="flex items-center justify-center gap-2 px-4 py-3 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
-                <img src="https://www.facebook.com/favicon.ico" alt="Facebook" className="w-5 h-5" />
-                <span className="text-sm font-medium">Facebook</span>
               </button>
             </div>
 
