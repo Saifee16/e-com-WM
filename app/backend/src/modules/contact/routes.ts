@@ -4,6 +4,7 @@ import { prisma } from '../../db/prisma.js';
 import { env } from '../../config/env.js';
 import { ok } from '../../utils/responses.js';
 import { authenticateCustomer, getAuthenticatedUser } from '../auth/session.js';
+import { sendContactMessageNotification } from './mailer.js';
 
 const contactSchema = z.object({
   name: z.string().trim().min(1).max(120),
@@ -26,6 +27,12 @@ export const contactRoutes: FastifyPluginAsync = async (app) => {
     const message = await prisma.contactMessage.create({
       data: { ...body, ...(user ? { userId: user.id } : {}) },
     });
+
+    try {
+      await sendContactMessageNotification(message);
+    } catch (error) {
+      request.log.error({ err: error }, 'contact notification email failed');
+    }
 
     return ok(reply.status(201), {
       id: message.id,

@@ -28,7 +28,7 @@ describe('sendPasswordResetEmail', () => {
     const { sendPasswordResetEmail } = await importMailer({});
     await sendPasswordResetEmail(
       'delivered@resend.dev',
-      'https://e-com-wm.vercel.app/reset-password?token=fake-test-token',
+      'https://wahabmobiles.com/reset-password?token=fake-test-token',
       vi.fn(),
     );
 
@@ -54,7 +54,7 @@ describe('sendPasswordResetEmail', () => {
     const { sendPasswordResetEmail } = await importMailer({ RESEND_API_KEY: undefined });
     await expect(sendPasswordResetEmail(
       'delivered@resend.dev',
-      'https://e-com-wm.vercel.app/reset-password?token=fake-test-token',
+      'https://wahabmobiles.com/reset-password?token=fake-test-token',
       vi.fn(),
     )).rejects.toThrow('Resend API key is not configured');
 
@@ -67,7 +67,7 @@ describe('sendPasswordResetEmail', () => {
     const { sendPasswordResetEmail } = await importMailer({});
     await expect(sendPasswordResetEmail(
       'delivered@resend.dev',
-      'https://e-com-wm.vercel.app/reset-password?token=fake-test-token',
+      'https://wahabmobiles.com/reset-password?token=fake-test-token',
       vi.fn(),
     )).rejects.toThrow('Resend email send failed with status 422');
   });

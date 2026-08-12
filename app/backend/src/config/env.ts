@@ -11,6 +11,16 @@ const emptyStringToUndefined = (value: unknown) =>
 const optionalString = z.preprocess(emptyStringToUndefined, z.string().optional());
 const optionalTrimmedString = z.preprocess(emptyStringToUndefined, z.string().trim().optional());
 const optionalUrl = z.preprocess(emptyStringToUndefined, z.string().url().optional());
+const emailFromAddress = z.string().trim().refine((value) => {
+  if (z.string().email().safeParse(value).success) return true;
+
+  const mailbox = /^([^<>\r\n]+)\s*<([^<>\r\n]+)>$/.exec(value);
+  return Boolean(
+    mailbox?.[1]?.trim()
+    && mailbox[2]
+    && z.string().email().safeParse(mailbox[2].trim()).success,
+  );
+}, 'must be an email address or a display name followed by an email address');
 
 const isRedisUrl = (value: string) => {
   try {
@@ -48,7 +58,8 @@ const envSchema = z.object({
   PASSWORD_RESET_ACCOUNT_COOLDOWN_SECONDS: z.coerce.number().int().positive().default(300),
   PUBLIC_FORM_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(10),
   PUBLIC_FORM_RATE_LIMIT_WINDOW_SECONDS: z.coerce.number().int().positive().default(900),
-  EMAIL_FROM: z.string().email().default('no-reply@example.com'),
+  EMAIL_FROM: emailFromAddress.default('no-reply@example.com'),
+  SUPPORT_EMAIL: z.preprocess(emptyStringToUndefined, z.string().email().optional()),
   RESEND_API_KEY: optionalString,
   GOOGLE_CLIENT_ID: optionalString,
   GOOGLE_CLIENT_SECRET: optionalString,
