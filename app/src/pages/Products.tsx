@@ -535,7 +535,9 @@ const Products = () => {
                   <Search className="w-10 h-10 text-gray-400" />
                 </div>
                 <h3 className="text-xl font-semibold text-gray-900 mb-2">No products found</h3>
-                <p className="text-gray-500">Try adjusting your filters or search query</p>
+                <p className="max-w-full px-4 text-center text-gray-500">
+                  Try adjusting your filters or search query
+                </p>
               </div>
             ) : (
               <div
