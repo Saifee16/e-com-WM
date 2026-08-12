@@ -8,7 +8,6 @@ import {
   Grid3X3,
   List,
   X,
-  Star,
   Search,
   ShoppingCart,
   Smartphone,
@@ -22,6 +21,7 @@ import { useToast } from '../contexts/ToastContext';
 import { productsAPI } from '../services/api';
 import type { Pagination, ProductQueryParams } from '../services/api';
 import { getApiErrorMessage } from '../utils/api-error';
+import ProductRating from '../components/product/ProductRating';
 
 const PAGE_SIZE = 20;
 
@@ -643,11 +643,7 @@ const ProductCard = ({
                 {product.name}
               </h3>
               <p className="mb-3 line-clamp-2 text-sm leading-6 text-slate-500">{product.description}</p>
-              <div className="flex items-center gap-2 text-sm text-slate-600">
-                <Star className="h-4 w-4 fill-amber-400 text-amber-400" aria-hidden="true" />
-                <span className="font-medium">{product.rating}</span>
-                <span>({product.numReviews} reviews)</span>
-              </div>
+              <ProductRating product={product} />
             </div>
             <div className="flex items-center gap-4 sm:flex-col sm:items-end">
               <div className="sm:text-right">
@@ -707,11 +703,7 @@ const ProductCard = ({
           <h3 className="line-clamp-2 min-h-[3.5rem] text-lg font-semibold leading-7 text-slate-950 transition group-hover:text-blue-700">
             {product.name}
           </h3>
-          <div className="mt-3 flex items-center gap-2 text-sm text-slate-600">
-            <Star className="h-4 w-4 fill-amber-400 text-amber-400" aria-hidden="true" />
-            <span className="font-medium">{product.rating}</span>
-            <span>({product.numReviews})</span>
-          </div>
+          <ProductRating product={product} className="mt-3" compact />
           <div className="mt-auto pt-5">
             <div className="mb-4 flex flex-wrap items-end gap-3">
               <span className="text-xl font-bold text-slate-950">{formatPrice(product.price)}</span>

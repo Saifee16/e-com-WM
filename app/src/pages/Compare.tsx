@@ -35,7 +35,7 @@ const specs: CompareSpec[] = [
   { key: 'network', label: 'Network', getValue: (product) => product.specifications.network },
   { key: 'ptaApproved', label: 'PTA Approved', getValue: (product) => (product.ptaApproved ? 'Yes' : 'No') },
   { key: 'condition', label: 'Condition', getValue: (product) => product.condition },
-  { key: 'rating', label: 'Rating', getValue: (product) => `${product.rating}/5` },
+  { key: 'rating', label: 'Rating', getValue: (product) => product.numReviews && product.rating !== null ? `${product.rating}/5` : 'No reviews yet' },
 ];
 
 const Compare = () => {
@@ -228,7 +228,7 @@ const AddProductModal = ({ isOpen, onClose, products, onSelect }: { isOpen: bool
                 {filteredProducts.map((product) => (
                   <button key={product._id} onClick={() => onSelect(product)} className="flex items-center gap-4 rounded-xl border border-gray-200 p-4 text-left transition-colors hover:border-blue-500 hover:bg-blue-50">
                     <div className="h-20 w-20 shrink-0 overflow-hidden rounded-lg bg-gray-100"><img src={product.images[0]} alt="" className="h-full w-full object-cover" /></div>
-                    <div className="min-w-0 flex-1"><p className="line-clamp-2 font-medium text-gray-900">{product.name}</p><p className="text-sm text-gray-500">{product.brand} · {product.categoryName ?? product.category}</p><p className="mt-1 text-lg font-bold text-blue-600">{formatPrice(product.price)}</p></div>
+                    <div className="min-w-0 flex-1"><p className="line-clamp-2 font-medium text-gray-900">{product.name}</p><p className="text-sm text-gray-500">{product.brand} / {product.categoryName ?? product.category}</p><p className="mt-1 text-lg font-bold text-blue-600">{formatPrice(product.price)}</p></div>
                     <Plus className="h-6 w-6 shrink-0 text-blue-600" aria-hidden="true" />
                   </button>
                 ))}

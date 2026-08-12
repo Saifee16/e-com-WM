@@ -60,12 +60,12 @@ const Navbar = () => {
     <>
       {/* Top Bar */}
       <div className="bg-slate-950 px-4 py-2 text-white">
-        <div className="max-w-7xl mx-auto flex justify-between items-center text-sm">
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <Phone className="w-4 h-4" />
+        <div className="mx-auto flex max-w-7xl items-center justify-between text-xs sm:text-sm">
+          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 sm:gap-x-3">
+            <Phone className="h-4 w-4 shrink-0" />
             {CONTACT_PHONE_NUMBERS.map((phone, index) => (
-              <span key={phone.href} className="flex items-center gap-3">
-                {index > 0 && <span className="text-slate-500" aria-hidden="true">•</span>}
+              <span key={phone.href} className={`${index > 0 ? 'hidden sm:flex' : 'flex'} items-center gap-2 sm:gap-3`}>
+                {index > 0 && <span className="text-slate-500" aria-hidden="true">/</span>}
                 <a href={phone.href} className="transition-colors hover:text-blue-300">
                   {phone.label}
                 </a>
@@ -87,23 +87,23 @@ const Navbar = () => {
         className="sticky top-0 z-50 border-b border-slate-100 bg-white/95 shadow-sm backdrop-blur-md"
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16 lg:h-20">
+          <div className="flex h-16 min-w-0 items-center justify-between gap-2 lg:h-20">
             {/* Logo */}
-            <Link to="/" className="flex min-w-0 items-center gap-3">
+            <Link to="/" className="flex min-w-0 items-center gap-2 sm:gap-3">
               <img
                 src="/assets/wahab-logo.jpg"
                 alt="Wahab Mobiles logo"
-                className="h-11 w-11 shrink-0 rounded-full border border-sky-100 object-cover shadow-sm"
+                className="h-10 w-10 shrink-0 rounded-full border border-sky-100 object-cover shadow-sm sm:h-11 sm:w-11"
               />
               <motion.div
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 className="min-w-0"
               >
-                <p className="text-lg font-bold leading-tight text-blue-700 lg:text-xl">
+                <p className="truncate text-base font-bold leading-tight text-blue-700 sm:text-lg lg:text-xl">
                   Wahab<span className="text-slate-900">Mobiles</span>
                 </p>
-                <p className="hidden text-xs font-medium text-slate-500 sm:block">Trusted Cell Phones Outlet</p>
+                <p className="hidden text-xs font-medium text-slate-500 md:block">Trusted Cell Phones Outlet</p>
               </motion.div>
             </Link>
 
@@ -129,7 +129,7 @@ const Navbar = () => {
             </nav>
 
             {/* Right Actions */}
-            <div className="flex items-center gap-2 lg:gap-4">
+            <div className="flex shrink-0 items-center gap-1 sm:gap-2 lg:gap-4">
               {/* Search Button */}
               <motion.button
                 type="button"
@@ -137,13 +137,13 @@ const Navbar = () => {
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.9 }}
                 onClick={() => setIsSearchOpen(true)}
-                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                className="hidden rounded-full p-2 transition-colors hover:bg-gray-100 min-[400px]:block"
               >
                 <Search className="w-5 h-5 text-gray-700" />
               </motion.button>
 
               {/* Cart */}
-              <button type="button" aria-label="Open shopping cart" onClick={() => setIsCartOpen(true)} className="relative">
+              <button type="button" aria-label="Open shopping cart" onClick={() => setIsCartOpen(true)} className="relative hidden min-[400px]:block">
                 <motion.div
                   whileHover={{ scale: 1.1 }}
                   whileTap={{ scale: 0.9 }}
@@ -164,7 +164,7 @@ const Navbar = () => {
 
               {/* User Menu */}
               {isAuthenticated ? (
-                <div className="relative">
+                <div className="relative hidden lg:block">
                   <motion.button
                     type="button"
                     aria-label="Open account menu"
@@ -242,7 +242,7 @@ const Navbar = () => {
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.9 }}
                 onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                className="lg:hidden p-2 hover:bg-gray-100 rounded-full transition-colors"
+                className="rounded-full p-2 transition-colors hover:bg-gray-100 lg:hidden"
               >
                 {isMobileMenuOpen ? (
                   <X className="w-6 h-6 text-gray-700" />
@@ -285,6 +285,15 @@ const Navbar = () => {
                     className="block px-4 py-3 bg-blue-600 text-white rounded-lg text-sm font-medium text-center"
                   >
                     Sign In
+                  </Link>
+                )}
+                {isAuthenticated && (
+                  <Link
+                    to="/account/dashboard"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="block rounded-lg bg-blue-600 px-4 py-3 text-center text-sm font-medium text-white"
+                  >
+                    Account
                   </Link>
                 )}
               </nav>

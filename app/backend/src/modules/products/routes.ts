@@ -35,7 +35,7 @@ export const mapProduct = (product: ProductWithRelations) => {
   const rating =
     product.reviews.length > 0
       ? product.reviews.reduce((total, review) => total + review.rating, 0) / product.reviews.length
-      : 4.5;
+      : null;
 
   return {
     _id: product.id,
@@ -64,7 +64,7 @@ export const mapProduct = (product: ProductWithRelations) => {
     condition: (variant?.condition ?? 'new') as 'new' | 'used' | 'refurbished',
     ptaApproved: product.ptaApproved,
     countInStock: variant?.stockQuantity ?? 0,
-    rating: Number(rating.toFixed(1)),
+    rating: rating === null ? null : Number(rating.toFixed(1)),
     numReviews: product.reviews.length,
     reviews: product.reviews.map((review) => ({
       _id: review.id,
@@ -102,9 +102,36 @@ const productQuerySchema = z.object({
 );
 
 const productUploadUrlPrefix = `${env.API_BASE_URL.replace(/\/+$/, '')}/api/uploads/products/`;
+const cloudinaryImageUrlPrefix = env.CLOUDINARY_CLOUD_NAME
+  ? `https://res.cloudinary.com/${env.CLOUDINARY_CLOUD_NAME}/image/upload/`
+  : null;
+const productImageStorageProvider = env.PRODUCT_IMAGE_STORAGE ?? (env.NODE_ENV === 'production' ? 'cloudinary' : 'local');
+const cloudinaryFolder = env.CLOUDINARY_UPLOAD_FOLDER.replace(/^\/+|\/+$/g, '');
+
+const isAllowedProductImageUrl = (value: string) => {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return false;
+  }
+
+  if (url.protocol !== 'https:' && !value.startsWith(productUploadUrlPrefix)) return false;
+  if (value.startsWith(productUploadUrlPrefix)) return true;
+  if (productImageStorageProvider !== 'cloudinary') return true;
+  if (!cloudinaryImageUrlPrefix || !value.startsWith(cloudinaryImageUrlPrefix)) return false;
+
+  const afterUpload = decodeURIComponent(url.pathname.split('/image/upload/')[1] ?? '');
+  const parts = afterUpload.split('/').filter(Boolean);
+  const versionlessParts = parts[0] && /^v\d+$/.test(parts[0]) ? parts.slice(1) : parts;
+  return versionlessParts.join('/').startsWith(`${cloudinaryFolder}/`);
+};
+
 const imageUrlSchema = z.string().url().max(2048).refine(
-  (value) => new URL(value).protocol === 'https:' || value.startsWith(productUploadUrlPrefix),
-  'Product image URLs must use HTTPS',
+  isAllowedProductImageUrl,
+  productImageStorageProvider === 'cloudinary'
+    ? 'Product image URLs must be uploaded Cloudinary product images'
+    : 'Product image URLs must use HTTPS',
 );
 
 const productSpecificationsSchema = z.object({
@@ -298,7 +325,7 @@ export const productRoutes: FastifyPluginAsync = async (app) => {
       } else if (query.sort === 'price-high') {
         comparison = right.price - left.price;
       } else if (query.sort === 'rating') {
-        comparison = right.rating - left.rating;
+        comparison = (right.rating ?? 0) - (left.rating ?? 0);
       } else {
         comparison = new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime();
       }

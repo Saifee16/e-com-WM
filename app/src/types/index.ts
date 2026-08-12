@@ -43,7 +43,7 @@ export interface Product {
   conditionDetails?: 'excellent' | 'good' | 'fair';
   ptaApproved: boolean;
   countInStock: number;
-  rating: number;
+  rating: number | null;
   numReviews: number;
   reviews: Review[];
   isFeatured: boolean;

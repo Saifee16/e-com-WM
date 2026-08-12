@@ -21,6 +21,7 @@ import { useToast } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
 import { productsAPI, wishlistAPI } from '../services/api';
 import AuthModal from '../components/auth/AuthModal';
+import ProductRating from '../components/product/ProductRating';
 
 const ProductDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -230,11 +231,7 @@ const ProductDetail = () => {
               <h1 className="text-3xl font-bold text-gray-900 mb-4">{product.name}</h1>
 
               <div className="flex items-center gap-4 mb-6">
-                <div className="flex items-center gap-2">
-                  <Star className="w-5 h-5 fill-yellow-400 text-yellow-400" />
-                  <span className="font-semibold">{product.rating}</span>
-                  <span className="text-gray-500">({product.numReviews} reviews)</span>
-                </div>
+                <ProductRating product={product} />
                 <span className="text-gray-300">|</span>
                 <span className={`text-sm font-medium ${product.countInStock > 0 ? 'text-green-600' : 'text-red-600'}`}>
                   {product.countInStock > 0 ? 'In Stock' : 'Out of Stock'}

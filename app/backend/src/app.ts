@@ -18,6 +18,7 @@ import { adminRoutes } from './modules/admin/routes.js';
 import { cartRoutes } from './modules/cart/routes.js';
 import { contactRoutes } from './modules/contact/routes.js';
 import { addressRoutes, wishlistRoutes } from './modules/customer-routes.js';
+import { googleReviewsRoutes } from './modules/business/google-reviews.js';
 import { adminOrderRoutes, orderRoutes } from './modules/orders/routes.js';
 import { adminProductRoutes, productRoutes } from './modules/products/routes.js';
 import { requestIdPlugin } from './plugins/request-id.js';
@@ -136,6 +137,7 @@ export const buildApp = async (options: { trustProxy?: number; uploadDirectory?:
   await app.register(healthRoutes, { prefix: '/api' });
   await app.register(authRoutes, { prefix: '/api/auth' });
   await app.register(productRoutes, { prefix: '/api/products' });
+  await app.register(googleReviewsRoutes, { prefix: '/api/business' });
   await app.register(cartRoutes, { prefix: '/api/cart' });
   await app.register(orderRoutes, { prefix: '/api/orders' });
   await app.register(adminAuthRoutes, { prefix: '/api/admin/auth' });

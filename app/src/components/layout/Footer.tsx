@@ -56,6 +56,13 @@ const Footer = () => {
     { icon: CreditCard, title: 'Cash on Delivery', description: 'Pay when it arrives' },
   ];
 
+  const team = [
+    'Owner Ashfaque Muhammad Qureshi',
+    'Sales head Hammad Shaikh',
+    'Accountant Umer Suleman',
+    'Web Dev Saifullah Suleman',
+  ];
+
   return (
     <footer className="bg-gray-900 text-white">
       {/* Features Bar */}
@@ -102,6 +109,9 @@ const Footer = () => {
             <p className="text-gray-400 text-sm mt-4 max-w-xs">
               A Trusted Cell Phones Outlet for new and used phones in Hyderabad.
             </p>
+            <p className="mt-3 text-sm text-gray-400">
+              Established March 2009. 20,000+ customers served. 95% customer satisfaction.
+            </p>
             
             {/* Contact Info */}
             <div className="mt-6 space-y-3">
@@ -125,6 +135,7 @@ const Footer = () => {
                 <MapPin className="mt-0.5 w-4 h-4 shrink-0 text-blue-400" />
                 <div>
                   <p>{SHOP_ADDRESS}</p>
+                  <p className="mt-1">Saturday to Thursday, 1:30 PM - 12 AM</p>
                   <a
                     href={SHOP_MAPS_URL}
                     target="_blank"
@@ -135,6 +146,15 @@ const Footer = () => {
                   </a>
                 </div>
               </div>
+            </div>
+
+            <div className="mt-6">
+              <h4 className="font-semibold text-sm">Team</h4>
+              <ul className="mt-3 space-y-1 text-sm text-gray-400">
+                {team.map((member) => (
+                  <li key={member}>{member}</li>
+                ))}
+              </ul>
             </div>
 
           </div>
@@ -211,7 +231,11 @@ const Footer = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
             <p className="text-gray-400 text-sm text-center md:text-left">
-              © 2026 Wahab Mobiles. All rights reserved.
+              © 2026 Wahab Mobiles. All rights reserved. Saifullah Suleman -
+              {' '}
+              <a href="https://linkedin.com/saifullah-suleman" target="_blank" rel="noreferrer" className="text-blue-400 hover:text-blue-300">
+                linkedin.com/saifullah-suleman
+              </a>
             </p>
             <div className="flex items-center gap-4">
               <span className="text-gray-500 text-sm">We accept:</span>

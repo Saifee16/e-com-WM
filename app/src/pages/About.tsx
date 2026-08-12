@@ -42,6 +42,19 @@ const About = () => {
     },
   ];
 
+  const businessFacts = [
+    'Established March 2009',
+    '20,000+ Customers Served',
+    '95% Customer Satisfaction',
+  ];
+
+  const team = [
+    'Owner: Ashfaque Muhammad Qureshi',
+    'Sales head: Hammad Shaikh',
+    'Accountant: Umer Suleman',
+    'Web Dev: Saifullah Suleman',
+  ];
+
   return (
     <div className="min-h-[100dvh] bg-[#f7fbff] text-slate-950">
       <section id="about-us" className="scroll-mt-24 border-b border-sky-100 bg-white">
@@ -119,6 +132,35 @@ const About = () => {
                 {CONTACT_EMAIL}
               </a>
             </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="bg-white py-12 sm:py-14">
+        <div className="mx-auto grid max-w-7xl gap-8 px-4 sm:px-6 lg:grid-cols-[0.8fr_1.2fr] lg:px-8">
+          <div>
+            <h2 className="text-3xl font-bold text-slate-950">Store history</h2>
+            <p className="mt-3 leading-7 text-slate-600">
+              Wahab Mobiles has served Hyderabad customers since March 2009 through its Saddar Cantt shop and now through this online storefront.
+            </p>
+            <div className="mt-6 grid gap-3">
+              {businessFacts.map((fact) => (
+                <div key={fact} className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-800">
+                  {fact}
+                </div>
+              ))}
+            </div>
+          </div>
+          <div>
+            <h2 className="text-3xl font-bold text-slate-950">Team</h2>
+            <div className="mt-6 grid gap-3 sm:grid-cols-2">
+              {team.map((member) => (
+                <div key={member} className="rounded-lg border border-slate-200 bg-[#f7fbff] p-4 text-sm font-medium text-slate-700">
+                  {member}
+                </div>
+              ))}
+            </div>
+            <p className="mt-5 text-sm text-slate-600">Shop timing: Saturday to Thursday, 1:30 PM - 12 AM.</p>
           </div>
         </div>
       </section>

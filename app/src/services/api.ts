@@ -31,6 +31,33 @@ interface ProductImageUploadResponse {
   urls: string[];
 }
 
+export interface GoogleBusinessReview {
+  id: string;
+  authorName: string;
+  authorUri: string | null;
+  authorPhotoUri: string | null;
+  rating: number | null;
+  text: string;
+  relativePublishTimeDescription: string | null;
+  publishTime: string | null;
+  googleMapsUri: string | null;
+}
+
+export interface GoogleBusinessReviews {
+  configured: boolean;
+  placeId: string | null;
+  displayName?: string;
+  formattedAddress?: string;
+  rating: number | null;
+  userRatingCount: number;
+  googleMapsUri: string | null;
+  reviews: GoogleBusinessReview[];
+  attribution?: {
+    label: string;
+    googleMapsUri: string | null;
+  };
+}
+
 interface ApiSuccess<T> {
   success: true;
   data: T;
@@ -364,6 +391,10 @@ export const productsAPI = {
   createProduct: (data: ProductCreateRequest) => adminApi.post('/products', data),
   updateProduct: (id: string, data: ProductUpdateRequest) => adminApi.put(`/products/${id}`, data),
   deleteProduct: (id: string) => adminApi.delete(`/products/${id}`),
+};
+
+export const businessAPI = {
+  getGoogleReviews: () => api.get<ApiSuccess<GoogleBusinessReviews>>('/business/google-reviews'),
 };
 
 // Cart API
