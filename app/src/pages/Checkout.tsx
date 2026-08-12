@@ -293,9 +293,9 @@ const Checkout = () => {
                     </label>
                     <div className="space-y-3">
                       {([
-                        { key: 'standard', label: 'Standard Shipping', price: 500, time: '3-5 business days' },
-                        { key: 'express', label: 'Express Shipping', price: 1500, time: '1-2 business days' },
-                        { key: 'pickup', label: 'Store Pickup', price: 0, time: 'Available same day' },
+                        { key: 'standard', label: 'Standard Shipping', price: 500, detail: 'Free for qualifying orders' },
+                        { key: 'express', label: 'Express Shipping', price: 1500, detail: 'Confirm timing with the shop' },
+                        { key: 'pickup', label: 'Store Pickup', price: 0, detail: 'Coordinate collection with the shop' },
                       ] as const).map((method) => (
                         <label
                           key={method.key}
@@ -315,7 +315,7 @@ const Checkout = () => {
                           />
                           <div className="flex-1">
                             <p className="font-medium text-gray-900">{method.label}</p>
-                            <p className="text-sm text-gray-500">{method.time}</p>
+                            <p className="text-sm text-gray-500">{method.detail}</p>
                           </div>
                           <span className="font-medium">
                             {method.price === 0 ? 'Free' : formatPrice(method.price)}

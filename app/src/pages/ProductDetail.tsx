@@ -303,15 +303,17 @@ const ProductDetail = () => {
               <div className="grid grid-cols-3 gap-4 p-4 bg-gray-50 rounded-xl">
                 <div className="text-center">
                   <Shield className="w-6 h-6 mx-auto mb-2 text-blue-600" />
-                  <span className="text-xs text-gray-600">1 Year Warranty</span>
+                  <span className="text-xs text-gray-600">
+                    {product.ptaApproved ? 'PTA approved' : 'PTA not approved'}
+                  </span>
                 </div>
                 <div className="text-center">
                   <Truck className="w-6 h-6 mx-auto mb-2 text-blue-600" />
-                  <span className="text-xs text-gray-600">Free Shipping</span>
+                  <span className="text-xs text-gray-600">Shipping at checkout</span>
                 </div>
                 <div className="text-center">
                   <RotateCcw className="w-6 h-6 mx-auto mb-2 text-blue-600" />
-                  <span className="text-xs text-gray-600">7-Day Returns</span>
+                  <span className="text-xs text-gray-600">7-day request window</span>
                 </div>
               </div>
             </div>

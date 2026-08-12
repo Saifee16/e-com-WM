@@ -1,120 +1,112 @@
 import { motion } from 'framer-motion';
+import { Link } from 'react-router-dom';
 import {
-  Truck,
-  Shield,
-  RotateCcw,
-  Wrench,
-  Headphones,
-  CreditCard,
   Check,
-  Clock,
-  Package,
+  CreditCard,
+  Headphones,
+  ListFilter,
+  PackageCheck,
+  Phone,
+  RotateCcw,
+  ShieldCheck,
+  Truck,
 } from 'lucide-react';
 import { CONTACT_EMAIL, CONTACT_PHONE_NUMBERS } from '../config/contact';
 
 const Services = () => {
   const services = [
     {
-      icon: Truck,
-      title: 'Free Shipping',
-      description: 'Enjoy free shipping on all orders above Rs. 100,000. We deliver nationwide across Pakistan.',
-      features: ['Nationwide delivery', 'Express shipping available', 'Real-time tracking', 'Secure packaging'],
+      icon: ListFilter,
+      title: 'Catalogue details',
+      description: 'Published listings use current admin data instead of sample inventory.',
+      features: ['Live price', 'Condition filter', 'Storage and color', 'Current stock'],
     },
     {
-      icon: Shield,
-      title: 'PTA Approved Devices',
-      description: 'All our smartphones are 100% PTA approved with official warranty and documentation.',
-      features: ['100% genuine products', 'Official warranty', 'PTA verification', 'Tax paid devices'],
+      icon: ShieldCheck,
+      title: 'PTA status by product',
+      description: 'PTA approval is shown per listing and is not assumed for every device.',
+      features: ['Visible status', 'Product-specific data', 'Admin managed', 'Confirm before purchase'],
+    },
+    {
+      icon: Truck,
+      title: 'Checkout options',
+      description: 'Choose standard shipping, express shipping or store pickup during checkout.',
+      features: ['Standard: Rs. 500', 'Express: Rs. 1,500', 'Store pickup: free', 'Order total shown'],
     },
     {
       icon: RotateCcw,
-      title: 'Easy Returns',
-      description: 'Not satisfied? Return your purchase within 7 days for a full refund or exchange.',
-      features: ['7-day return window', 'No questions asked', 'Full refund', 'Easy process'],
-    },
-    {
-      icon: Wrench,
-      title: 'Repair Services',
-      description: 'Expert repair services for all major smartphone brands with genuine parts.',
-      features: ['Certified technicians', 'Genuine parts', 'Warranty on repairs', 'Quick turnaround'],
+      title: 'Return requests',
+      description: 'Eligible delivered orders can submit a return request within seven days.',
+      features: ['Account workflow', 'Guest workflow', 'Admin review', 'Recorded resolution'],
     },
     {
       icon: Headphones,
-      title: '24/7 Support',
-      description: 'Our dedicated support team is available round the clock to assist you.',
-      features: ['Phone support', 'Live chat', 'Email support', 'Quick response'],
+      title: 'Customer support',
+      description: 'Contact the shop directly or use the site support and contact workflows.',
+      features: ['Phone contact', 'Email contact', 'Support tickets', 'Contact form'],
     },
     {
       icon: CreditCard,
-      title: 'Secure Payments',
-      description: 'Straightforward Cash on Delivery with no online gateway or stored payment details.',
-      features: ['Cash on Delivery', 'Pay the courier', 'No card storage', 'Manual refunds'],
+      title: 'Cash on Delivery',
+      description: 'Checkout currently uses Cash on Delivery and does not collect card details.',
+      features: ['No card entry', 'No stored payment card', 'Pay on delivery', 'Manual refund records'],
     },
   ];
 
   const shippingInfo = [
     {
       method: 'Standard Shipping',
-      time: '3-5 business days',
       cost: 'Rs. 500',
-      free: 'Free on orders over Rs. 100,000',
+      detail: 'Free when the standard-shipping subtotal is Rs. 100,000 or more.',
     },
     {
       method: 'Express Shipping',
-      time: '1-2 business days',
       cost: 'Rs. 1,500',
-      free: 'Not available',
+      detail: 'The selected charge is included in the checkout total.',
     },
     {
       method: 'Store Pickup',
-      time: 'Same day',
       cost: 'Free',
-      free: 'Always free',
+      detail: 'Contact the shop to coordinate collection after placing the order.',
     },
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Hero Section */}
-      <section id="services" className="relative bg-gradient-to-r from-blue-600 to-blue-800 py-24 scroll-mt-24">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-          >
-            <h1 className="text-4xl lg:text-5xl font-bold text-white mb-6">
-              Our Services
-            </h1>
-            <p className="text-xl text-blue-100 max-w-2xl mx-auto">
-              We go the extra mile to ensure you have the best shopping experience
+    <div className="min-h-[100dvh] bg-[#f7fbff] text-slate-950">
+      <section id="services" className="scroll-mt-24 border-b border-sky-100 bg-white py-14 sm:py-16">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="max-w-3xl">
+            <p className="text-sm font-semibold text-sky-700">Storefront services</p>
+            <h1 className="mt-3 text-4xl font-extrabold sm:text-5xl">Shop with the details in view</h1>
+            <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-600">
+              Browse product-specific information, choose a checkout option and keep support requests tied to your order.
             </p>
           </motion.div>
         </div>
       </section>
 
-      {/* Services Grid */}
-      <section className="py-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+      <section className="py-14 sm:py-16">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {services.map((service, index) => (
               <motion.div
                 key={service.title}
-                initial={{ opacity: 0, y: 20 }}
+                initial={{ opacity: 0, y: 16 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                transition={{ delay: index * 0.1 }}
-                className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 hover:shadow-lg transition-shadow"
+                transition={{ delay: index * 0.04 }}
+                className="rounded-lg border border-slate-200 bg-white p-6"
               >
-                <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center mb-6">
-                  <service.icon className="w-8 h-8 text-blue-600" />
+                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-sky-50 text-blue-700">
+                  <service.icon className="h-6 w-6" aria-hidden="true" />
                 </div>
-                <h3 className="text-xl font-bold text-gray-900 mb-3">{service.title}</h3>
-                <p className="text-gray-600 mb-6">{service.description}</p>
-                <ul className="space-y-2">
+                <h2 className="mt-5 text-xl font-bold">{service.title}</h2>
+                <p className="mt-3 leading-7 text-slate-600">{service.description}</p>
+                <ul className="mt-5 grid grid-cols-2 gap-x-4 gap-y-3">
                   {service.features.map((feature) => (
-                    <li key={feature} className="flex items-center gap-2 text-sm text-gray-600">
-                      <Check className="w-4 h-4 text-green-500" />
-                      {feature}
+                    <li key={feature} className="flex items-start gap-2 text-sm text-slate-600">
+                      <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" aria-hidden="true" />
+                      <span>{feature}</span>
                     </li>
                   ))}
                 </ul>
@@ -124,156 +116,80 @@ const Services = () => {
         </div>
       </section>
 
-      {/* Shipping Info */}
-      <section id="shipping" className="py-16 bg-white scroll-mt-24">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-gray-900 mb-4">Shipping Information</h2>
-            <p className="text-gray-500 max-w-2xl mx-auto">
-              Choose the shipping method that works best for you
+      <section id="shipping" className="scroll-mt-24 bg-white py-14 sm:py-16">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="max-w-2xl">
+            <h2 className="text-3xl font-bold">Shipping and pickup charges</h2>
+            <p className="mt-3 leading-7 text-slate-600">
+              These values match the current checkout calculation. Delivery timing is confirmed separately for each order.
             </p>
           </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-200">
-                  <th className="text-left py-4 px-6 font-semibold text-gray-900">Shipping Method</th>
-                  <th className="text-left py-4 px-6 font-semibold text-gray-900">Delivery Time</th>
-                  <th className="text-left py-4 px-6 font-semibold text-gray-900">Cost</th>
-                  <th className="text-left py-4 px-6 font-semibold text-gray-900">Free Shipping</th>
-                </tr>
-              </thead>
-              <tbody>
-                {shippingInfo.map((info) => (
-                  <tr key={info.method} className="border-b border-gray-100">
-                    <td className="py-4 px-6 font-medium text-gray-900">{info.method}</td>
-                    <td className="py-4 px-6 text-gray-600">{info.time}</td>
-                    <td className="py-4 px-6 text-gray-600">{info.cost}</td>
-                    <td className="py-4 px-6 text-gray-600">{info.free}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="mt-8 overflow-hidden rounded-lg border border-slate-200">
+            <div className="hidden grid-cols-[1fr_0.45fr_1.55fr] gap-5 bg-slate-950 px-6 py-4 text-sm font-semibold text-white md:grid">
+              <span>Method</span>
+              <span>Charge</span>
+              <span>Details</span>
+            </div>
+            {shippingInfo.map((info) => (
+              <div key={info.method} className="grid gap-2 border-t border-slate-200 px-6 py-5 first:border-t-0 md:grid-cols-[1fr_0.45fr_1.55fr] md:gap-5">
+                <p className="font-semibold text-slate-950">{info.method}</p>
+                <p className="text-sm font-medium text-blue-700">{info.cost}</p>
+                <p className="text-sm leading-6 text-slate-600">{info.detail}</p>
+              </div>
+            ))}
           </div>
         </div>
       </section>
 
-      {/* Returns Section */}
-      <section id="returns" className="py-16 bg-gray-50 scroll-mt-24">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-3xl font-bold text-gray-900 mb-4">Returns</h2>
-          <p className="text-gray-600 leading-relaxed">
-            Returns are accepted within 7 days for eligible products in original condition with packaging,
-            invoice, and accessories. Contact support before sending any item back so the team can review
-            the order and guide the next step.
-          </p>
-        </div>
-      </section>
-
-      {/* Warranty Section */}
-      <section className="py-16 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid lg:grid-cols-2 gap-12 items-center">
-            <motion.div
-              initial={{ opacity: 0, x: -30 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true }}
-            >
-              <h2 className="text-3xl font-bold text-gray-900 mb-6">Warranty & Protection</h2>
-              <p className="text-gray-600 mb-6 leading-relaxed">
-                Every device purchased from Wahab Mobiles comes with comprehensive warranty coverage. 
-                We partner directly with manufacturers to ensure you receive authentic warranty services.
-              </p>
-              <div className="space-y-4">
-                {[
-                  'Official manufacturer warranty',
-                  '1-year standard coverage',
-                  'Extended warranty options',
-                  'Easy claim process',
-                  'Genuine replacement parts',
-                ].map((item) => (
-                  <div key={item} className="flex items-center gap-3">
-                    <div className="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center">
-                      <Check className="w-4 h-4 text-green-600" />
-                    </div>
-                    <span className="text-gray-700">{item}</span>
-                  </div>
-                ))}
-              </div>
-            </motion.div>
-            <motion.div
-              initial={{ opacity: 0, x: 30 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true }}
-              className="bg-white rounded-3xl p-8 shadow-lg"
-            >
-              <div className="flex items-center gap-4 mb-6">
-                <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center">
-                  <Shield className="w-8 h-8 text-blue-600" />
-                </div>
-                <div>
-                  <h3 className="text-xl font-bold text-gray-900">Warranty Coverage</h3>
-                  <p className="text-gray-500">Complete protection for your device</p>
-                </div>
-              </div>
-              <div className="space-y-4">
-                <div className="p-4 bg-gray-50 rounded-xl">
-                  <div className="flex items-center gap-3 mb-2">
-                    <Package className="w-5 h-5 text-blue-600" />
-                    <span className="font-medium text-gray-900">Standard Warranty</span>
-                  </div>
-                  <p className="text-sm text-gray-600">1 year manufacturer warranty on all devices</p>
-                </div>
-                <div className="p-4 bg-gray-50 rounded-xl">
-                  <div className="flex items-center gap-3 mb-2">
-                    <Clock className="w-5 h-5 text-blue-600" />
-                    <span className="font-medium text-gray-900">Extended Protection</span>
-                  </div>
-                  <p className="text-sm text-gray-600">Optional 2-year extended warranty available</p>
-                </div>
-                <div className="p-4 bg-gray-50 rounded-xl">
-                  <div className="flex items-center gap-3 mb-2">
-                    <Wrench className="w-5 h-5 text-blue-600" />
-                    <span className="font-medium text-gray-900">Repair Services</span>
-                  </div>
-                  <p className="text-sm text-gray-600">Certified repair centers nationwide</p>
-                </div>
-              </div>
-            </motion.div>
+      <section id="returns" className="scroll-mt-24 bg-slate-950 py-14 text-white sm:py-16">
+        <div className="mx-auto grid max-w-7xl items-center gap-8 px-4 sm:px-6 lg:grid-cols-[0.75fr_1.25fr] lg:px-8">
+          <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-cyan-300 text-slate-950">
+            <RotateCcw className="h-8 w-8" aria-hidden="true" />
           </div>
-        </div>
-      </section>
-
-      {/* CTA Section */}
-      <section className="py-16 bg-blue-600">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-          >
-            <h2 className="text-3xl font-bold text-white mb-4">
-              Need Help?
-            </h2>
-            <p className="text-blue-100 mb-8">
-              Our support team is available 24/7 to assist you with any questions or concerns.
+          <div>
+            <h2 className="text-3xl font-bold">How return requests work</h2>
+            <p className="mt-4 max-w-3xl leading-7 text-slate-300">
+              An eligible delivered order can submit a request within seven days of delivery. The request is reviewed before approval, and submission alone does not confirm a refund or exchange.
             </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <Link to="/returns" className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-cyan-300 hover:text-cyan-200">
+              Read the return process
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      <section className="bg-white py-14 sm:py-16">
+        <div className="mx-auto grid max-w-7xl items-center gap-10 px-4 sm:px-6 lg:grid-cols-[1.05fr_0.95fr] lg:px-8">
+          <figure className="overflow-hidden rounded-xl border border-sky-100 bg-white p-2 shadow-xl shadow-sky-950/10">
+            <img
+              src="/assets/wahab-shop.jpg"
+              alt="Shelves inside the Wahab Mobiles shop"
+              loading="lazy"
+              className="aspect-[16/11] w-full rounded-lg object-cover"
+            />
+          </figure>
+          <div>
+            <PackageCheck className="h-8 w-8 text-blue-700" aria-hidden="true" />
+            <h2 className="mt-5 text-3xl font-bold">Confirm the exact phone</h2>
+            <p className="mt-4 leading-7 text-slate-600">
+              Before visiting or ordering, contact the shop to confirm current availability, condition, storage, color, price and PTA status.
+            </p>
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row">
               <a
                 href={CONTACT_PHONE_NUMBERS[0].href}
-                className="px-8 py-4 bg-white text-blue-600 rounded-full font-semibold hover:bg-gray-100 transition-colors"
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-700 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-800"
               >
-                Call Us Now
+                <Phone className="h-4 w-4" aria-hidden="true" />
+                Call the shop
               </a>
               <a
                 href={`mailto:${CONTACT_EMAIL}`}
-                className="px-8 py-4 border-2 border-white text-white rounded-full font-semibold hover:bg-white/10 transition-colors"
+                className="inline-flex items-center justify-center rounded-lg border border-sky-200 px-5 py-3 text-sm font-semibold text-slate-800 hover:border-sky-300 hover:text-blue-700"
               >
-                Email Support
+                Email support
               </a>
             </div>
-          </motion.div>
+          </div>
         </div>
       </section>
     </div>

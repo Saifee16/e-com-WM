@@ -52,7 +52,7 @@ const Footer = () => {
   const features = [
     { icon: Shield, title: 'PTA Status', description: 'Shown on eligible products' },
     { icon: Truck, title: 'Free Shipping', description: 'On orders over Rs. 100,000' },
-    { icon: RotateCcw, title: 'Easy Returns', description: '7-day return policy' },
+    { icon: RotateCcw, title: 'Return Requests', description: '7-day eligibility window' },
     { icon: CreditCard, title: 'Cash on Delivery', description: 'Pay when it arrives' },
   ];
 

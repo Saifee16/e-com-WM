@@ -45,16 +45,16 @@ const Support = () => {
       icon: Truck,
       questions: [
         {
-          q: 'How long does shipping take?',
-          a: 'Standard shipping takes 3-5 business days. Express shipping delivers within 1-2 business days. Store pickup is available same day.',
+          q: 'Which delivery options are available?',
+          a: 'Checkout offers standard shipping, express shipping and store pickup. Contact the shop to confirm timing for a specific order.',
         },
         {
           q: 'Do you offer free shipping?',
-          a: 'Yes! We offer free standard shipping on all orders above Rs. 100,000.',
+          a: 'Standard shipping is free when the order subtotal is Rs. 100,000 or more. Checkout shows the final shipping charge before the order is placed.',
         },
         {
           q: 'Can I track my order?',
-          a: 'Absolutely! Once your order is shipped, you will receive a tracking number via email and SMS to monitor your delivery in real-time.',
+          a: 'Your order history shows the recorded order status and a tracking number when one has been added by the store team.',
         },
       ],
     },
@@ -64,33 +64,33 @@ const Support = () => {
       questions: [
         {
           q: 'What is your return policy?',
-          a: 'We offer a 7-day return policy. If you are not satisfied with your purchase, you can return it within 7 days for a full refund or exchange.',
+          a: 'Eligible delivered orders can submit a return request within seven days of delivery. Every request is reviewed before approval.',
         },
         {
           q: 'How do I initiate a return?',
-          a: 'To initiate a return, contact our support team or visit your order history in your account. We will guide you through the process.',
+          a: 'Signed-in customers can use order history. Guest customers can use the guest return form on this page with their order number and checkout email.',
         },
         {
-          q: 'When will I receive my refund?',
-          a: 'Refunds are processed within 5-7 business days after we receive the returned item. The amount will be credited to your original payment method.',
+          q: 'Does a return request guarantee a refund?',
+          a: 'No. Submitting a request starts a review. Any approved refund is recorded and coordinated manually by the support team.',
         },
       ],
     },
     {
-      category: 'Products & Warranty',
+      category: 'Products & PTA Status',
       icon: Shield,
       questions: [
         {
-          q: 'Are your devices PTA approved?',
-          a: 'Yes, all our smartphones are 100% PTA approved with official warranty and documentation.',
+          q: 'Are all devices PTA approved?',
+          a: 'PTA approval is not assumed for every device. Check the status shown on the individual product listing and confirm it before purchase.',
         },
         {
-          q: 'What warranty do you offer?',
-          a: 'All devices come with a standard 1-year manufacturer warranty. Extended warranty options are also available.',
+          q: 'Is warranty coverage the same for every phone?',
+          a: 'No universal warranty is promised on this site. Confirm the coverage for the specific new, used or refurbished device before purchase.',
         },
         {
-          q: 'How can I verify PTA approval?',
-          a: 'You can verify PTA approval by dialing *#06# to get your IMEI number and checking it on the official PTA website.',
+          q: 'How can I confirm PTA status?',
+          a: 'Review the product listing, ask the shop to confirm the device, and use official PTA verification channels before purchase.',
         },
       ],
     },
@@ -104,11 +104,11 @@ const Support = () => {
         },
         {
           q: 'Is my payment information secure?',
-          a: 'Yes, we use SSL encryption and follow industry-standard security protocols to protect your payment information.',
+          a: 'The current checkout does not request or store card details because Cash on Delivery is the only payment method.',
         },
         {
           q: 'Can I pay in installments?',
-          a: 'Yes, we offer installment plans through selected banks. Contact our support team for more details.',
+          a: 'No installment option is offered by the current checkout.',
         },
       ],
     },
@@ -118,8 +118,8 @@ const Support = () => {
     {
       icon: Phone,
       title: 'Phone Support',
-      info: CONTACT_PHONE_NUMBERS.map((phone) => phone.label).join(' • '),
-      description: 'Available 24/7',
+      info: CONTACT_PHONE_NUMBERS.map((phone) => phone.label).join(' | '),
+      description: 'Call the shop directly',
       action: 'Call Now',
       href: CONTACT_PHONE_NUMBERS[0].href,
     },
@@ -127,15 +127,15 @@ const Support = () => {
       icon: Mail,
       title: 'Email Support',
       info: CONTACT_EMAIL,
-      description: 'Response within 24 hours',
+      description: 'Send a support message',
       action: 'Send Email',
       href: `mailto:${CONTACT_EMAIL}`,
     },
     {
       icon: MessageCircle,
       title: 'WhatsApp',
-      info: 'Instant support',
-      description: 'Instant response',
+      info: CONTACT_PHONE_NUMBERS[0].label,
+      description: 'Message the shop directly',
       action: 'Open WhatsApp',
       href: SHOP_WHATSAPP_URL,
     },

@@ -21,7 +21,6 @@ import {
   CONTACT_EMAIL,
   CONTACT_PHONE_NUMBERS,
   SHOP_ADDRESS,
-  SHOP_LOCATION_LABEL,
   SHOP_MAPS_URL,
   SHOP_WHATSAPP_URL,
 } from '../config/contact';
@@ -149,8 +148,8 @@ const Home = () => {
                 className="h-14 w-14 rounded-full border border-sky-100 object-cover shadow-sm"
               />
               <div>
-                <p className="text-sm font-semibold text-sky-700">Trusted Cell Phones Outlet</p>
-                <p className="text-sm text-slate-500">{SHOP_LOCATION_LABEL}</p>
+                <p className="text-sm font-semibold text-sky-700">Hyderabad • Trusted Mobile Outlet</p>
+                <p className="text-sm text-slate-500">New, used and refurbished phones</p>
               </div>
             </div>
             <h1 className="mt-6 max-w-[12ch] text-4xl font-extrabold leading-[1.04] text-slate-950 sm:text-5xl lg:text-6xl">
