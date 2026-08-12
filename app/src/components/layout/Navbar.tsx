@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -10,15 +10,15 @@ import {
   Heart,
   ChevronDown,
   Phone,
+  MapPin,
   LogOut,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useCart } from '../../contexts/CartContext';
 import CartDrawer from '../cart/CartDrawer';
-import { CONTACT_PHONE_NUMBERS } from '../../config/contact';
+import { CONTACT_PHONE_NUMBERS, SHOP_LOCATION_LABEL } from '../../config/contact';
 
 const Navbar = () => {
-  const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -29,15 +29,6 @@ const Navbar = () => {
   const { totals } = useCart();
   const navigate = useNavigate();
   const location = useLocation();
-
-  useEffect(() => {
-    const handleScroll = () => {
-      setIsScrolled(window.scrollY > 50);
-    };
-
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -82,30 +73,37 @@ const Navbar = () => {
             ))}
           </div>
           <div className="hidden md:flex items-center gap-6">
-            <span>Free shipping on orders over Rs. 100,000</span>
-            <span>PTA Approved Devices</span>
+            <span className="inline-flex items-center gap-2">
+              <MapPin className="h-4 w-4" />
+              {SHOP_LOCATION_LABEL}
+            </span>
+            <span>Trusted Cell Phones Outlet</span>
           </div>
         </div>
       </div>
 
       {/* Main Navbar */}
       <header
-        className={`sticky top-0 z-50 border-b border-slate-100 transition-all duration-300 ${
-          isScrolled
-            ? 'bg-white/95 shadow-md backdrop-blur-md'
-            : 'bg-white'
-        }`}
+        className="sticky top-0 z-50 border-b border-slate-100 bg-white/95 shadow-sm backdrop-blur-md"
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16 lg:h-20">
             {/* Logo */}
-            <Link to="/" className="flex items-center gap-2">
+            <Link to="/" className="flex min-w-0 items-center gap-3">
+              <img
+                src="/assets/wahab-logo.jpg"
+                alt="Wahab Mobiles logo"
+                className="h-11 w-11 shrink-0 rounded-full border border-sky-100 object-cover shadow-sm"
+              />
               <motion.div
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
-                className="text-xl lg:text-2xl font-bold text-blue-600"
+                className="min-w-0"
               >
-                Wahab<span className="text-gray-800">Mobiles</span>
+                <p className="text-lg font-bold leading-tight text-blue-700 lg:text-xl">
+                  Wahab<span className="text-slate-900">Mobiles</span>
+                </p>
+                <p className="hidden text-xs font-medium text-slate-500 sm:block">Trusted Cell Phones Outlet</p>
               </motion.div>
             </Link>
 

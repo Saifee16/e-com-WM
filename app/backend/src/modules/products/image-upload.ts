@@ -2,6 +2,9 @@ import { randomUUID } from 'node:crypto';
 import { mkdir, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { FastifyRequest } from 'fastify';
+import { v2 as cloudinary } from 'cloudinary';
+import type { UploadApiResponse } from 'cloudinary';
+import { env } from '../../config/env.js';
 
 export const MAX_PRODUCT_IMAGES = 5;
 export const MAX_PRODUCT_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
@@ -10,6 +13,146 @@ const allowedMimeTypes = new Set(['image/jpeg', 'image/jpg', 'image/png']);
 
 const httpError = (statusCode: number, message: string) =>
   Object.assign(new Error(message), { statusCode });
+
+interface LocalProductImageStorageOptions {
+  uploadDirectory: string;
+  publicApiBaseUrl: string;
+}
+
+const localProductImageUrlPathPrefix = '/api/uploads/products/';
+
+const normalizeCloudinaryFolder = () => env.CLOUDINARY_UPLOAD_FOLDER.replace(/^\/+|\/+$/g, '');
+
+const getProductImageStorageProvider = () =>
+  env.PRODUCT_IMAGE_STORAGE ?? (env.NODE_ENV === 'production' ? 'cloudinary' : 'local');
+
+const getMissingCloudinaryConfig = () => {
+  const missing = [];
+  if (!env.CLOUDINARY_CLOUD_NAME) missing.push('CLOUDINARY_CLOUD_NAME');
+  if (!env.CLOUDINARY_API_KEY) missing.push('CLOUDINARY_API_KEY');
+  if (!env.CLOUDINARY_API_SECRET) missing.push('CLOUDINARY_API_SECRET');
+  return missing;
+};
+
+const ensureCloudinaryConfigured = () => {
+  const missing = getMissingCloudinaryConfig();
+  if (missing.length) {
+    throw Object.assign(new Error('Persistent product image storage is not configured.'), {
+      statusCode: 503,
+      details: { missing },
+    });
+  }
+
+  cloudinary.config({
+    cloud_name: env.CLOUDINARY_CLOUD_NAME!,
+    api_key: env.CLOUDINARY_API_KEY!,
+    api_secret: env.CLOUDINARY_API_SECRET!,
+    secure: true,
+  });
+};
+
+const uploadProductImageToCloudinary = async (buffer: Buffer): Promise<string> => {
+  ensureCloudinaryConfigured();
+
+  const result = await new Promise<UploadApiResponse>((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      {
+        resource_type: 'image',
+        folder: normalizeCloudinaryFolder(),
+        public_id: randomUUID(),
+        overwrite: false,
+        unique_filename: false,
+        use_filename: false,
+        allowed_formats: ['jpg', 'jpeg', 'png'],
+      },
+      (error, response) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+        if (!response?.secure_url) {
+          reject(Object.assign(new Error('Cloud image upload did not return a secure URL.'), { statusCode: 502 }));
+          return;
+        }
+        resolve(response);
+      },
+    );
+
+    stream.end(buffer);
+  });
+
+  return result.secure_url;
+};
+
+export const getCloudinaryPublicIdFromUrl = (imageUrl: string) => {
+  if (!env.CLOUDINARY_CLOUD_NAME) return null;
+
+  let parsed: URL;
+  try {
+    parsed = new URL(imageUrl);
+  } catch {
+    return null;
+  }
+
+  const marker = `/${env.CLOUDINARY_CLOUD_NAME}/image/upload/`;
+  const markerIndex = parsed.pathname.indexOf(marker);
+  if (markerIndex === -1) return null;
+
+  const afterUpload = decodeURIComponent(parsed.pathname.slice(markerIndex + marker.length));
+  const parts = afterUpload.split('/').filter(Boolean);
+  const versionlessParts = parts[0] && /^v\d+$/.test(parts[0]) ? parts.slice(1) : parts;
+  if (!versionlessParts.length) return null;
+
+  const filename = versionlessParts.at(-1)!;
+  const extensionIndex = filename.lastIndexOf('.');
+  if (extensionIndex <= 0) return null;
+
+  versionlessParts[versionlessParts.length - 1] = filename.slice(0, extensionIndex);
+  const publicId = versionlessParts.join('/');
+  const folder = normalizeCloudinaryFolder();
+  return publicId === folder || publicId.startsWith(`${folder}/`) ? publicId : null;
+};
+
+const getLocalProductImagePath = (
+  imageUrl: string,
+  { uploadDirectory, publicApiBaseUrl }: LocalProductImageStorageOptions,
+) => {
+  let parsed: URL;
+  try {
+    parsed = new URL(imageUrl);
+  } catch {
+    return null;
+  }
+
+  const normalizedBase = publicApiBaseUrl.replace(/\/+$/, '');
+  const normalizedUrl = `${parsed.origin}${parsed.pathname}`;
+  const expectedPrefix = `${normalizedBase}${localProductImageUrlPathPrefix}`;
+  if (!normalizedUrl.startsWith(expectedPrefix)) return null;
+
+  const filename = normalizedUrl.slice(expectedPrefix.length);
+  if (!/^[a-f0-9-]+\.(jpg|png)$/i.test(filename)) return null;
+  return path.join(uploadDirectory, filename);
+};
+
+export const deleteProductImageUrls = async (
+  urls: string[],
+  localOptions: LocalProductImageStorageOptions,
+) => {
+  const uniqueUrls = [...new Set(urls)];
+  await Promise.all(uniqueUrls.map(async (url) => {
+    const publicId = getCloudinaryPublicIdFromUrl(url);
+    if (publicId) {
+      ensureCloudinaryConfigured();
+      await cloudinary.uploader.destroy(publicId, { resource_type: 'image', invalidate: true });
+      return;
+    }
+
+    const localPath = getLocalProductImagePath(url, localOptions);
+    if (localPath) {
+      await unlink(localPath).catch(() => undefined);
+    }
+  }));
+};
 
 export const detectProductImageExtension = (buffer: Buffer) => {
   const isPng =
@@ -29,14 +172,17 @@ export const detectProductImageExtension = (buffer: Buffer) => {
 
 export const saveProductImages = async (
   request: FastifyRequest,
-  uploadDirectory: string,
-  publicApiBaseUrl: string,
+  localOptions: LocalProductImageStorageOptions,
 ) => {
   const savedPaths: string[] = [];
+  const uploadedCloudinaryUrls: string[] = [];
   const urls: string[] = [];
-  const normalizedBaseUrl = publicApiBaseUrl.replace(/\/+$/, '');
+  const normalizedBaseUrl = localOptions.publicApiBaseUrl.replace(/\/+$/, '');
+  const storageProvider = getProductImageStorageProvider();
 
-  await mkdir(uploadDirectory, { recursive: true });
+  if (storageProvider === 'local') {
+    await mkdir(localOptions.uploadDirectory, { recursive: true });
+  }
 
   try {
     for await (const part of request.files()) {
@@ -62,10 +208,16 @@ export const saveProductImages = async (
       }
 
       const filename = `${randomUUID()}.${extension}`;
-      const filePath = path.join(uploadDirectory, filename);
-      await writeFile(filePath, buffer, { flag: 'wx' });
-      savedPaths.push(filePath);
-      urls.push(`${normalizedBaseUrl}/api/uploads/products/${filename}`);
+      if (storageProvider === 'cloudinary') {
+        const cloudinaryUrl = await uploadProductImageToCloudinary(buffer);
+        uploadedCloudinaryUrls.push(cloudinaryUrl);
+        urls.push(cloudinaryUrl);
+      } else {
+        const filePath = path.join(localOptions.uploadDirectory, filename);
+        await writeFile(filePath, buffer, { flag: 'wx' });
+        savedPaths.push(filePath);
+        urls.push(`${normalizedBaseUrl}${localProductImageUrlPathPrefix}${filename}`);
+      }
     }
 
     if (!urls.length) throw httpError(400, 'Select at least one product image.');
@@ -76,6 +228,7 @@ export const saveProductImages = async (
     return urls;
   } catch (error) {
     await Promise.all(savedPaths.map((filePath) => unlink(filePath).catch(() => undefined)));
+    await deleteProductImageUrls(uploadedCloudinaryUrls, localOptions).catch(() => undefined);
     throw error;
   }
 };

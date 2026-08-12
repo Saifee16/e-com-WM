@@ -28,8 +28,9 @@ const Footer = () => {
     brands: [
       { name: 'Apple', path: '/products?brand=Apple' },
       { name: 'Samsung', path: '/products?brand=Samsung' },
-      { name: 'Google', path: '/products?brand=Google' },
-      { name: 'OnePlus', path: '/products?brand=OnePlus' },
+      { name: 'Honor', path: '/products?brand=Honor' },
+      { name: 'Xiaomi', path: '/products?brand=Xiaomi' },
+      { name: 'Redmi', path: '/products?brand=Redmi' },
     ],
     support: [
       { name: 'Contact Us', path: '/support#contact' },
@@ -49,7 +50,7 @@ const Footer = () => {
   };
 
   const features = [
-    { icon: Shield, title: 'PTA Approved', description: 'All devices are PTA approved' },
+    { icon: Shield, title: 'PTA Status', description: 'Shown on eligible products' },
     { icon: Truck, title: 'Free Shipping', description: 'On orders over Rs. 100,000' },
     { icon: RotateCcw, title: 'Easy Returns', description: '7-day return policy' },
     { icon: CreditCard, title: 'Cash on Delivery', description: 'Pay when it arrives' },
@@ -88,12 +89,18 @@ const Footer = () => {
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-8">
           {/* Brand Column */}
           <div className="col-span-2">
-            <Link to="/" className="text-2xl font-bold">
-              Wahab<span className="text-blue-400">Mobiles</span>
+            <Link to="/" className="flex items-center gap-3">
+              <img
+                src="/assets/wahab-logo.jpg"
+                alt="Wahab Mobiles logo"
+                className="h-12 w-12 rounded-full object-cover"
+              />
+              <span className="text-2xl font-bold">
+                Wahab<span className="text-blue-400">Mobiles</span>
+              </span>
             </Link>
             <p className="text-gray-400 text-sm mt-4 max-w-xs">
-              Your trusted destination for premium PTA-approved smartphones in Pakistan. 
-              Quality guaranteed, prices unmatched.
+              A Trusted Cell Phones Outlet for new and used phones in Hyderabad.
             </p>
             
             {/* Contact Info */}

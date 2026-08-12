@@ -60,6 +60,17 @@ const envSchema = z.object({
     emptyStringToUndefined,
     z.string().regex(/^v\d+\.\d+$/).optional(),
   ),
+  PRODUCT_IMAGE_STORAGE: z.preprocess(
+    emptyStringToUndefined,
+    z.enum(['local', 'cloudinary']).optional(),
+  ),
+  CLOUDINARY_CLOUD_NAME: optionalTrimmedString,
+  CLOUDINARY_API_KEY: optionalTrimmedString,
+  CLOUDINARY_API_SECRET: optionalString,
+  CLOUDINARY_UPLOAD_FOLDER: z.preprocess(
+    emptyStringToUndefined,
+    z.string().trim().min(1).max(160).default('wahab-mobiles/products'),
+  ),
 }).superRefine((value, context) => {
   if (value.RATE_LIMIT_LOGIN_MAX >= value.RATE_LIMIT_GLOBAL_MAX) {
     context.addIssue({ code: 'custom', path: ['RATE_LIMIT_LOGIN_MAX'], message: 'RATE_LIMIT_LOGIN_MAX must be lower than RATE_LIMIT_GLOBAL_MAX' });

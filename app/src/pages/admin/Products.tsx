@@ -301,9 +301,10 @@ const ProductModal = ({
             onSubmit={async (e) => {
               e.preventDefault();
               setIsSaving(true);
+              let uploadedImageUrls: string[] = [];
               try {
                 const basePayload = toProductCreateRequest(formData);
-                const uploadedImageUrls = formData.imageFiles.length
+                uploadedImageUrls = formData.imageFiles.length
                   ? await productsAPI.uploadProductImages(formData.imageFiles)
                   : [];
                 const payload = {
@@ -319,6 +320,9 @@ const ProductModal = ({
                 await onSaved();
                 onClose();
               } catch (saveError) {
+                if (uploadedImageUrls.length) {
+                  void productsAPI.deleteProductImages(uploadedImageUrls);
+                }
                 const fallback = isEditing ? 'Failed to update product' : 'Failed to add product';
                 showToast(
                   saveError instanceof ProductFormValidationError

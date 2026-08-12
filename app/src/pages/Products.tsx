@@ -10,6 +10,8 @@ import {
   X,
   Star,
   Search,
+  ShoppingCart,
+  Smartphone,
   SlidersHorizontal,
 } from 'lucide-react';
 import { priceRanges, storageOptions } from '../data/products';
@@ -22,6 +24,25 @@ import type { Pagination, ProductQueryParams } from '../services/api';
 import { getApiErrorMessage } from '../utils/api-error';
 
 const PAGE_SIZE = 20;
+
+const conditionOptions: Array<{ value: NonNullable<ProductQueryParams['condition']>; label: string }> = [
+  { value: 'new', label: 'New' },
+  { value: 'used', label: 'Used' },
+  { value: 'refurbished', label: 'Refurbished' },
+];
+
+const getRequestedCondition = (value: string | null): ProductQueryParams['condition'] | '' =>
+  conditionOptions.some((option) => option.value === value)
+    ? (value as ProductQueryParams['condition'])
+    : '';
+
+const conditionLabels: Record<NonNullable<ProductQueryParams['condition']>, string> = {
+  new: 'New',
+  used: 'Used',
+  refurbished: 'Refurbished',
+};
+
+const getPrimaryImage = (product: Product) => product.images.find(Boolean);
 
 const Products = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -49,7 +70,9 @@ const Products = () => {
   );
   const [selectedPriceRange, setSelectedPriceRange] = useState<string>('');
   const [selectedStorage, setSelectedStorage] = useState<string>('');
-  const [selectedCondition, setSelectedCondition] = useState<string>('');
+  const [selectedCondition, setSelectedCondition] = useState<ProductQueryParams['condition'] | ''>(() =>
+    getRequestedCondition(searchParams.get('condition')),
+  );
   const [selectedCategory, setSelectedCategory] = useState<string>(() => searchParams.get('category') ?? '');
   const [sortOption, setSortOption] = useState<NonNullable<ProductQueryParams['sort']>>(() => {
     const requestedSort = searchParams.get('sort');
@@ -124,9 +147,7 @@ const Products = () => {
               ? priceRange.max
               : undefined,
           storage: selectedStorage || undefined,
-          condition: selectedCondition
-            ? (selectedCondition as 'new' | 'used' | 'refurbished')
-            : undefined,
+          condition: selectedCondition || undefined,
         });
 
         if (isActive) {
@@ -169,6 +190,7 @@ const Products = () => {
     if (debouncedSearch) nextParams.set('search', debouncedSearch);
     if (selectedBrands.length > 0) nextParams.set('brand', selectedBrands.join(','));
     if (selectedCategory) nextParams.set('category', selectedCategory);
+    if (selectedCondition) nextParams.set('condition', selectedCondition);
     if (sortOption !== 'newest') nextParams.set('sort', sortOption);
     if (featuredOnly) nextParams.set('featured', 'true');
     if (currentPage > 1) nextParams.set('page', String(currentPage));
@@ -183,6 +205,7 @@ const Products = () => {
     searchParams,
     selectedBrands,
     selectedCategory,
+    selectedCondition,
     setSearchParams,
     sortOption,
   ]);
@@ -335,7 +358,7 @@ const Products = () => {
             )}
             {selectedCondition && (
               <span className="inline-flex items-center gap-1 px-3 py-1 bg-blue-50 text-blue-600 rounded-full text-sm">
-                {selectedCondition}
+                {conditionLabels[selectedCondition]}
                 <button
                   onClick={() => {
                     setSelectedCondition('');
@@ -467,19 +490,19 @@ const Products = () => {
                   <div>
                     <h3 className="font-semibold text-gray-900 mb-4">Condition</h3>
                     <div className="space-y-2">
-                      {['new', 'used', 'refurbished'].map((condition) => (
-                        <label key={condition} className="flex items-center gap-3 cursor-pointer">
+                      {conditionOptions.map((condition) => (
+                        <label key={condition.value} className="flex items-center gap-3 cursor-pointer">
                           <input
                             type="radio"
                             name="condition"
-                            checked={selectedCondition === condition}
+                            checked={selectedCondition === condition.value}
                             onChange={() => {
-                              setSelectedCondition(condition);
+                              setSelectedCondition(condition.value);
                               setCurrentPage(1);
                             }}
                             className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
                           />
-                          <span className="text-sm text-gray-700 capitalize">{condition}</span>
+                          <span className="text-sm text-gray-700">{condition.label}</span>
                         </label>
                       ))}
                     </div>
@@ -571,7 +594,6 @@ const Products = () => {
   );
 };
 
-// Product Card Component
 const ProductCard = ({
   product,
   viewMode,
@@ -581,53 +603,68 @@ const ProductCard = ({
   viewMode: 'grid' | 'list';
   onAddToCart: (e: React.MouseEvent, product: Product) => void;
 }) => {
+  const image = getPrimaryImage(product);
+
   if (viewMode === 'list') {
     return (
       <Link to={`/products/${product._id}`} className="group">
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-lg transition-shadow duration-300 flex">
-          {/* Image */}
-          <div className="w-48 flex-shrink-0 bg-gray-100 relative overflow-hidden">
-            <img
-              src={product.images[0]}
-              alt={product.name}
-              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-            />
+        <div className="flex overflow-hidden rounded-lg border border-slate-200 bg-white transition hover:-translate-y-0.5 hover:border-sky-300 hover:shadow-lg hover:shadow-sky-950/10">
+          <div className="relative hidden w-48 shrink-0 overflow-hidden bg-slate-100 sm:block">
+            {image ? (
+              <img
+                src={image}
+                alt={product.name}
+                className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
+              />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center bg-sky-50 text-blue-700">
+                <SmartphoneFallback />
+              </div>
+            )}
           </div>
 
-          {/* Content */}
-          <div className="flex-1 p-5 flex flex-col sm:flex-row sm:items-center gap-4">
+          <div className="flex flex-1 flex-col gap-4 p-5 sm:flex-row sm:items-center">
             <div className="flex-1">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-xs font-medium text-blue-600 bg-blue-50 px-2 py-1 rounded">
+              <div className="mb-3 flex flex-wrap items-center gap-2 text-xs font-semibold">
+                <span className="rounded-md bg-sky-50 px-2 py-1 text-blue-700">
                   {product.brand}
                 </span>
-                <span className="text-xs text-gray-500">{product.specifications.storage}</span>
-                {product.ptaApproved && <span className="text-xs font-medium text-emerald-700">PTA approved</span>}
+                <span className="rounded-md bg-slate-100 px-2 py-1 text-slate-600">
+                  {conditionLabels[product.condition]}
+                </span>
+                {product.specifications.storage && (
+                  <span className="rounded-md bg-slate-100 px-2 py-1 text-slate-600">
+                    {product.specifications.storage}
+                  </span>
+                )}
+                {product.ptaApproved && <span className="font-medium text-emerald-700">PTA approved</span>}
               </div>
-              <h3 className="font-semibold text-gray-900 mb-2 group-hover:text-blue-600 transition-colors">
+              <h3 className="mb-2 font-semibold text-slate-950 transition group-hover:text-blue-700">
                 {product.name}
               </h3>
-              <p className="text-sm text-gray-500 line-clamp-2 mb-3">{product.description}</p>
-              <div className="flex items-center gap-2">
-                <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-                <span className="text-sm font-medium">{product.rating}</span>
-                <span className="text-sm text-gray-500">({product.numReviews} reviews)</span>
+              <p className="mb-3 line-clamp-2 text-sm leading-6 text-slate-500">{product.description}</p>
+              <div className="flex items-center gap-2 text-sm text-slate-600">
+                <Star className="h-4 w-4 fill-amber-400 text-amber-400" aria-hidden="true" />
+                <span className="font-medium">{product.rating}</span>
+                <span>({product.numReviews} reviews)</span>
               </div>
             </div>
-            <div className="flex sm:flex-col items-center sm:items-end gap-4">
-              <div className="text-right">
-                <span className="text-2xl font-bold text-gray-900">{formatPrice(product.price)}</span>
+            <div className="flex items-center gap-4 sm:flex-col sm:items-end">
+              <div className="sm:text-right">
+                <span className="text-2xl font-bold text-slate-950">{formatPrice(product.price)}</span>
                 {product.originalPrice && (
-                  <span className="block text-sm text-gray-400 line-through">
+                  <span className="block text-sm text-slate-400 line-through">
                     {formatPrice(product.originalPrice)}
                   </span>
                 )}
               </div>
               <button
+                type="button"
                 onClick={(e) => onAddToCart(e, product)}
-                className="px-6 py-3 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition-colors"
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-800 active:translate-y-px"
               >
-                Add to Cart
+                <ShoppingCart className="h-4 w-4" aria-hidden="true" />
+                Add to cart
               </button>
             </div>
           </div>
@@ -638,38 +675,48 @@ const ProductCard = ({
 
   return (
     <Link to={`/products/${product._id}`} className="group">
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-xl transition-shadow duration-300 h-full flex flex-col">
-        {/* Image */}
-        <div className="relative aspect-square bg-gray-100 overflow-hidden">
-          <img
-            src={product.images[0]}
-            alt={product.name}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-          />
+      <div className="flex h-full flex-col overflow-hidden rounded-lg border border-slate-200 bg-white transition hover:-translate-y-0.5 hover:border-sky-300 hover:shadow-xl hover:shadow-sky-950/10">
+        <div className="relative aspect-[4/3] overflow-hidden bg-slate-100">
+          {image ? (
+            <img
+              src={image}
+              alt={product.name}
+              className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
+            />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center bg-sky-50 text-blue-700">
+              <SmartphoneFallback />
+            </div>
+          )}
         </div>
 
-        {/* Content */}
-        <div className="p-5 flex-1 flex flex-col">
-          <div className="flex items-center gap-2 mb-2">
-            <span className="text-xs font-medium text-blue-600 bg-blue-50 px-2 py-1 rounded">
+        <div className="flex flex-1 flex-col p-5">
+          <div className="mb-3 flex flex-wrap items-center gap-2 text-xs font-semibold">
+            <span className="rounded-md bg-sky-50 px-2 py-1 text-blue-700">
               {product.brand}
             </span>
-            <span className="text-xs text-gray-500">{product.specifications.storage}</span>
-            {product.ptaApproved && <span className="text-xs font-medium text-emerald-700">PTA approved</span>}
+            <span className="rounded-md bg-slate-100 px-2 py-1 text-slate-600">
+              {conditionLabels[product.condition]}
+            </span>
+            {product.specifications.storage && (
+              <span className="rounded-md bg-slate-100 px-2 py-1 text-slate-600">
+                {product.specifications.storage}
+              </span>
+            )}
           </div>
-          <h3 className="font-semibold text-gray-900 mb-2 group-hover:text-blue-600 transition-colors line-clamp-2">
+          <h3 className="line-clamp-2 min-h-[3.5rem] text-lg font-semibold leading-7 text-slate-950 transition group-hover:text-blue-700">
             {product.name}
           </h3>
-          <div className="flex items-center gap-2 mb-3">
-            <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-            <span className="text-sm font-medium">{product.rating}</span>
-            <span className="text-sm text-gray-500">({product.numReviews})</span>
+          <div className="mt-3 flex items-center gap-2 text-sm text-slate-600">
+            <Star className="h-4 w-4 fill-amber-400 text-amber-400" aria-hidden="true" />
+            <span className="font-medium">{product.rating}</span>
+            <span>({product.numReviews})</span>
           </div>
-          <div className="mt-auto">
-            <div className="flex items-center gap-3 mb-4">
-              <span className="text-xl font-bold text-gray-900">{formatPrice(product.price)}</span>
+          <div className="mt-auto pt-5">
+            <div className="mb-4 flex flex-wrap items-end gap-3">
+              <span className="text-xl font-bold text-slate-950">{formatPrice(product.price)}</span>
               {product.originalPrice && (
-                <span className="text-sm text-gray-400 line-through">
+                <span className="pb-0.5 text-sm text-slate-400 line-through">
                   {formatPrice(product.originalPrice)}
                 </span>
               )}
@@ -680,10 +727,12 @@ const ProductCard = ({
               </p>
             )}
             <button
+              type="button"
               onClick={(e) => onAddToCart(e, product)}
-              className="w-full py-3 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition-colors"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-blue-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-800 active:translate-y-px"
             >
-              Add to Cart
+              <ShoppingCart className="h-4 w-4" aria-hidden="true" />
+              Add to cart
             </button>
           </div>
         </div>
@@ -691,5 +740,11 @@ const ProductCard = ({
     </Link>
   );
 };
+
+const SmartphoneFallback = () => (
+  <div className="flex h-12 w-12 items-center justify-center rounded-lg border border-sky-200 bg-white">
+    <Smartphone className="h-5 w-5" aria-hidden="true" />
+  </div>
+);
 
 export default Products;

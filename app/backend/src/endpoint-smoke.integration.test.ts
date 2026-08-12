@@ -607,6 +607,31 @@ describe('endpoint smoke suite', () => {
     expect(uploadedImageResponse.headers['content-type']).toBe('image/png');
     expect(uploadedImageResponse.headers['cross-origin-resource-policy']).toBe('cross-origin');
 
+    const disposableImageUpload = multipartImages([
+      { filename: 'temporary-phone.png', mimeType: 'image/png', contents: pngImage },
+    ]);
+    const disposableImages = parseSuccess<{ urls: string[] }>(
+      await app.inject({
+        method: 'POST',
+        url: '/api/admin/products/images',
+        headers: { ...csrfHeaders(adminCookie), ...disposableImageUpload.headers },
+        payload: disposableImageUpload.payload,
+      }),
+      201,
+    );
+    parseSuccess<{ deleted: boolean }>(
+      await app.inject({
+        method: 'DELETE',
+        url: '/api/admin/products/images',
+        headers: csrfHeaders(adminCookie),
+        payload: { urls: disposableImages.urls },
+      }),
+    );
+    expect((await app.inject({
+      method: 'GET',
+      url: new URL(disposableImages.urls[0]!).pathname,
+    })).statusCode).toBe(404);
+
     const disguisedImage = multipartImages([
       { filename: 'not-really-an-image.jpg', mimeType: 'image/jpeg', contents: Buffer.from('not an image') },
     ]);
@@ -842,6 +867,10 @@ describe('endpoint smoke suite', () => {
         headers: csrfHeaders(adminCookie),
       }),
     );
+    expect((await app.inject({
+      method: 'GET',
+      url: new URL(uploadedImages.urls[0]!).pathname,
+    })).statusCode).toBe(404);
     for (const productId of [draftProduct.id, minimalProduct.id]) {
       parseSuccess<{ deleted: boolean }>(
         await app.inject({

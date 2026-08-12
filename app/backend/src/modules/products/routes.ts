@@ -6,7 +6,7 @@ import { prisma } from '../../db/prisma.js';
 import { env } from '../../config/env.js';
 import { fail, ok } from '../../utils/responses.js';
 import { authenticateAdmin, authenticateCustomer } from '../auth/session.js';
-import { saveProductImages } from './image-upload.js';
+import { MAX_PRODUCT_IMAGES, deleteProductImageUrls, saveProductImages } from './image-upload.js';
 
 const slugify = (value: string) =>
   value
@@ -410,14 +410,22 @@ interface AdminProductRoutesOptions {
 
 export const adminProductRoutes: FastifyPluginAsync<AdminProductRoutesOptions> = async (app, options) => {
   app.addHook('preHandler', authenticateAdmin);
+  const localImageStorageOptions = {
+    uploadDirectory: path.join(options.uploadDirectory, 'products'),
+    publicApiBaseUrl: env.API_BASE_URL,
+  };
 
   app.post('/images', async (request, reply) => {
-    const urls = await saveProductImages(
-      request,
-      path.join(options.uploadDirectory, 'products'),
-      env.API_BASE_URL,
-    );
+    const urls = await saveProductImages(request, localImageStorageOptions);
     return ok(reply.status(201), { urls });
+  });
+
+  app.delete('/images', async (request, reply) => {
+    const body = z.object({
+      urls: z.array(imageUrlSchema).min(1).max(MAX_PRODUCT_IMAGES),
+    }).parse(request.body);
+    await deleteProductImageUrls(body.urls, localImageStorageOptions);
+    return ok(reply, { deleted: true });
   });
 
   app.get('/', async (request, reply) => {
@@ -567,6 +575,9 @@ export const adminProductRoutes: FastifyPluginAsync<AdminProductRoutesOptions> =
     }
 
     const imageUrls = body.images !== undefined ? body.images : body.imageUrl ? [body.imageUrl] : null;
+    const removedImageUrls = imageUrls === null
+      ? []
+      : existing.images.map((image) => image.url).filter((url) => !imageUrls.includes(url));
     if (imageUrls !== null) {
       await prisma.productImage.deleteMany({ where: { productId: params.id } });
       if (imageUrls.length) {
@@ -610,6 +621,9 @@ export const adminProductRoutes: FastifyPluginAsync<AdminProductRoutesOptions> =
         after: mapProduct(updated),
       },
     });
+    if (removedImageUrls.length) {
+      await deleteProductImageUrls(removedImageUrls, localImageStorageOptions);
+    }
 
     return ok(reply, mapProduct(updated));
   });
@@ -644,6 +658,11 @@ export const adminProductRoutes: FastifyPluginAsync<AdminProductRoutesOptions> =
         after: mapProduct(updated),
       },
     });
+    const archivedImageUrls = existing.images.map((image) => image.url);
+    if (archivedImageUrls.length) {
+      await prisma.productImage.deleteMany({ where: { productId: params.id } });
+      await deleteProductImageUrls(archivedImageUrls, localImageStorageOptions);
+    }
 
     return ok(reply, { deleted: true });
   });
