@@ -70,7 +70,7 @@ export const buildApp = async (options: { trustProxy?: number; uploadDirectory?:
         return;
       }
 
-      callback(new Error(`Origin ${origin} is not allowed by CORS`), false);
+      callback(null, false);
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
