@@ -513,11 +513,11 @@ const Products = () => {
           </AnimatePresence>
 
           {/* Products Grid */}
-          <div className="flex-1">
+          <div className="min-w-0 flex-1">
             {isLoadingProducts ? (
               <div className="text-center py-16 text-gray-500">Loading products...</div>
             ) : productsError ? (
-              <div className="text-center py-16">
+              <div className="mx-auto max-w-full px-4 py-16 text-center">
                 <AlertCircle className="w-10 h-10 text-red-500 mx-auto mb-4" />
                 <h3 className="text-xl font-semibold text-gray-900 mb-2">Products could not be loaded</h3>
                 <p className="text-gray-500 mb-5">{productsError}</p>
@@ -535,7 +535,7 @@ const Products = () => {
                   <Search className="w-10 h-10 text-gray-400" />
                 </div>
                 <h3 className="text-xl font-semibold text-gray-900 mb-2">No products found</h3>
-                <p className="max-w-full px-4 text-center text-gray-500">
+                <p className="text-gray-500">
                   Try adjusting your filters or search query
                 </p>
               </div>
