@@ -3,8 +3,7 @@ import { Link } from 'react-router-dom';
 import {
   ArrowRight,
   BadgeCheck,
-  Clock,
-  Mail,
+  Banknote,
   MapPin,
   Phone,
   Search,
@@ -18,15 +17,14 @@ import {
 import type { Product } from '../types';
 import { businessAPI, productsAPI } from '../services/api';
 import type { GoogleBusinessReviews } from '../services/api';
-import ProductRating from '../components/product/ProductRating';
+import StorefrontProductCard from '../components/product/StorefrontProductCard';
+import { priceRanges } from '../data/products';
 import {
-  CONTACT_EMAIL,
   CONTACT_PHONE_NUMBERS,
   SHOP_ADDRESS,
   SHOP_MAPS_URL,
   SHOP_WHATSAPP_URL,
 } from '../config/contact';
-import { formatPrice } from '../utils/format';
 
 type Brand = {
   name: string;
@@ -36,75 +34,43 @@ type Brand = {
 
 const brandFallbacks = ['iPhone', 'Samsung', 'Honor', 'Xiaomi', 'Redmi'];
 
-const stats = [
-  'Established March 2009',
-  '20,000+ Customers Served',
-  '95% Customer Satisfaction',
+const businessStats = [
+  { value: 'Since 2009', label: 'Serving Hyderabad' },
+  { value: '20,000+', label: 'Customers served' },
+  { value: '95%', label: 'Customer satisfaction' },
 ];
 
-const valueItems = [
-  {
-    icon: Store,
-    title: 'Local shop',
-    description: 'A physical Wahab Mobiles store in Saddar Cantt Hyderabad.',
-  },
-  {
-    icon: Smartphone,
-    title: 'New, used, refurbished',
-    description: 'Browse by phone condition from the live catalogue.',
-  },
-  {
-    icon: ShieldCheck,
-    title: 'PTA status visible',
-    description: 'Every listing shows the PTA status set by admin.',
-  },
-  {
-    icon: ShoppingBag,
-    title: 'Online checkout',
-    description: 'Cart, account, support, and cash-on-delivery checkout.',
-  },
-];
-
-const discoveryTiles = [
+const conditions = [
   {
     title: 'Brand new phones',
-    description: 'Start with new devices when they are published.',
+    label: 'New',
+    description: 'Browse sealed and new devices when they are published.',
     to: '/products?condition=new',
     icon: ShoppingBag,
+    className: 'lg:row-span-2 lg:min-h-[284px]',
   },
   {
     title: 'Used phones',
-    description: 'Filter used inventory before calling or visiting.',
+    label: 'Used',
+    description: 'Compare condition, storage, price and PTA status.',
     to: '/products?condition=used',
     icon: Tags,
+    className: '',
   },
   {
     title: 'Refurbished phones',
-    description: 'View refurbished options with condition and PTA details.',
+    label: 'Refurbished',
+    description: 'See refurbished options from the live catalogue.',
     to: '/products?condition=refurbished',
     icon: BadgeCheck,
+    className: '',
   },
 ];
 
-const conditionLabels: Record<Product['condition'], string> = {
-  new: 'New',
-  used: 'Used',
-  refurbished: 'Refurbished',
-};
-
-const getPrimaryImage = (product: Product) => product.images.find(Boolean);
-
-const Stars = ({ rating }: { rating: number | null }) => (
-  <div className="flex items-center gap-0.5" aria-label={rating ? `${rating} stars` : 'No rating'}>
-    {[1, 2, 3, 4, 5].map((star) => (
-      <Star
-        key={star}
-        className={`h-4 w-4 ${rating && star <= Math.round(rating) ? 'fill-amber-400 text-amber-400' : 'text-slate-300'}`}
-        aria-hidden="true"
-      />
-    ))}
-  </div>
-);
+const priceLinks = priceRanges.slice(0, 4).map((range) => ({
+  label: range.label,
+  to: `/products?price=${encodeURIComponent(range.label)}`,
+}));
 
 const Home = () => {
   const [featuredProducts, setFeaturedProducts] = useState<Product[]>([]);
@@ -129,7 +95,7 @@ const Home = () => {
         if (!active) return;
 
         if (featuredResponse.status === 'fulfilled') {
-          setFeaturedProducts((featuredResponse.value.data.data as Product[]).slice(0, 6));
+          setFeaturedProducts((featuredResponse.value.data.data as Product[]).slice(0, 8));
         }
 
         if (brandsResponse.status === 'fulfilled') {
@@ -157,313 +123,318 @@ const Home = () => {
           setHomeError('Live catalogue details could not be loaded.');
         }
       } finally {
-        if (active) {
-          setIsHomeLoading(false);
-        }
+        if (active) setIsHomeLoading(false);
       }
     };
 
     void loadHomeData();
-
     return () => {
       active = false;
     };
   }, []);
 
-  const displayedBrands =
+  const displayedBrands = (
     brands.length > 0
       ? brands
       : brandFallbacks.map((name) => ({
           name,
           count: null,
           path: name === 'iPhone' ? '/products?search=iPhone' : `/products?brand=${encodeURIComponent(name)}`,
-        }));
-
-  const reviewCards = reviews?.reviews.filter((review) => review.text.trim()).slice(0, 5) ?? [];
+        }))
+  ).slice(0, 8);
+  const reviewCards = reviews?.reviews.filter((review) => review.text.trim()).slice(0, 3) ?? [];
   const reviewsUrl = reviews?.googleMapsUri ?? SHOP_MAPS_URL;
 
   return (
-    <div className="min-h-[100dvh] overflow-x-hidden bg-slate-50 text-slate-950">
-      <section className="border-b border-sky-100 bg-white">
-        <div className="mx-auto grid max-w-7xl items-center gap-8 px-4 py-10 sm:px-6 lg:grid-cols-[0.95fr_1.05fr] lg:px-8 lg:py-14">
+    <div className="min-h-[100dvh] overflow-x-hidden bg-[#f5f8fc] text-slate-950">
+      <section className="bg-[#082f63] text-white">
+        <div className="mx-auto grid max-w-[1400px] items-center gap-6 px-4 py-8 sm:gap-8 sm:px-6 sm:py-9 md:py-11 lg:grid-cols-[1.02fr_.98fr] lg:px-8">
           <div className="max-w-2xl">
-            <div className="flex items-center gap-3">
-              <img
-                src="/assets/wahab-logo.jpg"
-                alt="Wahab Mobiles logo"
-                className="h-14 w-14 rounded-full border border-sky-100 object-cover shadow-sm"
-              />
-              <div>
-                <p className="text-sm font-semibold text-blue-700">Wahab Mobiles</p>
-                <p className="text-sm text-slate-500">Trusted Cell Phones Outlet in Hyderabad</p>
-              </div>
-            </div>
-            <h1 className="mt-6 max-w-[13ch] text-4xl font-extrabold leading-[1.04] text-slate-950 sm:text-5xl lg:text-6xl">
-              Phones first. Details clear.
+            <p className="text-sm font-bold text-blue-200">Wahab Mobiles, Hyderabad</p>
+            <h1 className="mt-3 max-w-[12ch] text-4xl font-extrabold leading-[1.05] tracking-[-0.035em] sm:text-5xl lg:text-[58px]">
+              Find the right phone, faster.
             </h1>
-            <p className="mt-5 max-w-xl text-base leading-7 text-slate-600 sm:text-lg">
-              Shop new, used and refurbished phones from a real Hyderabad mobile store with live catalogue details.
+            <p className="mt-4 max-w-xl text-base leading-7 text-blue-100 sm:text-lg">
+              Shop new, used and refurbished phones with clear prices, condition details and PTA status.
             </p>
-            <div className="mt-7 flex flex-col gap-3 sm:flex-row">
+            <div className="mt-7 grid grid-cols-2 gap-3">
               <Link
                 to="/products"
-                className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-blue-700 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-900/15 transition hover:bg-blue-800 active:translate-y-px sm:w-auto"
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-white px-5 text-sm font-bold text-[#0b3f82] transition hover:bg-blue-50 active:translate-y-px"
               >
-                Browse products
+                Shop phones
                 <ArrowRight className="h-4 w-4" aria-hidden="true" />
               </Link>
-              <a
-                href={CONTACT_PHONE_NUMBERS[0].href}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-sky-200 bg-white px-5 py-3 text-sm font-semibold text-slate-800 transition hover:border-sky-300 hover:text-blue-700 active:translate-y-px sm:w-auto"
+              <Link
+                to="/products?condition=used"
+                className="inline-flex min-h-12 items-center justify-center rounded-lg border border-blue-300/60 px-5 text-sm font-bold text-white transition hover:bg-white/10 active:translate-y-px"
               >
-                <Phone className="h-4 w-4" aria-hidden="true" />
-                Call {CONTACT_PHONE_NUMBERS[0].label}
-              </a>
-            </div>
-            <div className="mt-8 grid gap-3 sm:grid-cols-3">
-              {stats.map((stat) => (
-                <div key={stat} className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-800">
-                  {stat}
-                </div>
-              ))}
+                Used phones
+              </Link>
             </div>
           </div>
 
-          <figure className="overflow-hidden rounded-xl border border-white bg-white p-2 shadow-2xl shadow-sky-950/10">
-            <img
-              src="/assets/wahab-shop.jpg"
-              alt="Wahab Mobiles shop interior in Hyderabad"
-              className="aspect-[16/11] w-full rounded-lg object-cover"
-            />
-          </figure>
+          <div className="rounded-xl border border-white/15 bg-white p-4 text-slate-950 shadow-[0_24px_70px_rgba(0,20,52,0.32)] sm:p-5">
+            <div className="flex items-center justify-between gap-4 border-b border-slate-100 pb-4">
+              <div>
+                <p className="text-sm font-extrabold text-slate-950">Start shopping</p>
+                <p className="mt-1 hidden text-xs text-slate-500 sm:block">Choose a condition or a popular brand</p>
+              </div>
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-700">
+                <Smartphone className="h-5 w-5" aria-hidden="true" />
+              </div>
+            </div>
+            <div className="mt-4 grid grid-cols-3 gap-2">
+              {conditions.map((condition) => (
+                <Link
+                  key={condition.label}
+                  to={condition.to}
+                  className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-3 text-center text-xs font-bold text-slate-700 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
+                >
+                  {condition.label}
+                </Link>
+              ))}
+            </div>
+            <div className="mt-4 hidden flex-wrap gap-2 sm:flex">
+              {displayedBrands.slice(0, 5).map((brand) => (
+                <Link
+                  key={brand.name}
+                  to={brand.path}
+                  className="rounded-md border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 transition hover:border-blue-300 hover:text-blue-700"
+                >
+                  {brand.name}
+                </Link>
+              ))}
+            </div>
+            <Link to="/products" className="mt-4 flex items-center justify-between rounded-lg bg-blue-50 px-4 py-3 text-sm font-bold text-blue-700 hover:bg-blue-100">
+              Search the full catalogue
+              <Search className="h-4 w-4" aria-hidden="true" />
+            </Link>
+          </div>
         </div>
       </section>
 
-      <section className="bg-white py-8">
-        <div className="mx-auto grid max-w-7xl gap-4 px-4 sm:grid-cols-2 sm:px-6 lg:grid-cols-4 lg:px-8">
-          {valueItems.map((item) => (
-            <div key={item.title} className="flex gap-3 rounded-lg border border-slate-200 bg-white p-4">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-sky-50 text-blue-700">
-                <item.icon className="h-5 w-5" aria-hidden="true" />
-              </div>
-              <div>
-                <h2 className="text-sm font-semibold text-slate-950">{item.title}</h2>
-                <p className="mt-1 text-sm leading-6 text-slate-600">{item.description}</p>
-              </div>
+      <section className="border-b border-slate-200 bg-white">
+        <div className="mx-auto grid max-w-[1400px] grid-cols-1 divide-y divide-slate-200 px-4 sm:grid-cols-3 sm:divide-x sm:divide-y-0 sm:px-6 lg:px-8">
+          {businessStats.map((stat) => (
+            <div key={stat.value} className="flex items-baseline gap-3 py-4 sm:justify-center sm:px-4">
+              <strong className="text-lg font-extrabold text-[#0b3f82]">{stat.value}</strong>
+              <span className="text-xs font-semibold text-slate-500 sm:text-sm">{stat.label}</span>
             </div>
           ))}
         </div>
       </section>
 
-      <section className="bg-slate-50 py-12 sm:py-14">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="max-w-2xl">
-            <h2 className="text-3xl font-bold tracking-tight text-slate-950">Shop by brand</h2>
-            <p className="mt-2 text-slate-600">Jump into commonly requested phone brands.</p>
-          </div>
-          <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-            {displayedBrands.map((brand) => (
+      <section className="py-11 sm:py-14">
+        <div className="mx-auto max-w-[1400px] px-4 sm:px-6 lg:px-8">
+          <SectionHeading title="Shop by condition" description="Go straight to the phones that match how you want to buy." />
+          <div className="mt-7 grid gap-4 lg:grid-cols-[1.1fr_.9fr] lg:grid-rows-2">
+            {conditions.map((condition, index) => (
               <Link
-                key={brand.name}
-                to={brand.path}
-                className="group rounded-lg border border-slate-200 bg-white p-5 transition hover:-translate-y-0.5 hover:border-sky-300 hover:shadow-lg hover:shadow-sky-950/5"
+                key={condition.title}
+                to={condition.to}
+                className={`group flex min-h-36 items-center justify-between overflow-hidden rounded-xl border border-slate-200 bg-white p-5 transition hover:border-blue-300 hover:shadow-[0_16px_40px_rgba(15,46,82,0.08)] sm:p-6 ${condition.className}`}
               >
-                <p className="text-lg font-bold text-slate-950 group-hover:text-blue-700">{brand.name}</p>
-                <p className="mt-5 text-sm text-slate-500">
-                  {brand.count === null
-                    ? 'Browse catalogue'
-                    : `${brand.count} ${brand.count === 1 ? 'product' : 'products'}`}
-                </p>
+                <div className="max-w-sm">
+                  <p className="text-xs font-bold text-blue-700">{condition.label}</p>
+                  <h3 className={`mt-2 font-extrabold text-slate-950 group-hover:text-blue-700 ${index === 0 ? 'text-2xl sm:text-3xl' : 'text-xl'}`}>
+                    {condition.title}
+                  </h3>
+                  <p className="mt-2 text-sm leading-6 text-slate-600">{condition.description}</p>
+                  <span className="mt-4 inline-flex items-center gap-1.5 text-sm font-bold text-blue-700">
+                    Browse phones
+                    <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" aria-hidden="true" />
+                  </span>
+                </div>
+                <div className={`ml-4 flex shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-700 ${index === 0 ? 'h-24 w-24 sm:h-32 sm:w-32' : 'h-16 w-16'}`}>
+                  <condition.icon className={index === 0 ? 'h-10 w-10 sm:h-12 sm:w-12' : 'h-7 w-7'} aria-hidden="true" />
+                </div>
               </Link>
             ))}
           </div>
         </div>
       </section>
 
-      <section className="bg-slate-50 py-12 sm:py-14">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-            <div>
-              <h2 className="text-3xl font-bold tracking-tight text-slate-950">Featured products</h2>
-              <p className="mt-2 text-slate-600">Real products will appear here when published from admin.</p>
-            </div>
-            <Link to="/products" className="inline-flex items-center gap-2 text-sm font-semibold text-blue-700 hover:text-blue-800">
-              View full catalogue
+      <section className="border-y border-slate-200 bg-white py-11 sm:py-14">
+        <div className="mx-auto max-w-[1400px] px-4 sm:px-6 lg:px-8">
+          <div className="flex items-end justify-between gap-5">
+            <SectionHeading title="Shop by brand" description="Open a brand catalogue without digging through menus." />
+            <Link to="/products" className="hidden shrink-0 items-center gap-2 text-sm font-bold text-blue-700 hover:text-blue-800 sm:inline-flex">
+              All phones
+              <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            </Link>
+          </div>
+          <div className="mt-7 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
+            {displayedBrands.map((brand) => (
+              <Link
+                key={brand.name}
+                to={brand.path}
+                className="group flex min-h-24 flex-col justify-between rounded-xl border border-slate-200 bg-slate-50 p-4 transition hover:border-blue-300 hover:bg-blue-50"
+              >
+                <span className="font-extrabold text-slate-950 group-hover:text-blue-700">{brand.name}</span>
+                <span className="mt-4 text-xs font-semibold text-slate-500">
+                  {brand.count === null ? 'Browse' : `${brand.count} ${brand.count === 1 ? 'phone' : 'phones'}`}
+                </span>
+              </Link>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="py-11 sm:py-14">
+        <div className="mx-auto max-w-[1400px] px-4 sm:px-6 lg:px-8">
+          <div className="flex items-end justify-between gap-5">
+            <SectionHeading title="Featured phones" description="Products selected from the live Wahab Mobiles catalogue." />
+            <Link to="/products" className="hidden shrink-0 items-center gap-2 text-sm font-bold text-blue-700 hover:text-blue-800 sm:inline-flex">
+              View catalogue
               <ArrowRight className="h-4 w-4" aria-hidden="true" />
             </Link>
           </div>
 
           {isHomeLoading ? (
-            <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {Array.from({ length: 3 }).map((_, index) => (
-                <div key={index} className="rounded-lg border border-slate-200 bg-white p-4">
-                  <div className="aspect-[4/3] animate-pulse rounded-lg bg-slate-100" />
-                  <div className="mt-4 h-4 w-1/3 animate-pulse rounded bg-slate-100" />
-                  <div className="mt-3 h-6 w-4/5 animate-pulse rounded bg-slate-100" />
-                  <div className="mt-5 h-5 w-1/2 animate-pulse rounded bg-slate-100" />
-                </div>
-              ))}
+            <div className="mt-7 grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-5">
+              {Array.from({ length: 4 }).map((_, index) => <ProductSkeleton key={index} />)}
             </div>
           ) : homeError ? (
-            <div className="mt-8 rounded-lg border border-amber-200 bg-amber-50 p-6">
-              <p className="font-semibold text-amber-950">Catalogue preview unavailable</p>
+            <div className="mt-7 rounded-xl border border-amber-200 bg-amber-50 p-6">
+              <p className="font-bold text-amber-950">Catalogue preview unavailable</p>
               <p className="mt-2 text-sm text-amber-900">{homeError}</p>
+              <Link to="/products" className="mt-4 inline-flex text-sm font-bold text-amber-950 underline">Open catalogue</Link>
             </div>
           ) : featuredProducts.length === 0 ? (
-            <div className="mt-8 rounded-lg border border-dashed border-slate-300 bg-white p-8">
-              <Search className="h-8 w-8 text-slate-400" aria-hidden="true" />
-              <h3 className="mt-4 text-xl font-semibold text-slate-950">No featured products are published yet</h3>
-              <p className="mt-2 max-w-xl text-slate-600">
-                The homepage will switch to real phone cards as soon as products are added and marked featured.
-              </p>
+            <div className="mt-7 grid overflow-hidden rounded-xl border border-slate-200 bg-white md:grid-cols-[1fr_auto]">
+              <div className="p-6 sm:p-8">
+                <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-blue-50 text-blue-700">
+                  <Search className="h-5 w-5" aria-hidden="true" />
+                </div>
+                <h3 className="mt-5 text-xl font-extrabold text-slate-950">No phones are listed right now</h3>
+                <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+                  New products will appear here automatically when the catalogue is published. You can still browse by condition or contact the shop.
+                </p>
+              </div>
+              <div className="flex flex-col justify-center gap-3 border-t border-slate-200 bg-slate-50 p-6 md:min-w-64 md:border-l md:border-t-0">
+                <Link to="/products" className="inline-flex min-h-11 items-center justify-center rounded-lg bg-blue-700 px-4 text-sm font-bold text-white hover:bg-blue-800">
+                  Open catalogue
+                </Link>
+                <a href={CONTACT_PHONE_NUMBERS[0].href} className="inline-flex min-h-11 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 text-sm font-bold text-slate-700 hover:border-blue-300 hover:text-blue-700">
+                  Call the shop
+                </a>
+              </div>
             </div>
           ) : (
-            <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="mt-7 grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-5">
               {featuredProducts.map((product) => (
-                <ProductCard key={product._id} product={product} />
+                <StorefrontProductCard key={product._id} product={product} />
               ))}
             </div>
           )}
         </div>
       </section>
 
-      <section className="bg-white py-12 sm:py-14">
-        <div className="mx-auto grid max-w-7xl gap-8 px-4 sm:px-6 lg:grid-cols-[0.85fr_1.15fr] lg:px-8">
+      <section className="border-y border-slate-200 bg-white py-10">
+        <div className="mx-auto grid max-w-[1400px] gap-6 px-4 sm:px-6 lg:grid-cols-[.72fr_1.28fr] lg:items-center lg:px-8">
           <div>
-            <h2 className="text-3xl font-bold tracking-tight text-slate-950">Shop by need</h2>
-            <p className="mt-3 max-w-xl text-slate-600">
-              Keep browsing practical: choose a condition, search a model, or contact the shop to confirm exact stock.
-            </p>
-            <div className="mt-6 space-y-3 text-sm text-slate-700">
-              <p className="flex gap-3">
-                <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-blue-700" aria-hidden="true" />
-                <span>{SHOP_ADDRESS}</span>
-              </p>
-              <p className="flex gap-3">
-                <Clock className="mt-0.5 h-4 w-4 shrink-0 text-blue-700" aria-hidden="true" />
-                <span>Saturday to Thursday, 1:30 PM - 12 AM</span>
-              </p>
-              <a href={`mailto:${CONTACT_EMAIL}`} className="flex gap-3 transition hover:text-blue-700">
-                <Mail className="mt-0.5 h-4 w-4 shrink-0 text-blue-700" aria-hidden="true" />
-                <span>{CONTACT_EMAIL}</span>
-              </a>
-            </div>
+            <Banknote className="h-6 w-6 text-blue-700" aria-hidden="true" />
+            <h2 className="mt-3 text-2xl font-extrabold tracking-tight text-slate-950">Browse by budget</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-600">Use price filters to narrow the live catalogue.</p>
           </div>
-          <div className="grid gap-4 sm:grid-cols-3">
-            {discoveryTiles.map((tile) => (
-              <Link
-                key={tile.title}
-                to={tile.to}
-                className="group rounded-lg border border-slate-200 bg-slate-50 p-5 transition hover:-translate-y-0.5 hover:border-sky-300 hover:bg-white hover:shadow-lg hover:shadow-sky-950/5"
-              >
-                <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-blue-700 text-white">
-                  <tile.icon className="h-5 w-5" aria-hidden="true" />
-                </div>
-                <h3 className="mt-5 text-lg font-semibold text-slate-950">{tile.title}</h3>
-                <p className="mt-2 text-sm leading-6 text-slate-600">{tile.description}</p>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {priceLinks.map((price) => (
+              <Link key={price.label} to={price.to} className="flex min-h-16 items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm font-bold text-slate-700 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700">
+                {price.label}
               </Link>
             ))}
           </div>
         </div>
       </section>
 
-      <section className="bg-slate-950 py-12 text-white sm:py-14">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+      <section className="bg-[#082f63] py-11 text-white sm:py-14">
+        <div className="mx-auto max-w-[1400px] px-4 sm:px-6 lg:px-8">
+          <div className="grid gap-8 lg:grid-cols-[.72fr_1.28fr]">
             <div>
-              <h2 className="text-3xl font-bold tracking-tight">What our customers say</h2>
-              <p className="mt-3 max-w-2xl text-slate-300">
-                Google review data appears here through the official Places API when the API key and Place ID are configured.
+              <ShieldCheck className="h-7 w-7 text-blue-200" aria-hidden="true" />
+              <h2 className="mt-4 text-3xl font-extrabold tracking-tight">A real local shop, online.</h2>
+              <p className="mt-3 max-w-md text-sm leading-6 text-blue-100">
+                Check product details online, then order, call or visit the Saddar Cantt store.
               </p>
+              <a href={reviewsUrl} target="_blank" rel="noreferrer" className="mt-5 inline-flex items-center gap-2 text-sm font-bold text-white hover:text-blue-100">
+                View Wahab Mobiles on Google Maps
+                <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              </a>
             </div>
-            <a
-              href={reviewsUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center justify-center gap-2 rounded-lg bg-white px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-sky-50 active:translate-y-px"
-            >
-              See all reviews on Google
-              <ArrowRight className="h-4 w-4" aria-hidden="true" />
-            </a>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <TrustItem icon={Store} title="Physical store" description="Visit the Wahab Mobiles shop in Hyderabad." />
+              <TrustItem icon={ShieldCheck} title="Clear PTA status" description="PTA status is shown per published product." />
+              <TrustItem icon={ShoppingBag} title="Online shopping" description="Use cart, checkout, account and support tools." />
+            </div>
           </div>
 
-          {reviews?.configured && reviews.rating ? (
-            <div className="mt-8 flex flex-col gap-3 rounded-lg border border-white/10 bg-white/[0.06] p-5 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="text-3xl font-bold">{reviews.rating.toFixed(1)}</p>
-                <p className="mt-1 text-sm text-slate-300">{reviews.userRatingCount} Google reviews</p>
+          {reviews?.configured && reviews.rating && (
+            <div className="mt-9 border-t border-white/15 pt-8">
+              <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+                <div>
+                  <h2 className="text-2xl font-extrabold">Google customer reviews</h2>
+                  <div className="mt-2 flex items-center gap-3 text-sm text-blue-100">
+                    <ReviewStars rating={reviews.rating} />
+                    <span>{reviews.rating.toFixed(1)} from {reviews.userRatingCount} reviews</span>
+                  </div>
+                </div>
+                <a href={reviewsUrl} target="_blank" rel="noreferrer" className="text-sm font-bold text-white underline decoration-blue-300 underline-offset-4">See all reviews</a>
               </div>
-              <Stars rating={reviews.rating} />
-            </div>
-          ) : (
-            <div className="mt-8 rounded-lg border border-white/10 bg-white/[0.06] p-5 text-sm text-slate-300">
-              Google reviews are not configured yet. No ratings or reviews are being shown.
-            </div>
-          )}
-
-          {reviewCards.length > 0 && (
-            <div className="mt-5 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {reviewCards.map((review) => (
-                <article key={review.id} className="rounded-lg border border-white/10 bg-white/[0.06] p-5">
-                  <div className="flex items-center gap-3">
-                    {review.authorPhotoUri ? (
-                      <img
-                        src={review.authorPhotoUri}
-                        alt={review.authorName}
-                        className="h-10 w-10 rounded-full object-cover"
-                        loading="lazy"
-                      />
-                    ) : (
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-cyan-300 text-sm font-bold text-slate-950">
-                        {review.authorName.charAt(0)}
-                      </div>
-                    )}
-                    <div>
-                      <a href={review.authorUri ?? review.googleMapsUri ?? reviewsUrl} target="_blank" rel="noreferrer" className="font-semibold hover:text-cyan-200">
-                        {review.authorName}
-                      </a>
-                      <p className="text-xs text-slate-400">{review.relativePublishTimeDescription ?? ''}</p>
-                    </div>
-                  </div>
-                  <div className="mt-4">
-                    <Stars rating={review.rating} />
-                  </div>
-                  <p className="mt-4 line-clamp-5 text-sm leading-6 text-slate-200">{review.text}</p>
-                  <a href={review.googleMapsUri ?? reviewsUrl} target="_blank" rel="noreferrer" className="mt-4 inline-flex text-sm font-semibold text-cyan-200 hover:text-white">
-                    Read on Google
-                  </a>
-                </article>
-              ))}
+              {reviewCards.length > 0 && (
+                <div className="mt-6 grid gap-4 md:grid-cols-3">
+                  {reviewCards.map((review) => (
+                    <article key={review.id} className="rounded-xl border border-white/15 bg-white/[0.07] p-5">
+                      {review.rating !== null && <ReviewStars rating={review.rating} />}
+                      <p className="mt-4 line-clamp-3 text-sm leading-6 text-blue-50">{review.text}</p>
+                      <p className="mt-4 text-xs font-bold text-white">{review.authorName}</p>
+                    </article>
+                  ))}
+                </div>
+              )}
             </div>
           )}
-          <p className="mt-5 text-xs text-slate-400">Reviews from Google. Individual reviews are limited to what Google Places returns.</p>
         </div>
       </section>
 
-      <section className="bg-white py-12 sm:py-14">
-        <div className="mx-auto grid max-w-7xl items-center gap-6 px-4 sm:px-6 lg:grid-cols-[1fr_auto] lg:px-8">
-          <div>
-            <h2 className="text-3xl font-bold tracking-tight text-slate-950">Want to confirm a model?</h2>
-            <p className="mt-3 max-w-2xl text-slate-600">
-              Call or message before visiting to confirm current stock, condition, storage, color and price.
-            </p>
+      <section className="bg-white py-11 sm:py-14">
+        <div className="mx-auto grid max-w-[1400px] items-center gap-7 px-4 sm:px-6 lg:grid-cols-[1.05fr_.95fr] lg:px-8">
+          <figure className="overflow-hidden rounded-xl border border-slate-200 bg-slate-50 p-2 shadow-[0_18px_50px_rgba(15,46,82,0.1)]">
+            <img
+              src="/assets/wahab-shop.jpg"
+              alt="Wahab Mobiles shop interior in Hyderabad"
+              className="aspect-[16/10] w-full rounded-lg object-cover"
+              loading="lazy"
+            />
+          </figure>
+          <div className="lg:pl-6">
+            <p className="text-sm font-bold text-blue-700">Visit Wahab Mobiles</p>
+            <h2 className="mt-2 text-3xl font-extrabold tracking-tight text-slate-950 sm:text-4xl">See the shop behind the storefront.</h2>
+            <p className="mt-4 max-w-xl text-base leading-7 text-slate-600">{SHOP_ADDRESS}</p>
+            <div className="mt-6 flex flex-col gap-3 min-[430px]:flex-row">
+              <a href={SHOP_MAPS_URL} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-blue-700 px-5 text-sm font-bold text-white hover:bg-blue-800">
+                <MapPin className="h-4 w-4" aria-hidden="true" />
+                Open map
+              </a>
+              <Link to="/about#about-us" className="inline-flex min-h-11 items-center justify-center rounded-lg border border-slate-300 px-5 text-sm font-bold text-slate-700 hover:border-blue-300 hover:text-blue-700">
+                About the store
+              </Link>
+            </div>
           </div>
-          <div className="flex flex-col gap-3 sm:flex-row">
-            <a
-              href={SHOP_WHATSAPP_URL}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-blue-700 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-900/15 transition hover:bg-blue-800 active:translate-y-px sm:w-auto"
-            >
-              Message on WhatsApp
-              <ArrowRight className="h-4 w-4" aria-hidden="true" />
-            </a>
-            <a
-              href={SHOP_MAPS_URL}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-sky-200 bg-white px-5 py-3 text-sm font-semibold text-blue-700 transition hover:border-sky-300 hover:bg-sky-50 active:translate-y-px sm:w-auto"
-            >
-              Open map
-              <MapPin className="h-4 w-4" aria-hidden="true" />
+        </div>
+      </section>
+
+      <section className="border-t border-slate-200 bg-[#f5f8fc] py-9">
+        <div className="mx-auto flex max-w-[1400px] flex-col justify-between gap-5 px-4 sm:px-6 md:flex-row md:items-center lg:px-8">
+          <div>
+            <h2 className="text-2xl font-extrabold text-slate-950">Need help choosing a phone?</h2>
+            <p className="mt-2 text-sm text-slate-600">Ask about current stock, condition, storage, color, price and PTA status.</p>
+          </div>
+          <div className="flex flex-col gap-3 min-[430px]:flex-row">
+            <a href={SHOP_WHATSAPP_URL} className="inline-flex min-h-11 items-center justify-center rounded-lg bg-blue-700 px-5 text-sm font-bold text-white hover:bg-blue-800">Message on WhatsApp</a>
+            <a href={CONTACT_PHONE_NUMBERS[0].href} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-5 text-sm font-bold text-slate-700 hover:border-blue-300 hover:text-blue-700">
+              <Phone className="h-4 w-4" aria-hidden="true" />
+              Call the shop
             </a>
           </div>
         </div>
@@ -472,56 +443,37 @@ const Home = () => {
   );
 };
 
-const ProductCard = ({ product }: { product: Product }) => {
-  const image = getPrimaryImage(product);
+const SectionHeading = ({ title, description }: { title: string; description: string }) => (
+  <div className="max-w-2xl">
+    <h2 className="text-2xl font-extrabold tracking-tight text-slate-950 sm:text-3xl">{title}</h2>
+    <p className="mt-2 text-sm leading-6 text-slate-600 sm:text-base">{description}</p>
+  </div>
+);
 
-  return (
-    <Link
-      to={`/products/${product._id}`}
-      className="group flex h-full flex-col overflow-hidden rounded-lg border border-slate-200 bg-white transition hover:-translate-y-0.5 hover:border-sky-300 hover:shadow-xl hover:shadow-sky-950/10"
-    >
-      <div className="aspect-[4/3] overflow-hidden bg-slate-100">
-        {image ? (
-          <img
-            src={image}
-            alt={product.name}
-            className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
-            loading="lazy"
-          />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center bg-sky-50 text-blue-700">
-            <Smartphone className="h-12 w-12" aria-hidden="true" />
-          </div>
-        )}
-      </div>
-      <div className="flex flex-1 flex-col p-5">
-        <div className="flex flex-wrap items-center gap-2 text-xs font-semibold">
-          <span className="rounded-md bg-sky-50 px-2 py-1 text-blue-700">{product.brand}</span>
-          <span className="rounded-md bg-slate-100 px-2 py-1 text-slate-600">
-            {conditionLabels[product.condition]}
-          </span>
-          {product.specifications.storage && (
-            <span className="rounded-md bg-slate-100 px-2 py-1 text-slate-600">
-              {product.specifications.storage}
-            </span>
-          )}
-        </div>
-        <h3 className="mt-4 line-clamp-2 min-h-[3.5rem] text-lg font-semibold leading-7 text-slate-950 transition group-hover:text-blue-700">
-          {product.name}
-        </h3>
-        <ProductRating product={product} className="mt-3" compact />
-        <div className="mt-auto pt-5">
-          <div className="flex flex-wrap items-end gap-3">
-            <p className="text-xl font-bold text-slate-950">{formatPrice(product.price)}</p>
-            {product.originalPrice && product.originalPrice > product.price && (
-              <p className="pb-0.5 text-sm text-slate-400 line-through">{formatPrice(product.originalPrice)}</p>
-            )}
-          </div>
-          {product.ptaApproved && <p className="mt-3 text-sm font-medium text-emerald-700">PTA approved</p>}
-        </div>
-      </div>
-    </Link>
-  );
-};
+const ProductSkeleton = () => (
+  <div className="overflow-hidden rounded-xl border border-slate-200 bg-white p-3.5 sm:p-4">
+    <div className="aspect-[1/0.88] animate-pulse rounded-lg bg-slate-100" />
+    <div className="mt-4 h-3 w-1/3 animate-pulse rounded bg-slate-100" />
+    <div className="mt-3 h-5 w-4/5 animate-pulse rounded bg-slate-100" />
+    <div className="mt-2 h-5 w-2/3 animate-pulse rounded bg-slate-100" />
+    <div className="mt-5 h-6 w-1/2 animate-pulse rounded bg-slate-100" />
+  </div>
+);
+
+const TrustItem = ({ icon: Icon, title, description }: { icon: typeof Store; title: string; description: string }) => (
+  <div className="border-l border-white/20 pl-5">
+    <Icon className="h-5 w-5 text-blue-200" aria-hidden="true" />
+    <h3 className="mt-4 font-extrabold text-white">{title}</h3>
+    <p className="mt-2 text-sm leading-6 text-blue-100">{description}</p>
+  </div>
+);
+
+const ReviewStars = ({ rating }: { rating: number }) => (
+  <div className="flex items-center gap-0.5" aria-label={`${rating} out of 5 stars`}>
+    {[1, 2, 3, 4, 5].map((star) => (
+      <Star key={star} className={`h-4 w-4 ${star <= Math.round(rating) ? 'fill-amber-400 text-amber-400' : 'text-blue-300'}`} aria-hidden="true" />
+    ))}
+  </div>
+);
 
 export default Home;

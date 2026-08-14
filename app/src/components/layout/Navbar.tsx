@@ -1,219 +1,166 @@
 import { useState } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { AnimatePresence, motion } from 'framer-motion';
 import {
+  ChevronDown,
+  Heart,
+  LogOut,
+  MapPin,
+  Menu,
+  Phone,
   Search,
   ShoppingCart,
   User,
-  Menu,
   X,
-  Heart,
-  ChevronDown,
-  Phone,
-  MapPin,
-  LogOut,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useCart } from '../../contexts/CartContext';
 import CartDrawer from '../cart/CartDrawer';
 import { CONTACT_PHONE_NUMBERS, SHOP_LOCATION_LABEL } from '../../config/contact';
 
+const primaryLinks = [
+  { name: 'Home', path: '/' },
+  { name: 'All phones', path: '/products' },
+  { name: 'New', path: '/products?condition=new' },
+  { name: 'Used', path: '/products?condition=used' },
+  { name: 'Refurbished', path: '/products?condition=refurbished' },
+  { name: 'Compare', path: '/compare' },
+  { name: 'Services', path: '/services#services' },
+  { name: 'About', path: '/about#about-us' },
+  { name: 'Support', path: '/support#contact' },
+];
+
 const Navbar = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
-
   const { isAuthenticated, user, logout } = useAuth();
   const { totals } = useCart();
   const navigate = useNavigate();
   const location = useLocation();
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (searchQuery.trim()) {
-      navigate(`/products?search=${encodeURIComponent(searchQuery)}`);
-      setIsSearchOpen(false);
-      setSearchQuery('');
-    }
+  const handleSearch = (event: React.FormEvent) => {
+    event.preventDefault();
+    const query = searchQuery.trim();
+    if (!query) return;
+    navigate(`/products?search=${encodeURIComponent(query)}`);
+    setSearchQuery('');
+    setIsMobileMenuOpen(false);
   };
 
-  const navLinks = [
-    { name: 'Home', path: '/' },
-    { name: 'Products', path: '/products' },
-    { name: 'Compare', path: '/compare' },
-    { name: 'About', path: '/about#about-us' },
-    { name: 'Services', path: '/services#services' },
-    { name: 'Support', path: '/support#contact' },
-  ];
-  const isLinkActive = (path: string) => location.pathname === path.split('#')[0];
+  const isLinkActive = (path: string) => {
+    const [pathname, query] = path.split('?');
+    if (location.pathname !== pathname) return false;
+    return query ? location.search.includes(query) : !location.search || path === '/products';
+  };
 
-  const userMenuItems = [
-    { name: 'Dashboard', path: '/account/dashboard', icon: User },
-    { name: 'My Orders', path: '/account/orders', icon: ShoppingCart },
-    { name: 'Wishlist', path: '/account/wishlist', icon: Heart },
-    { name: 'Settings', path: '/account/settings', icon: ChevronDown },
-  ];
+  const closeMenus = () => {
+    setIsMobileMenuOpen(false);
+    setIsUserMenuOpen(false);
+  };
 
   return (
     <>
-      {/* Top Bar */}
-      <div className="bg-slate-950 px-4 py-2 text-white">
-        <div className="mx-auto flex max-w-7xl items-center justify-between text-xs sm:text-sm">
-          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 sm:gap-x-3">
-            <Phone className="h-4 w-4 shrink-0" />
-            {CONTACT_PHONE_NUMBERS.map((phone, index) => (
-              <span key={phone.href} className={`${index > 0 ? 'hidden sm:flex' : 'flex'} items-center gap-2 sm:gap-3`}>
-                {index > 0 && <span className="text-slate-500" aria-hidden="true">/</span>}
-                <a href={phone.href} className="transition-colors hover:text-blue-300">
-                  {phone.label}
-                </a>
-              </span>
+      <div className="hidden bg-[#082f63] text-white md:block">
+        <div className="mx-auto flex h-8 max-w-[1400px] items-center justify-between px-6 text-xs lg:px-8">
+          <div className="flex items-center gap-5">
+            {CONTACT_PHONE_NUMBERS.map((phone) => (
+              <a key={phone.href} href={phone.href} className="inline-flex items-center gap-1.5 text-blue-50 hover:text-white">
+                <Phone className="h-3.5 w-3.5" aria-hidden="true" />
+                {phone.label}
+              </a>
             ))}
           </div>
-          <div className="hidden md:flex items-center gap-6">
-            <span className="inline-flex items-center gap-2">
-              <MapPin className="h-4 w-4" />
-              {SHOP_LOCATION_LABEL}
-            </span>
-            <span>Trusted Cell Phones Outlet</span>
-          </div>
+          <span className="inline-flex items-center gap-1.5 text-blue-100">
+            <MapPin className="h-3.5 w-3.5" aria-hidden="true" />
+            {SHOP_LOCATION_LABEL}
+          </span>
         </div>
       </div>
 
-      {/* Main Navbar */}
-      <header
-        className="sticky top-0 z-50 border-b border-slate-100 bg-white/95 shadow-sm backdrop-blur-md"
-      >
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex h-16 min-w-0 items-center justify-between gap-2 lg:h-20">
-            {/* Logo */}
-            <Link to="/" className="flex min-w-0 items-center gap-2 sm:gap-3">
+      <header className="sticky top-0 z-50 border-b border-slate-200 bg-white/95 shadow-[0_4px_20px_rgba(15,46,82,0.06)] backdrop-blur-xl">
+        <div className="mx-auto max-w-[1400px] px-4 sm:px-6 lg:px-8">
+          <div className="flex h-16 items-center gap-3 md:h-[74px] md:gap-5">
+            <Link to="/" onClick={closeMenus} className="flex shrink-0 items-center gap-2.5" aria-label="Wahab Mobiles home">
               <img
                 src="/assets/wahab-logo.jpg"
                 alt="Wahab Mobiles logo"
-                className="h-10 w-10 shrink-0 rounded-full border border-sky-100 object-cover shadow-sm sm:h-11 sm:w-11"
+                className="h-10 w-10 rounded-xl border border-blue-100 object-cover sm:h-11 sm:w-11"
               />
-              <motion.div
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                className="min-w-0"
-              >
-                <p className="truncate text-base font-bold leading-tight text-blue-700 sm:text-lg lg:text-xl">
-                  Wahab<span className="text-slate-900">Mobiles</span>
+              <div className="hidden min-[360px]:block">
+                <p className="text-[17px] font-extrabold leading-5 tracking-tight text-[#0b3f82] sm:text-lg">
+                  Wahab <span className="text-slate-950">Mobiles</span>
                 </p>
-                <p className="hidden text-xs font-medium text-slate-500 md:block">Trusted Cell Phones Outlet</p>
-              </motion.div>
+                <p className="hidden text-[10px] font-semibold text-slate-500 sm:block">Cell phones in Hyderabad</p>
+              </div>
             </Link>
 
-            {/* Desktop Navigation */}
-            <nav className="hidden lg:flex items-center gap-8">
-              {navLinks.map((link) => (
-                <Link
-                  key={link.path}
-                  to={link.path}
-                  className={`relative text-sm font-medium transition-colors hover:text-blue-700 ${
-                    isLinkActive(link.path) ? 'text-blue-700' : 'text-slate-700'
-                  }`}
-                >
-                  {link.name}
-                  {isLinkActive(link.path) && (
-                    <motion.div
-                      layoutId="navbar-indicator"
-                      className="absolute -bottom-1 left-0 right-0 h-0.5 bg-blue-700"
-                    />
-                  )}
-                </Link>
-              ))}
-            </nav>
+            <SearchForm
+              query={searchQuery}
+              onChange={setSearchQuery}
+              onSubmit={handleSearch}
+              className="hidden min-w-0 flex-1 md:block"
+            />
 
-            {/* Right Actions */}
-            <div className="flex shrink-0 items-center gap-1 sm:gap-2 lg:gap-4">
-              {/* Search Button */}
-              <motion.button
-                type="button"
-                aria-label="Search products"
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.9 }}
-                onClick={() => setIsSearchOpen(true)}
-                className="hidden rounded-full p-2 transition-colors hover:bg-gray-100 min-[400px]:block"
+            <div className="ml-auto flex shrink-0 items-center gap-1 md:gap-2">
+              <Link
+                to={isAuthenticated ? '/account/dashboard' : '/login'}
+                aria-label={isAuthenticated ? 'My account' : 'Sign in'}
+                className="flex h-11 w-11 items-center justify-center rounded-lg text-slate-700 transition hover:bg-blue-50 hover:text-blue-700 md:hidden"
               >
-                <Search className="w-5 h-5 text-gray-700" />
-              </motion.button>
+                <User className="h-5 w-5" aria-hidden="true" />
+              </Link>
+              <Link
+                to={isAuthenticated ? '/account/wishlist' : '/login'}
+                aria-label="Wishlist"
+                className="hidden h-11 items-center gap-2 rounded-lg px-3 text-sm font-semibold text-slate-700 transition hover:bg-blue-50 hover:text-blue-700 lg:flex"
+              >
+                <Heart className="h-5 w-5" aria-hidden="true" />
+                <span className="hidden xl:inline">Wishlist</span>
+              </Link>
 
-              {/* Cart */}
-              <button type="button" aria-label="Open shopping cart" onClick={() => setIsCartOpen(true)} className="relative hidden min-[400px]:block">
-                <motion.div
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 0.9 }}
-                  className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-                >
-                  <ShoppingCart className="w-5 h-5 text-gray-700" />
-                  {totals.itemCount > 0 && (
-                    <motion.span
-                      initial={{ scale: 0 }}
-                      animate={{ scale: 1 }}
-                      className="absolute -top-1 -right-1 w-5 h-5 bg-blue-600 text-white text-xs font-bold rounded-full flex items-center justify-center"
-                    >
-                      {totals.itemCount}
-                    </motion.span>
-                  )}
-                </motion.div>
-              </button>
-
-              {/* User Menu */}
               {isAuthenticated ? (
-                <div className="relative hidden lg:block">
-                  <motion.button
+                <div className="relative hidden md:block">
+                  <button
                     type="button"
+                    onClick={() => setIsUserMenuOpen((open) => !open)}
                     aria-label="Open account menu"
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-                    className="flex items-center gap-2 p-2 hover:bg-gray-100 rounded-full transition-colors"
+                    aria-expanded={isUserMenuOpen}
+                    className="flex h-11 items-center gap-2 rounded-lg px-3 text-sm font-semibold text-slate-700 transition hover:bg-blue-50 hover:text-blue-700"
                   >
-                    <div className="w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-medium">
+                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-700 text-xs font-bold text-white">
                       {user?.firstName?.[0]}{user?.lastName?.[0]}
-                    </div>
-                    <ChevronDown className="w-4 h-4 text-gray-500 hidden lg:block" />
-                  </motion.button>
-
+                    </span>
+                    <span className="hidden xl:inline">Account</span>
+                    <ChevronDown className="hidden h-4 w-4 xl:block" aria-hidden="true" />
+                  </button>
                   <AnimatePresence>
                     {isUserMenuOpen && (
                       <motion.div
-                        initial={{ opacity: 0, y: 10 }}
+                        initial={{ opacity: 0, y: 8 }}
                         animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: 10 }}
-                        className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden"
+                        exit={{ opacity: 0, y: 8 }}
+                        className="absolute right-0 top-[calc(100%+8px)] w-60 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_20px_60px_rgba(15,46,82,0.16)]"
                       >
-                        <div className="p-4 border-b border-gray-100">
-                          <p className="font-medium text-gray-900">
-                            {user?.firstName} {user?.lastName}
-                          </p>
-                          <p className="text-sm text-gray-500">{user?.email}</p>
+                        <div className="border-b border-slate-100 px-4 py-3">
+                          <p className="truncate text-sm font-bold text-slate-950">{user?.firstName} {user?.lastName}</p>
+                          <p className="truncate text-xs text-slate-500">{user?.email}</p>
                         </div>
-                        <div className="py-2">
-                          {userMenuItems.map((item) => (
-                            <Link
-                              key={item.path}
-                              to={item.path}
-                              onClick={() => setIsUserMenuOpen(false)}
-                              className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                            >
-                              <item.icon className="w-4 h-4" />
-                              {item.name}
-                            </Link>
-                          ))}
+                        <div className="p-2 text-sm">
+                          <AccountLink to="/account/dashboard" label="Dashboard" onClick={closeMenus} />
+                          <AccountLink to="/account/orders" label="My orders" onClick={closeMenus} />
+                          <AccountLink to="/account/wishlist" label="Wishlist" onClick={closeMenus} />
                           <button
+                            type="button"
                             onClick={() => {
                               logout();
-                              setIsUserMenuOpen(false);
+                              closeMenus();
                             }}
-                            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                            className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left font-semibold text-red-600 hover:bg-red-50"
                           >
-                            <LogOut className="w-4 h-4" />
-                            Logout
+                            <LogOut className="h-4 w-4" aria-hidden="true" />
+                            Log out
                           </button>
                         </div>
                       </motion.div>
@@ -221,127 +168,156 @@ const Navbar = () => {
                   </AnimatePresence>
                 </div>
               ) : (
-                <Link to="/login" aria-label="Sign in">
-                  <motion.button
-                    type="button"
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    className="hidden lg:flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-full text-sm font-medium hover:bg-blue-700 transition-colors"
-                  >
-                    <User className="w-4 h-4" />
-                    Sign In
-                  </motion.button>
+                <Link
+                  to="/login"
+                  className="hidden h-11 items-center gap-2 rounded-lg px-3 text-sm font-semibold text-slate-700 transition hover:bg-blue-50 hover:text-blue-700 md:flex"
+                >
+                  <User className="h-5 w-5" aria-hidden="true" />
+                  <span className="hidden xl:inline">Sign in</span>
                 </Link>
               )}
 
-              {/* Mobile Menu Button */}
-              <motion.button
+              <button
+                type="button"
+                onClick={() => setIsCartOpen(true)}
+                aria-label={`Open cart with ${totals.itemCount} items`}
+                className="relative flex h-11 items-center gap-2 rounded-lg px-2.5 text-sm font-semibold text-slate-700 transition hover:bg-blue-50 hover:text-blue-700 md:px-3"
+              >
+                <ShoppingCart className="h-5 w-5" aria-hidden="true" />
+                <span className="hidden xl:inline">Cart</span>
+                {totals.itemCount > 0 && (
+                  <span className="absolute right-0.5 top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-blue-700 px-1 text-[10px] font-bold text-white">
+                    {totals.itemCount}
+                  </span>
+                )}
+              </button>
+
+              <button
                 type="button"
                 aria-label={isMobileMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
                 aria-expanded={isMobileMenuOpen}
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.9 }}
-                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                className="rounded-full p-2 transition-colors hover:bg-gray-100 lg:hidden"
+                onClick={() => setIsMobileMenuOpen((open) => !open)}
+                className="flex h-11 w-11 items-center justify-center rounded-lg text-slate-700 transition hover:bg-blue-50 hover:text-blue-700 lg:hidden"
               >
-                {isMobileMenuOpen ? (
-                  <X className="w-6 h-6 text-gray-700" />
-                ) : (
-                  <Menu className="w-6 h-6 text-gray-700" />
-                )}
-              </motion.button>
+                {isMobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+              </button>
             </div>
           </div>
+
+          <SearchForm
+            query={searchQuery}
+            onChange={setSearchQuery}
+            onSubmit={handleSearch}
+            className="pb-3 md:hidden"
+          />
         </div>
 
-        {/* Mobile Menu */}
+        <nav className="hidden border-t border-slate-100 lg:block" aria-label="Store categories">
+          <div className="mx-auto flex h-11 max-w-[1400px] items-center gap-1 px-6 lg:px-8">
+            {primaryLinks.map((link) => (
+              <Link
+                key={link.path}
+                to={link.path}
+                className={`flex h-full items-center whitespace-nowrap border-b-2 px-3 text-[13px] font-bold transition ${
+                  isLinkActive(link.path)
+                    ? 'border-blue-700 text-blue-700'
+                    : 'border-transparent text-slate-600 hover:text-blue-700'
+                }`}
+              >
+                {link.name}
+              </Link>
+            ))}
+          </div>
+        </nav>
+
         <AnimatePresence>
           {isMobileMenuOpen && (
             <motion.div
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
-              className="lg:hidden bg-white border-t border-gray-100"
+              className="overflow-hidden border-t border-slate-100 bg-white lg:hidden"
             >
-              <nav className="px-4 py-4 space-y-2">
-                {navLinks.map((link) => (
+              <nav className="mx-auto max-w-[1400px] px-4 py-4 sm:px-6" aria-label="Mobile navigation">
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  {primaryLinks.map((link) => (
+                    <Link
+                      key={link.path}
+                      to={link.path}
+                      onClick={closeMenus}
+                      className={`rounded-lg px-3 py-3 text-sm font-bold ${
+                        isLinkActive(link.path) ? 'bg-blue-50 text-blue-700' : 'bg-slate-50 text-slate-700'
+                      }`}
+                    >
+                      {link.name}
+                    </Link>
+                  ))}
+                </div>
+                <div className="mt-4 flex items-center gap-2 border-t border-slate-100 pt-4">
                   <Link
-                    key={link.path}
-                    to={link.path}
-                    onClick={() => setIsMobileMenuOpen(false)}
-                    className={`block px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
-                      isLinkActive(link.path)
-                        ? 'bg-blue-50 text-blue-600'
-                        : 'text-gray-700 hover:bg-gray-50'
-                    }`}
+                    to={isAuthenticated ? '/account/dashboard' : '/login'}
+                    onClick={closeMenus}
+                    className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg bg-blue-700 px-4 text-sm font-bold text-white"
                   >
-                    {link.name}
+                    <User className="h-4 w-4" aria-hidden="true" />
+                    {isAuthenticated ? 'My account' : 'Sign in'}
                   </Link>
-                ))}
-                {!isAuthenticated && (
                   <Link
-                    to="/login"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                    className="block px-4 py-3 bg-blue-600 text-white rounded-lg text-sm font-medium text-center"
+                    to={isAuthenticated ? '/account/wishlist' : '/login'}
+                    onClick={closeMenus}
+                    className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 text-sm font-bold text-slate-700"
                   >
-                    Sign In
+                    <Heart className="h-4 w-4" aria-hidden="true" />
+                    Wishlist
                   </Link>
-                )}
-                {isAuthenticated && (
-                  <Link
-                    to="/account/dashboard"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                    className="block rounded-lg bg-blue-600 px-4 py-3 text-center text-sm font-medium text-white"
-                  >
-                    Account
-                  </Link>
-                )}
+                </div>
               </nav>
             </motion.div>
           )}
         </AnimatePresence>
       </header>
 
-      {/* Search Overlay */}
-      <AnimatePresence>
-        {isSearchOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm"
-            onClick={() => setIsSearchOpen(false)}
-          >
-            <motion.div
-              initial={{ opacity: 0, y: -50 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -50 }}
-              className="absolute top-20 left-1/2 -translate-x-1/2 w-full max-w-2xl px-4"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <form onSubmit={handleSearch} className="relative">
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search for smartphones, brands, accessories..."
-                  className="w-full px-6 py-4 pr-14 bg-white rounded-2xl shadow-2xl text-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  autoFocus
-                />
-                <button
-                  type="submit"
-                  className="absolute right-4 top-1/2 -translate-y-1/2 p-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors"
-                >
-                  <Search className="w-5 h-5" />
-                </button>
-              </form>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
       <CartDrawer open={isCartOpen} onOpenChange={setIsCartOpen} />
     </>
   );
 };
+
+const SearchForm = ({
+  query,
+  onChange,
+  onSubmit,
+  className = '',
+}: {
+  query: string;
+  onChange: (value: string) => void;
+  onSubmit: (event: React.FormEvent) => void;
+  className?: string;
+}) => (
+  <form onSubmit={onSubmit} role="search" className={className}>
+    <label className="relative block">
+      <span className="sr-only">Search phones</span>
+      <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+      <input
+        type="search"
+        value={query}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder="Search phones, brands or storage"
+        className="h-11 w-full rounded-lg border border-slate-300 bg-slate-50 pl-11 pr-24 text-sm text-slate-950 placeholder:text-slate-500 focus:border-blue-600 focus:bg-white focus:ring-blue-600"
+      />
+      <button
+        type="submit"
+        className="absolute right-1.5 top-1.5 h-8 rounded-md bg-blue-700 px-4 text-xs font-bold text-white transition hover:bg-blue-800"
+      >
+        Search
+      </button>
+    </label>
+  </form>
+);
+
+const AccountLink = ({ to, label, onClick }: { to: string; label: string; onClick: () => void }) => (
+  <Link to={to} onClick={onClick} className="block rounded-lg px-3 py-2.5 font-semibold text-slate-700 hover:bg-blue-50 hover:text-blue-700">
+    {label}
+  </Link>
+);
 
 export default Navbar;
