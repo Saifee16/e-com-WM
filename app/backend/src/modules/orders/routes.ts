@@ -6,6 +6,7 @@ import { prisma } from '../../db/prisma.js';
 import { env } from '../../config/env.js';
 import { fail, ok } from '../../utils/responses.js';
 import { authenticateAdmin, authenticateCustomer, getAuthenticatedUser, getGuestId } from '../auth/session.js';
+import { sendOrderPlacedEmails, sendOrderStatusEmail, type OrderEmailDetails } from './mailer.js';
 
 const orderInclude = {
   items: true,
@@ -31,6 +32,55 @@ const checkoutCartInclude = {
 } satisfies Prisma.CartInclude;
 
 type OrderWithRelations = Prisma.OrderGetPayload<{ include: typeof orderInclude }>;
+
+type ShippingAddressSnapshot = {
+  fullName?: string;
+  phone?: string;
+  email?: string;
+  line1?: string;
+  city?: string;
+  state?: string;
+  postalCode?: string;
+  country?: string;
+  shippingMethod?: string;
+};
+
+const getString = (value: unknown) => typeof value === 'string' ? value : '';
+
+const toOrderEmailDetails = (order: OrderWithRelations): OrderEmailDetails => {
+  const address = order.shippingAddressSnapshot as ShippingAddressSnapshot;
+  const trackingNumber = order.shipments[0]?.trackingNumber;
+  const cancellationReason = order.cancellationReason;
+  return {
+    id: order.id,
+    orderNumber: order.orderNumber,
+    customer: {
+      name: getString(address.fullName),
+      email: getString(address.email) || getString(order.guestEmail),
+      phone: getString(address.phone),
+    },
+    items: order.items.map((item) => ({
+      name: item.productNameSnapshot,
+      variant: item.variantTitleSnapshot,
+      sku: item.skuSnapshot,
+      quantity: item.quantity,
+      unitPrice: item.unitPriceAmount,
+      lineTotal: item.lineTotalAmount,
+    })),
+    subtotal: order.subtotalAmount,
+    discount: order.discountAmount,
+    shipping: order.shippingAmount,
+    tax: order.taxAmount,
+    total: order.totalAmount,
+    shippingMethod: getString(address.shippingMethod),
+    shippingAddress: [address.line1, address.city, address.state, address.postalCode, address.country]
+      .map(getString)
+      .filter(Boolean)
+      .join(', '),
+    ...(trackingNumber ? { trackingNumber } : {}),
+    ...(cancellationReason ? { cancellationReason } : {}),
+  };
+};
 
 const mapOrder = (order: OrderWithRelations) => ({
   _id: order.id,
@@ -349,6 +399,14 @@ export const orderRoutes: FastifyPluginAsync = async (app) => {
       });
     }
 
+    if (!isReplay) {
+      try {
+        await sendOrderPlacedEmails(toOrderEmailDetails(order));
+      } catch (error) {
+        request.log.error({ err: error, orderId: order.id }, 'order placed notification email failed');
+      }
+    }
+
     return ok(isReplay ? reply : reply.status(201), mapOrder(order));
   });
 
@@ -622,11 +680,11 @@ export const adminOrderRoutes: FastifyPluginAsync = async (app) => {
         note: z.string().trim().max(1000).optional(),
       })
       .parse(request.body);
-    const order = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT id FROM orders WHERE id = ${params.id}::uuid FOR UPDATE`;
       const existing = await tx.order.findUnique({ where: { id: params.id }, include: orderInclude });
-      if (!existing) return null;
-      if (existing.status === body.status) return existing;
+      if (!existing) return { type: 'NOT_FOUND' as const };
+      if (existing.status === body.status) return { type: 'UNCHANGED' as const, order: existing };
 
       const allowedTransitions: Record<string, string[]> = {
         PENDING: ['CONFIRMED', 'CANCELLED'],
@@ -638,7 +696,7 @@ export const adminOrderRoutes: FastifyPluginAsync = async (app) => {
         REFUNDED: [],
       };
       if (!allowedTransitions[existing.status]?.includes(body.status)) {
-        return 'INVALID_TRANSITION' as const;
+        return { type: 'INVALID_TRANSITION' as const };
       }
 
       if (body.status === 'CANCELLED') {
@@ -689,15 +747,24 @@ export const adminOrderRoutes: FastifyPluginAsync = async (app) => {
           after: { status: updated.status, note: body.note ?? null },
         },
       });
-      return updated;
+      return { type: 'UPDATED' as const, order: updated };
     });
 
-    if (!order) return fail(reply, 404, { code: 'ORDER_NOT_FOUND', message: 'Order not found' });
-    if (order === 'INVALID_TRANSITION') {
+    if (result.type === 'NOT_FOUND') return fail(reply, 404, { code: 'ORDER_NOT_FOUND', message: 'Order not found' });
+    if (result.type === 'INVALID_TRANSITION') {
       return fail(reply, 409, {
         code: 'ORDER_STATUS_TRANSITION_INVALID',
         message: 'That order status transition is not allowed',
       });
+    }
+
+    const order = result.order;
+    if (result.type === 'UPDATED') {
+      try {
+        await sendOrderStatusEmail(toOrderEmailDetails(order), order.status as 'CONFIRMED' | 'PROCESSING' | 'SHIPPED' | 'DELIVERED' | 'CANCELLED');
+      } catch (error) {
+        request.log.error({ err: error, orderId: order.id, status: order.status }, 'order status notification email failed');
+      }
     }
 
     return ok(reply, mapOrder(order));
