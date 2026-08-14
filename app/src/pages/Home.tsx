@@ -2,23 +2,21 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ArrowRight,
-  BadgeCheck,
   Banknote,
   MapPin,
   Phone,
-  Search,
   ShieldCheck,
   ShoppingBag,
   Smartphone,
   Star,
   Store,
-  Tags,
 } from 'lucide-react';
 import type { Product } from '../types';
 import { businessAPI, productsAPI } from '../services/api';
 import type { GoogleBusinessReviews } from '../services/api';
 import StorefrontProductCard from '../components/product/StorefrontProductCard';
 import { priceRanges } from '../data/products';
+import { formatPrice } from '../utils/format';
 import {
   CONTACT_PHONE_NUMBERS,
   SHOP_ADDRESS,
@@ -40,31 +38,11 @@ const businessStats = [
   { value: '95%', label: 'Customer satisfaction' },
 ];
 
-const conditions = [
-  {
-    title: 'Brand new phones',
-    label: 'New',
-    description: 'Browse sealed and new devices when they are published.',
-    to: '/products?condition=new',
-    icon: ShoppingBag,
-    className: 'lg:row-span-2 lg:min-h-[284px]',
-  },
-  {
-    title: 'Used phones',
-    label: 'Used',
-    description: 'Compare condition, storage, price and PTA status.',
-    to: '/products?condition=used',
-    icon: Tags,
-    className: '',
-  },
-  {
-    title: 'Refurbished phones',
-    label: 'Refurbished',
-    description: 'See refurbished options from the live catalogue.',
-    to: '/products?condition=refurbished',
-    icon: BadgeCheck,
-    className: '',
-  },
+const conditionLinks = [
+  { label: 'New', description: 'Brand new phones', to: '/products?condition=new' },
+  { label: 'Used', description: 'Pre-owned phones', to: '/products?condition=used' },
+  { label: 'Refurbished', description: 'Restored phones', to: '/products?condition=refurbished' },
+  { label: 'All phones', description: 'Full catalogue', to: '/products' },
 ];
 
 const priceLinks = priceRanges.slice(0, 4).map((range) => ({
@@ -144,6 +122,8 @@ const Home = () => {
   ).slice(0, 8);
   const reviewCards = reviews?.reviews.filter((review) => review.text.trim()).slice(0, 3) ?? [];
   const reviewsUrl = reviews?.googleMapsUri ?? SHOP_MAPS_URL;
+  const heroProduct = featuredProducts[0];
+  const remainingFeaturedProducts = featuredProducts.slice(1, 5);
 
   return (
     <div className="min-h-[100dvh] overflow-x-hidden bg-[#f5f8fc] text-slate-950">
@@ -174,43 +154,27 @@ const Home = () => {
             </div>
           </div>
 
-          <div className="rounded-xl border border-white/15 bg-white p-4 text-slate-950 shadow-[0_24px_70px_rgba(0,20,52,0.32)] sm:p-5">
-            <div className="flex items-center justify-between gap-4 border-b border-slate-100 pb-4">
-              <div>
-                <p className="text-sm font-extrabold text-slate-950">Start shopping</p>
-                <p className="mt-1 hidden text-xs text-slate-500 sm:block">Choose a condition or a popular brand</p>
-              </div>
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-700">
-                <Smartphone className="h-5 w-5" aria-hidden="true" />
-              </div>
-            </div>
-            <div className="mt-4 grid grid-cols-3 gap-2">
-              {conditions.map((condition) => (
-                <Link
-                  key={condition.label}
-                  to={condition.to}
-                  className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-3 text-center text-xs font-bold text-slate-700 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
-                >
-                  {condition.label}
-                </Link>
-              ))}
-            </div>
-            <div className="mt-4 hidden flex-wrap gap-2 sm:flex">
-              {displayedBrands.slice(0, 5).map((brand) => (
-                <Link
-                  key={brand.name}
-                  to={brand.path}
-                  className="rounded-md border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 transition hover:border-blue-300 hover:text-blue-700"
-                >
-                  {brand.name}
-                </Link>
-              ))}
-            </div>
-            <Link to="/products" className="mt-4 flex items-center justify-between rounded-lg bg-blue-50 px-4 py-3 text-sm font-bold text-blue-700 hover:bg-blue-100">
-              Search the full catalogue
-              <Search className="h-4 w-4" aria-hidden="true" />
+          <FeaturedHeroProduct product={heroProduct} isLoading={isHomeLoading} error={homeError} />
+        </div>
+      </section>
+
+      <section className="border-b border-slate-200 bg-white" aria-label="Shop by phone condition">
+        <div className="mx-auto grid max-w-[1400px] grid-cols-2 px-4 py-3 sm:grid-cols-4 sm:px-6 lg:px-8">
+          {conditionLinks.map((condition, index) => (
+            <Link
+              key={condition.label}
+              to={condition.to}
+              className={`group flex min-h-14 items-center justify-between gap-3 px-3 py-2 transition hover:bg-blue-50 sm:px-4 ${
+                index % 2 === 1 ? 'border-l border-slate-200' : ''
+              } ${index > 1 ? 'border-t border-slate-200 sm:border-t-0' : ''} ${index > 0 ? 'sm:border-l sm:border-slate-200' : ''}`}
+            >
+              <span>
+                <span className="block text-sm font-extrabold text-slate-950 group-hover:text-blue-700">{condition.label}</span>
+                <span className="mt-0.5 hidden text-xs font-medium text-slate-500 min-[430px]:block">{condition.description}</span>
+              </span>
+              <ArrowRight className="h-4 w-4 shrink-0 text-blue-700 transition group-hover:translate-x-0.5" aria-hidden="true" />
             </Link>
-          </div>
+          ))}
         </div>
       </section>
 
@@ -225,35 +189,24 @@ const Home = () => {
         </div>
       </section>
 
-      <section className="py-11 sm:py-14">
-        <div className="mx-auto max-w-[1400px] px-4 sm:px-6 lg:px-8">
-          <SectionHeading title="Shop by condition" description="Go straight to the phones that match how you want to buy." />
-          <div className="mt-7 grid gap-4 lg:grid-cols-[1.1fr_.9fr] lg:grid-rows-2">
-            {conditions.map((condition, index) => (
-              <Link
-                key={condition.title}
-                to={condition.to}
-                className={`group flex min-h-36 items-center justify-between overflow-hidden rounded-xl border border-slate-200 bg-white p-5 transition hover:border-blue-300 hover:shadow-[0_16px_40px_rgba(15,46,82,0.08)] sm:p-6 ${condition.className}`}
-              >
-                <div className="max-w-sm">
-                  <p className="text-xs font-bold text-blue-700">{condition.label}</p>
-                  <h3 className={`mt-2 font-extrabold text-slate-950 group-hover:text-blue-700 ${index === 0 ? 'text-2xl sm:text-3xl' : 'text-xl'}`}>
-                    {condition.title}
-                  </h3>
-                  <p className="mt-2 text-sm leading-6 text-slate-600">{condition.description}</p>
-                  <span className="mt-4 inline-flex items-center gap-1.5 text-sm font-bold text-blue-700">
-                    Browse phones
-                    <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" aria-hidden="true" />
-                  </span>
-                </div>
-                <div className={`ml-4 flex shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-700 ${index === 0 ? 'h-24 w-24 sm:h-32 sm:w-32' : 'h-16 w-16'}`}>
-                  <condition.icon className={index === 0 ? 'h-10 w-10 sm:h-12 sm:w-12' : 'h-7 w-7'} aria-hidden="true" />
-                </div>
+      {remainingFeaturedProducts.length > 0 && (
+        <section className="py-11 sm:py-14">
+          <div className="mx-auto max-w-[1400px] px-4 sm:px-6 lg:px-8">
+            <div className="flex items-end justify-between gap-5">
+              <SectionHeading title="More featured phones" description="More picks from the live Wahab Mobiles catalogue." />
+              <Link to="/products" className="hidden shrink-0 items-center gap-2 text-sm font-bold text-blue-700 hover:text-blue-800 sm:inline-flex">
+                View catalogue
+                <ArrowRight className="h-4 w-4" aria-hidden="true" />
               </Link>
-            ))}
+            </div>
+            <div className="mt-7 grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-5">
+              {remainingFeaturedProducts.map((product) => (
+                <StorefrontProductCard key={product._id} product={product} />
+              ))}
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       <section className="border-y border-slate-200 bg-white py-11 sm:py-14">
         <div className="mx-auto max-w-[1400px] px-4 sm:px-6 lg:px-8">
@@ -278,56 +231,6 @@ const Home = () => {
               </Link>
             ))}
           </div>
-        </div>
-      </section>
-
-      <section className="py-11 sm:py-14">
-        <div className="mx-auto max-w-[1400px] px-4 sm:px-6 lg:px-8">
-          <div className="flex items-end justify-between gap-5">
-            <SectionHeading title="Featured phones" description="Products selected from the live Wahab Mobiles catalogue." />
-            <Link to="/products" className="hidden shrink-0 items-center gap-2 text-sm font-bold text-blue-700 hover:text-blue-800 sm:inline-flex">
-              View catalogue
-              <ArrowRight className="h-4 w-4" aria-hidden="true" />
-            </Link>
-          </div>
-
-          {isHomeLoading ? (
-            <div className="mt-7 grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-5">
-              {Array.from({ length: 4 }).map((_, index) => <ProductSkeleton key={index} />)}
-            </div>
-          ) : homeError ? (
-            <div className="mt-7 rounded-xl border border-amber-200 bg-amber-50 p-6">
-              <p className="font-bold text-amber-950">Catalogue preview unavailable</p>
-              <p className="mt-2 text-sm text-amber-900">{homeError}</p>
-              <Link to="/products" className="mt-4 inline-flex text-sm font-bold text-amber-950 underline">Open catalogue</Link>
-            </div>
-          ) : featuredProducts.length === 0 ? (
-            <div className="mt-7 grid overflow-hidden rounded-xl border border-slate-200 bg-white md:grid-cols-[1fr_auto]">
-              <div className="p-6 sm:p-8">
-                <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-blue-50 text-blue-700">
-                  <Search className="h-5 w-5" aria-hidden="true" />
-                </div>
-                <h3 className="mt-5 text-xl font-extrabold text-slate-950">No phones are listed right now</h3>
-                <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-                  New products will appear here automatically when the catalogue is published. You can still browse by condition or contact the shop.
-                </p>
-              </div>
-              <div className="flex flex-col justify-center gap-3 border-t border-slate-200 bg-slate-50 p-6 md:min-w-64 md:border-l md:border-t-0">
-                <Link to="/products" className="inline-flex min-h-11 items-center justify-center rounded-lg bg-blue-700 px-4 text-sm font-bold text-white hover:bg-blue-800">
-                  Open catalogue
-                </Link>
-                <a href={CONTACT_PHONE_NUMBERS[0].href} className="inline-flex min-h-11 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 text-sm font-bold text-slate-700 hover:border-blue-300 hover:text-blue-700">
-                  Call the shop
-                </a>
-              </div>
-            </div>
-          ) : (
-            <div className="mt-7 grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-5">
-              {featuredProducts.map((product) => (
-                <StorefrontProductCard key={product._id} product={product} />
-              ))}
-            </div>
-          )}
         </div>
       </section>
 
@@ -450,15 +353,118 @@ const SectionHeading = ({ title, description }: { title: string; description: st
   </div>
 );
 
-const ProductSkeleton = () => (
-  <div className="overflow-hidden rounded-xl border border-slate-200 bg-white p-3.5 sm:p-4">
-    <div className="aspect-[1/0.88] animate-pulse rounded-lg bg-slate-100" />
-    <div className="mt-4 h-3 w-1/3 animate-pulse rounded bg-slate-100" />
-    <div className="mt-3 h-5 w-4/5 animate-pulse rounded bg-slate-100" />
-    <div className="mt-2 h-5 w-2/3 animate-pulse rounded bg-slate-100" />
-    <div className="mt-5 h-6 w-1/2 animate-pulse rounded bg-slate-100" />
-  </div>
-);
+const conditionLabels: Record<Product['condition'], string> = {
+  new: 'New',
+  used: 'Used',
+  refurbished: 'Refurbished',
+};
+
+const FeaturedHeroProduct = ({
+  product,
+  isLoading,
+  error,
+}: {
+  product?: Product;
+  isLoading: boolean;
+  error: string | null;
+}) => {
+  if (isLoading) {
+    return (
+      <div className="min-h-[310px] rounded-xl border border-white/15 bg-white p-5 shadow-[0_24px_70px_rgba(0,20,52,0.32)] sm:min-h-[340px]" aria-label="Loading featured phone">
+        <div className="grid h-full gap-5 sm:grid-cols-[.92fr_1.08fr] sm:items-center">
+          <div className="min-h-44 animate-pulse rounded-lg bg-slate-100" />
+          <div>
+            <div className="h-3 w-24 animate-pulse rounded bg-slate-100" />
+            <div className="mt-4 h-7 w-4/5 animate-pulse rounded bg-slate-100" />
+            <div className="mt-3 h-5 w-1/2 animate-pulse rounded bg-slate-100" />
+            <div className="mt-7 h-11 w-full animate-pulse rounded-lg bg-slate-100" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!product) {
+    return (
+      <div className="flex min-h-[310px] flex-col justify-between rounded-xl border border-white/15 bg-white p-5 text-slate-950 shadow-[0_24px_70px_rgba(0,20,52,0.32)] sm:min-h-[340px] sm:p-7">
+        <div>
+          <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-blue-50 text-blue-700">
+            <Smartphone className="h-7 w-7" aria-hidden="true" />
+          </div>
+          <h2 className="mt-6 text-2xl font-extrabold tracking-tight sm:text-3xl">
+            {error ? 'Catalogue preview unavailable' : 'New phones arriving soon'}
+          </h2>
+          <p className="mt-3 max-w-lg text-sm leading-6 text-slate-600 sm:text-base">
+            Browse the catalogue or ask the shop about current phone availability.
+          </p>
+        </div>
+        <div className="mt-6 flex flex-col gap-3 min-[430px]:flex-row">
+          <Link to="/products" className="inline-flex min-h-11 flex-1 items-center justify-center rounded-lg bg-blue-700 px-5 text-sm font-bold text-white hover:bg-blue-800">
+            Browse phones
+          </Link>
+          <a href={SHOP_WHATSAPP_URL} className="inline-flex min-h-11 flex-1 items-center justify-center rounded-lg border border-slate-300 px-5 text-sm font-bold text-slate-700 hover:border-blue-300 hover:text-blue-700">
+            Message the shop
+          </a>
+        </div>
+      </div>
+    );
+  }
+
+  const image = product.images.find(Boolean);
+  const hasDiscount = Boolean(product.originalPrice && product.originalPrice > product.price && product.price > 0);
+  const discount = hasDiscount
+    ? Math.round(((product.originalPrice! - product.price) / product.originalPrice!) * 100)
+    : null;
+  const productMeta = [
+    product.brand,
+    product.specifications.storage,
+    conditionLabels[product.condition],
+    product.ptaApproved ? 'PTA approved' : 'Non-PTA',
+  ].filter(Boolean);
+
+  return (
+    <article className="grid min-h-[310px] overflow-hidden rounded-xl border border-white/15 bg-white text-slate-950 shadow-[0_24px_70px_rgba(0,20,52,0.32)] sm:min-h-[340px] sm:grid-cols-[.92fr_1.08fr]">
+      <div className="flex min-h-52 items-center justify-center bg-slate-50 p-5 sm:min-h-full sm:p-7">
+        {image ? (
+          <img src={image} alt={product.name} className="h-48 w-full object-contain sm:h-64" loading="eager" />
+        ) : (
+          <div className="flex h-full min-h-44 w-full items-center justify-center text-blue-700">
+            <Smartphone className="h-12 w-12" aria-hidden="true" />
+            <span className="sr-only">Product image unavailable</span>
+          </div>
+        )}
+      </div>
+      <div className="flex min-w-0 flex-col justify-center p-5 sm:p-6">
+        <p className="flex flex-wrap gap-x-2 gap-y-1 text-xs font-semibold text-slate-600">
+          {productMeta.map((item, index) => (
+            <span key={`${item}-${index}`} className="inline-flex items-center gap-2">
+              {index > 0 && <span className="h-3 w-px bg-slate-300" aria-hidden="true" />}
+              <span className={item === product.brand ? 'text-blue-700' : undefined}>{item}</span>
+            </span>
+          ))}
+        </p>
+        <h2 className="mt-3 line-clamp-2 text-2xl font-extrabold leading-tight tracking-tight sm:text-3xl">{product.name}</h2>
+        <div className="mt-5 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          {product.price > 0 ? (
+            <strong className="text-2xl font-extrabold text-slate-950">{formatPrice(product.price)}</strong>
+          ) : (
+            <strong className="text-lg font-extrabold text-slate-950">Contact for price</strong>
+          )}
+          {hasDiscount && (
+            <span className="text-sm text-slate-400 line-through">{formatPrice(product.originalPrice!)}</span>
+          )}
+          {discount !== null && discount > 0 && (
+            <span className="text-xs font-bold text-emerald-700">Save {discount}%</span>
+          )}
+        </div>
+        <Link to={`/products/${product._id}`} className="mt-6 inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-blue-700 px-5 text-sm font-bold text-white hover:bg-blue-800">
+          View phone
+          <ArrowRight className="h-4 w-4" aria-hidden="true" />
+        </Link>
+      </div>
+    </article>
+  );
+};
 
 const TrustItem = ({ icon: Icon, title, description }: { icon: typeof Store; title: string; description: string }) => (
   <div className="border-l border-white/20 pl-5">
