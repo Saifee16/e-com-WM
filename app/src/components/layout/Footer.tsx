@@ -1,260 +1,104 @@
 import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import {
-  Phone,
-  Mail,
-  MapPin,
-  CreditCard,
-  Shield,
-  Truck,
-  RotateCcw,
-} from 'lucide-react';
+import { Mail, MapPin, Phone } from 'lucide-react';
 import {
   CONTACT_EMAIL,
   CONTACT_PHONE_NUMBERS,
   SHOP_ADDRESS,
-  SHOP_LOCATION_LABEL,
   SHOP_MAPS_URL,
+  SHOP_WHATSAPP_URL,
 } from '../../config/contact';
 
-const Footer = () => {
-  const footerLinks = {
-    shop: [
-      { name: 'All Products', path: '/products' },
-      { name: 'New Arrivals', path: '/products?sort=newest' },
-      { name: 'Best Sellers', path: '/products?featured=true' },
-      { name: 'Deals', path: '/products' },
-    ],
-    brands: [
-      { name: 'Apple', path: '/products?brand=Apple' },
-      { name: 'Samsung', path: '/products?brand=Samsung' },
-      { name: 'Honor', path: '/products?brand=Honor' },
-      { name: 'Xiaomi', path: '/products?brand=Xiaomi' },
-      { name: 'Redmi', path: '/products?brand=Redmi' },
-    ],
-    support: [
-      { name: 'Contact Us', path: '/support#contact' },
-      { name: 'Support Tickets', path: '/account/support' },
-      { name: 'Help & FAQs', path: '/help' },
-      { name: 'Shipping Info', path: '/services#shipping' },
-      { name: 'Returns & Refunds', path: '/returns' },
-    ],
-    company: [
-      { name: 'About Us', path: '/about#about-us' },
-      { name: 'Our Services', path: '/services#services' },
-      { name: 'Careers', path: '/about#careers' },
-      { name: 'Terms of Service', path: '/terms' },
-      { name: 'Privacy Policy', path: '/privacy' },
-      { name: 'Data Deletion', path: '/data-deletion' },
-    ],
-  };
+const shopLinks = [
+  { name: 'All phones', path: '/products' },
+  { name: 'New phones', path: '/products?condition=new' },
+  { name: 'Used phones', path: '/products?condition=used' },
+  { name: 'Refurbished phones', path: '/products?condition=refurbished' },
+  { name: 'Compare phones', path: '/compare' },
+];
 
-  const features = [
-    { icon: Shield, title: 'PTA Status', description: 'Shown on eligible products' },
-    { icon: Truck, title: 'Free Shipping', description: 'On orders over Rs. 100,000' },
-    { icon: RotateCcw, title: 'Return Requests', description: '7-day eligibility window' },
-    { icon: CreditCard, title: 'Cash on Delivery', description: 'Pay when it arrives' },
-  ];
+const customerLinks = [
+  { name: 'My account', path: '/account/dashboard' },
+  { name: 'My orders', path: '/account/orders' },
+  { name: 'Wishlist', path: '/account/wishlist' },
+  { name: 'Shopping cart', path: '/cart' },
+  { name: 'Returns policy', path: '/returns' },
+];
 
-  const team = [
-    'Owner Ashfaque Muhammad Qureshi',
-    'Sales head Hammad Shaikh',
-    'Accountant Umer Suleman',
-    'Web Dev Saifullah Suleman',
-  ];
+const supportLinks = [
+  { name: 'Contact support', path: '/support#contact' },
+  { name: 'Help and FAQs', path: '/support' },
+  { name: 'Services', path: '/services#services' },
+  { name: 'About Wahab Mobiles', path: '/about#about-us' },
+  { name: 'Terms of service', path: '/terms' },
+  { name: 'Privacy policy', path: '/privacy' },
+];
 
-  return (
-    <footer className="bg-gray-900 text-white">
-      {/* Features Bar */}
-      <div className="border-b border-gray-800">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-            {features.map((feature, index) => (
-              <motion.div
-                key={feature.title}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: index * 0.1 }}
-                className="flex items-center gap-4"
-              >
-                <div className="w-12 h-12 bg-blue-600/20 rounded-xl flex items-center justify-center flex-shrink-0">
-                  <feature.icon className="w-6 h-6 text-blue-400" />
-                </div>
-                <div>
-                  <h4 className="font-semibold text-sm">{feature.title}</h4>
-                  <p className="text-gray-400 text-xs mt-0.5">{feature.description}</p>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Main Footer */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-8">
-          {/* Brand Column */}
-          <div className="col-span-2">
-            <Link to="/" className="flex items-center gap-3">
-              <img
-                src="/assets/wahab-logo.jpg"
-                alt="Wahab Mobiles logo"
-                className="h-12 w-12 rounded-full object-cover"
-              />
-              <span className="text-2xl font-bold">
-                Wahab<span className="text-blue-400">Mobiles</span>
-              </span>
-            </Link>
-            <p className="text-gray-400 text-sm mt-4 max-w-xs">
-              A Trusted Cell Phones Outlet for new and used phones in Hyderabad.
-            </p>
-            <p className="mt-3 text-sm text-gray-400">
-              Established March 2009. 20,000+ customers served. 95% customer satisfaction.
-            </p>
-            
-            {/* Contact Info */}
-            <div className="mt-6 space-y-3">
-              <div className="flex items-start gap-3 text-sm text-gray-400">
-                <Phone className="w-4 h-4 text-blue-400" />
-                <div className="flex flex-col gap-1">
-                  {CONTACT_PHONE_NUMBERS.map((phone) => (
-                    <a key={phone.href} href={phone.href} className="hover:text-white transition-colors">
-                      {phone.label}
-                    </a>
-                  ))}
-                </div>
-              </div>
-              <div className="flex items-center gap-3 text-sm text-gray-400">
-                <Mail className="w-4 h-4 text-blue-400" />
-                <a href={`mailto:${CONTACT_EMAIL}`} className="hover:text-white transition-colors">
-                  {CONTACT_EMAIL}
-                </a>
-              </div>
-              <div className="flex items-start gap-3 text-sm text-gray-400">
-                <MapPin className="mt-0.5 w-4 h-4 shrink-0 text-blue-400" />
-                <div>
-                  <p>{SHOP_ADDRESS}</p>
-                  <p className="mt-1">Saturday to Thursday, 1:30 PM - 12 AM</p>
-                  <a
-                    href={SHOP_MAPS_URL}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="mt-1 inline-block text-blue-400 hover:text-blue-300 transition-colors"
-                  >
-                    {SHOP_LOCATION_LABEL}
-                  </a>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-6">
-              <h4 className="font-semibold text-sm">Team</h4>
-              <ul className="mt-3 space-y-1 text-sm text-gray-400">
-                {team.map((member) => (
-                  <li key={member}>{member}</li>
-                ))}
-              </ul>
-            </div>
-
-          </div>
-
-          {/* Links Columns */}
+const Footer = () => (
+  <footer className="bg-[#061f43] text-white">
+    <div className="mx-auto grid max-w-[1400px] gap-10 px-4 py-11 sm:px-6 md:grid-cols-2 lg:grid-cols-[1.45fr_.8fr_.8fr_1fr] lg:px-8 lg:py-14">
+      <div>
+        <Link to="/" className="inline-flex items-center gap-3">
+          <img src="/assets/wahab-logo.jpg" alt="Wahab Mobiles logo" className="h-12 w-12 rounded-xl border border-white/15 object-cover" />
           <div>
-            <h4 className="font-semibold mb-4">Shop</h4>
-            <ul className="space-y-2">
-              {footerLinks.shop.map((link) => (
-                <li key={link.name}>
-                  <Link
-                    to={link.path}
-                    className="text-gray-400 text-sm hover:text-white transition-colors"
-                  >
-                    {link.name}
-                  </Link>
-                </li>
-              ))}
-            </ul>
+            <p className="text-xl font-extrabold tracking-tight">Wahab Mobiles</p>
+            <p className="mt-0.5 text-xs font-semibold text-blue-200">Cell phones in Hyderabad</p>
           </div>
-
-          <div>
-            <h4 className="font-semibold mb-4">Brands</h4>
-            <ul className="space-y-2">
-              {footerLinks.brands.map((link) => (
-                <li key={link.name}>
-                  <Link
-                    to={link.path}
-                    className="text-gray-400 text-sm hover:text-white transition-colors"
-                  >
-                    {link.name}
-                  </Link>
-                </li>
+        </Link>
+        <p className="mt-5 max-w-sm text-sm leading-6 text-blue-100">
+          Shop new, used and refurbished phones online from a physical mobile store in Saddar Cantt Hyderabad.
+        </p>
+        <div className="mt-6 space-y-3 text-sm text-blue-100">
+          <div className="flex items-start gap-3">
+            <Phone className="mt-0.5 h-4 w-4 shrink-0 text-blue-300" aria-hidden="true" />
+            <div className="flex flex-col gap-1">
+              {CONTACT_PHONE_NUMBERS.map((phone) => (
+                <a key={phone.href} href={phone.href} className="hover:text-white">{phone.label}</a>
               ))}
-            </ul>
-          </div>
-
-          <div>
-            <h4 className="font-semibold mb-4">Support</h4>
-            <ul className="space-y-2">
-              {footerLinks.support.map((link) => (
-                <li key={link.name}>
-                  <Link
-                    to={link.path}
-                    className="text-gray-400 text-sm hover:text-white transition-colors"
-                  >
-                    {link.name}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <div>
-            <h4 className="font-semibold mb-4">Company</h4>
-            <ul className="space-y-2">
-              {footerLinks.company.map((link) => (
-                <li key={link.name}>
-                  <Link
-                    to={link.path}
-                    className="text-gray-400 text-sm hover:text-white transition-colors"
-                  >
-                    {link.name}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
-      </div>
-
-      {/* Bottom Bar */}
-      <div className="border-t border-gray-800">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-            <p className="text-gray-400 text-sm text-center md:text-left">
-              © 2026 Wahab Mobiles. All rights reserved. Saifullah Suleman -
-              {' '}
-              <a href="https://linkedin.com/saifullah-suleman" target="_blank" rel="noreferrer" className="text-blue-400 hover:text-blue-300">
-                linkedin.com/saifullah-suleman
-              </a>
-            </p>
-            <div className="flex items-center gap-4">
-              <span className="text-gray-500 text-sm">We accept:</span>
-              <div className="flex gap-2">
-                {['Cash on Delivery'].map((method) => (
-                  <span
-                    key={method}
-                    className="px-3 py-1 bg-gray-800 rounded text-xs text-gray-400"
-                  >
-                    {method}
-                  </span>
-                ))}
-              </div>
             </div>
           </div>
+          <a href={`mailto:${CONTACT_EMAIL}`} className="flex items-center gap-3 hover:text-white">
+            <Mail className="h-4 w-4 shrink-0 text-blue-300" aria-hidden="true" />
+            {CONTACT_EMAIL}
+          </a>
+          <a href={SHOP_MAPS_URL} target="_blank" rel="noreferrer" className="flex max-w-sm items-start gap-3 hover:text-white">
+            <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-blue-300" aria-hidden="true" />
+            {SHOP_ADDRESS}
+          </a>
+        </div>
+        <a href={SHOP_WHATSAPP_URL} className="mt-6 inline-flex min-h-10 items-center justify-center rounded-lg bg-white px-4 text-sm font-bold text-[#0b3f82] hover:bg-blue-50">
+          Message on WhatsApp
+        </a>
+      </div>
+
+      <FooterColumn title="Shop" links={shopLinks} />
+      <FooterColumn title="Customer" links={customerLinks} />
+      <FooterColumn title="Support" links={supportLinks} />
+    </div>
+
+    <div className="border-t border-white/10">
+      <div className="mx-auto flex max-w-[1400px] flex-col gap-3 px-4 py-5 text-xs text-blue-200 sm:px-6 md:flex-row md:items-center md:justify-between lg:px-8">
+        <p>© {new Date().getFullYear()} Wahab Mobiles. All rights reserved.</p>
+        <div className="flex flex-wrap gap-x-5 gap-y-2">
+          <Link to="/terms" className="hover:text-white">Terms</Link>
+          <Link to="/privacy" className="hover:text-white">Privacy</Link>
+          <Link to="/data-deletion" className="hover:text-white">Data deletion</Link>
         </div>
       </div>
-    </footer>
-  );
-};
+    </div>
+  </footer>
+);
+
+const FooterColumn = ({ title, links }: { title: string; links: Array<{ name: string; path: string }> }) => (
+  <div>
+    <h2 className="text-sm font-extrabold text-white">{title}</h2>
+    <ul className="mt-4 space-y-2.5">
+      {links.map((link) => (
+        <li key={link.path}>
+          <Link to={link.path} className="text-sm text-blue-100 transition hover:text-white">{link.name}</Link>
+        </li>
+      ))}
+    </ul>
+  </div>
+);
 
 export default Footer;
