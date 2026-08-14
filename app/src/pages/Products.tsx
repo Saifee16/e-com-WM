@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
@@ -45,6 +45,7 @@ const getRequestedPrice = (value: string | null) =>
 
 const Products = () => {
   const [searchParams, setSearchParams] = useSearchParams();
+  const pendingUrlSyncRef = useRef<string | null>(searchParams.toString());
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
@@ -88,6 +89,7 @@ const Products = () => {
   });
 
   useEffect(() => {
+    pendingUrlSyncRef.current = searchParams.toString();
     setSearchQuery(searchParams.get('search') ?? '');
     setSelectedBrands(searchParams.get('brand')?.split(',').filter(Boolean) ?? []);
     setSelectedCategory(searchParams.get('category') ?? '');
@@ -200,14 +202,21 @@ const Products = () => {
     if (featuredOnly) nextParams.set('featured', 'true');
     if (currentPage > 1) nextParams.set('page', String(currentPage));
 
-    if (nextParams.toString() !== searchParams.toString()) {
+    const nextParamsString = nextParams.toString();
+    if (pendingUrlSyncRef.current !== null) {
+      if (nextParamsString === pendingUrlSyncRef.current) {
+        pendingUrlSyncRef.current = null;
+      }
+      return;
+    }
+
+    if (nextParamsString !== new URLSearchParams(window.location.search).toString()) {
       setSearchParams(nextParams, { replace: true });
     }
   }, [
     currentPage,
     debouncedSearch,
     featuredOnly,
-    searchParams,
     selectedBrands,
     selectedCategory,
     selectedCondition,
