@@ -144,6 +144,14 @@ const Products = () => {
     () => searchParams.get('featured') === 'true',
   );
 
+  const [discountedOnly, setDiscountedOnly] = useState(
+    () => searchParams.get('discounted') === 'true',
+  );
+
+  const [ptaApprovedOnly, setPtaApprovedOnly] = useState(
+    () => searchParams.get('ptaApproved') === 'true',
+  );
+
   const [currentPage, setCurrentPage] = useState(() => {
     const requestedPage = Number(searchParams.get('page'));
 
@@ -175,6 +183,14 @@ const Products = () => {
 
     setFeaturedOnly(
       searchParams.get('featured') === 'true',
+    );
+
+    setDiscountedOnly(
+      searchParams.get('discounted') === 'true',
+    );
+
+    setPtaApprovedOnly(
+      searchParams.get('ptaApproved') === 'true',
     );
 
     const requestedSort = searchParams.get('sort');
@@ -260,6 +276,8 @@ const Products = () => {
               : undefined,
           category: selectedCategory || undefined,
           featured: featuredOnly || undefined,
+          discounted: discountedOnly || undefined,
+          ptaApproved: ptaApprovedOnly || undefined,
           minPrice: priceRange?.min,
           maxPrice:
             priceRange?.max !== undefined &&
@@ -300,7 +318,9 @@ const Products = () => {
   }, [
     currentPage,
     debouncedSearch,
+    discountedOnly,
     featuredOnly,
+    ptaApprovedOnly,
     reloadVersion,
     selectedBrands,
     selectedCategory,
@@ -345,6 +365,14 @@ const Products = () => {
       nextParams.set('featured', 'true');
     }
 
+    if (discountedOnly) {
+      nextParams.set('discounted', 'true');
+    }
+
+    if (ptaApprovedOnly) {
+      nextParams.set('ptaApproved', 'true');
+    }
+
     if (currentPage > 1) {
       nextParams.set('page', String(currentPage));
     }
@@ -370,7 +398,9 @@ const Products = () => {
   }, [
     currentPage,
     debouncedSearch,
+    discountedOnly,
     featuredOnly,
+    ptaApprovedOnly,
     selectedBrands,
     selectedCategory,
     selectedCondition,
@@ -428,6 +458,8 @@ const Products = () => {
     setSelectedCategory('');
     setSearchQuery('');
     setFeaturedOnly(false);
+    setDiscountedOnly(false);
+    setPtaApprovedOnly(false);
     setCurrentPage(1);
   };
 
@@ -437,7 +469,9 @@ const Products = () => {
     (selectedStorage ? 1 : 0) +
     (selectedCondition ? 1 : 0) +
     (selectedCategory ? 1 : 0) +
-    (featuredOnly ? 1 : 0);
+    (featuredOnly ? 1 : 0) +
+    (discountedOnly ? 1 : 0) +
+    (ptaApprovedOnly ? 1 : 0);
 
   const hasActiveSearch =
     activeFiltersCount > 0 || Boolean(debouncedSearch);
@@ -557,6 +591,34 @@ const Products = () => {
         />
 
         Featured products only
+      </label>
+
+      <label className="flex min-h-10 cursor-pointer items-center gap-3 text-sm font-bold text-slate-700">
+        <input
+          type="checkbox"
+          checked={discountedOnly}
+          onChange={(event) => {
+            setDiscountedOnly(event.target.checked);
+            setCurrentPage(1);
+          }}
+          className="h-4 w-4 rounded border-slate-300 text-blue-700 focus:ring-blue-600"
+        />
+
+        Discounted products only
+      </label>
+
+      <label className="flex min-h-10 cursor-pointer items-center gap-3 text-sm font-bold text-slate-700">
+        <input
+          type="checkbox"
+          checked={ptaApprovedOnly}
+          onChange={(event) => {
+            setPtaApprovedOnly(event.target.checked);
+            setCurrentPage(1);
+          }}
+          className="h-4 w-4 rounded border-slate-300 text-blue-700 focus:ring-blue-600"
+        />
+
+        PTA approved only
       </label>
 
       {hasActiveSearch && (
@@ -798,6 +860,20 @@ const Products = () => {
                 onRemove={() =>
                   setFeaturedOnly(false)
                 }
+              />
+            )}
+
+            {discountedOnly && (
+              <FilterChip
+                label="Discounted"
+                onRemove={() => setDiscountedOnly(false)}
+              />
+            )}
+
+            {ptaApprovedOnly && (
+              <FilterChip
+                label="PTA approved"
+                onRemove={() => setPtaApprovedOnly(false)}
               />
             )}
 

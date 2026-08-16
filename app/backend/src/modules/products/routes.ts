@@ -28,7 +28,7 @@ export type ProductWithRelations = Prisma.ProductGetPayload<{ include: typeof pr
 
 const categoryListInclude = {
   parent: { select: { id: true, name: true, slug: true } },
-  _count: { select: { products: true } },
+  _count: { select: { products: { where: { status: 'ACTIVE' } } } },
 } satisfies Prisma.CategoryInclude;
 
 type CategoryWithRelations = Prisma.CategoryGetPayload<{ include: typeof categoryListInclude }>;
@@ -215,6 +215,8 @@ const productQuerySchema = z.object({
   maxPrice: z.coerce.number().int().nonnegative().optional(),
   storage: z.string().trim().min(1).max(40).optional(),
   condition: z.enum(['new', 'used', 'refurbished']).optional(),
+  discounted: z.coerce.boolean().optional(),
+  ptaApproved: z.coerce.boolean().optional(),
 }).refine(
   (query) => query.minPrice === undefined || query.maxPrice === undefined || query.minPrice <= query.maxPrice,
   {
@@ -442,7 +444,7 @@ export const productRoutes: FastifyPluginAsync = async (app) => {
     const brands = await prisma.brand.findMany({
       where: { isActive: true },
       orderBy: { name: 'asc' },
-      include: { _count: { select: { products: true } } },
+      include: { _count: { select: { products: { where: { status: 'ACTIVE' } } } } },
     });
 
     return ok(
@@ -471,6 +473,7 @@ export const productRoutes: FastifyPluginAsync = async (app) => {
     const where: Prisma.ProductWhereInput = {
       status: 'ACTIVE',
       ...(query.featured === true ? { isFeatured: true } : {}),
+      ...(query.ptaApproved !== undefined ? { ptaApproved: query.ptaApproved } : {}),
       ...(brandSlugs?.length ? { brand: { slug: { in: brandSlugs } } } : {}),
       ...(query.category ? { categoryId: { in: categoryIds ?? [] } } : {}),
       ...(
@@ -478,6 +481,7 @@ export const productRoutes: FastifyPluginAsync = async (app) => {
         || query.maxPrice !== undefined
         || query.storage !== undefined
         || query.condition !== undefined
+        || query.discounted === true
           ? {
               variants: {
                 some: {
@@ -492,6 +496,7 @@ export const productRoutes: FastifyPluginAsync = async (app) => {
                     : {}),
                   ...(query.storage !== undefined ? { storage: query.storage } : {}),
                   ...(query.condition !== undefined ? { condition: query.condition } : {}),
+                  ...(query.discounted === true ? { compareAtPriceAmount: { not: null } } : {}),
                 },
               },
             }
@@ -509,7 +514,7 @@ export const productRoutes: FastifyPluginAsync = async (app) => {
         : {}),
     };
 
-    const databasePaginated = query.sort === 'newest';
+    const databasePaginated = query.sort === 'newest' && query.discounted === undefined;
     const databaseTotal = databasePaginated ? await prisma.product.count({ where }) : null;
     const products = await prisma.product.findMany({
       where,
@@ -534,12 +539,20 @@ export const productRoutes: FastifyPluginAsync = async (app) => {
                 && (query.minPrice === undefined || variant.priceAmount >= query.minPrice)
                 && (query.maxPrice === undefined || variant.priceAmount <= query.maxPrice)
                 && (query.storage === undefined || variant.storage === query.storage)
-                && (query.condition === undefined || variant.condition === query.condition),
+                && (query.condition === undefined || variant.condition === query.condition)
+                && (query.discounted === undefined
+                  || (variant.compareAtPriceAmount !== null && variant.compareAtPriceAmount > variant.priceAmount) === query.discounted),
               )
               .map((variant) => variant.id),
           )
         : undefined;
       return mapProduct(product, false, preferredVariantIds);
+    }).filter((product) => {
+      if (query.discounted === undefined) return true;
+      const activeVariants = product.variants.filter((variant) => variant.isActive);
+      return activeVariants.some(
+        (variant) => (variant.originalPrice !== undefined && variant.originalPrice > variant.price) === query.discounted,
+      );
     });
 
     filtered.sort((left, right) => {

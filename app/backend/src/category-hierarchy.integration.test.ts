@@ -46,10 +46,11 @@ describe('hierarchical product catalogue', () => {
         status: 'ACTIVE',
         brandId: brand.id,
         categoryId: phones.id,
+        ptaApproved: true,
         specifications: { display: '6.7-inch AMOLED', pta: 'Approved' },
         variants: {
           create: [
-            { sku: `PHONE-128-${scope}`, title: '128GB / Black', storage: '128GB', color: 'Black', priceAmount: 100_000, stockQuantity: 2 },
+            { sku: `PHONE-128-${scope}`, title: '128GB / Black', storage: '128GB', color: 'Black', priceAmount: 100_000, compareAtPriceAmount: 120_000, stockQuantity: 2 },
             { sku: `PHONE-256-${scope}`, title: '256GB / Black', storage: '256GB', color: 'Black', priceAmount: 120_000, stockQuantity: 2 },
           ],
         },
@@ -63,6 +64,7 @@ describe('hierarchical product catalogue', () => {
         status: 'ACTIVE',
         brandId: brand.id,
         categoryId: earbuds.id,
+        ptaApproved: false,
         specifications: { batteryLife: '30 hours', bluetooth: '5.3', anc: 'Supported' },
         variants: { create: { sku: `EARBUDS-${scope}`, title: 'Black', color: 'Black', priceAmount: 20_000, stockQuantity: 3 } },
       },
@@ -108,6 +110,23 @@ describe('hierarchical product catalogue', () => {
       specifications: { display: '6.7-inch AMOLED', storage: '256GB', pta: 'Approved' },
     });
     expect(phone.items[0]?.variants).toHaveLength(2);
+  });
+
+  it('supports accurate PTA and discounted catalogue filters', async () => {
+    const discounted = parseSuccess<{ items: Array<{ name: string }>; pagination: { total: number } }>(
+      await app.inject({ method: 'GET', url: `/api/products?category=${phoneSlug}&discounted=true` }),
+    );
+    const approved = parseSuccess<{ items: Array<{ name: string }>; pagination: { total: number } }>(
+      await app.inject({ method: 'GET', url: `/api/products?category=${phoneSlug}&ptaApproved=true` }),
+    );
+    const unapproved = parseSuccess<{ items: Array<{ name: string }>; pagination: { total: number } }>(
+      await app.inject({ method: 'GET', url: `/api/products?category=${gadgetSlug}&ptaApproved=true` }),
+    );
+
+    expect(discounted.pagination.total).toBe(1);
+    expect(discounted.items[0]?.name).toContain('Phone');
+    expect(approved.pagination.total).toBe(1);
+    expect(unapproved.pagination.total).toBe(0);
   });
 
   it('stops exposing products after a category is deactivated', async () => {

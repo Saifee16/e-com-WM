@@ -84,6 +84,8 @@ export interface ProductQueryParams {
   brand?: string;
   category?: string;
   featured?: boolean;
+  discounted?: boolean;
+  ptaApproved?: boolean;
   sort?: 'newest' | 'price-low' | 'price-high' | 'rating';
   page?: number;
   limit?: number;
