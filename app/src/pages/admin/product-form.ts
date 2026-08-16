@@ -1,5 +1,6 @@
 import type { Product, ProductVariant } from '../../types';
 import type { ProductCreateRequest, ProductVariantRequest } from '../../services/api';
+import { getCategorySpecificationFields } from '../../config/category-catalog';
 
 export interface VariantFormState {
   id?: string;
@@ -25,6 +26,7 @@ export interface ProductFormState {
   description: string;
   storage: string;
   color: string;
+  specifications: Record<string, string>;
   display: string;
   processor: string;
   ram: string;
@@ -84,16 +86,20 @@ const createDefaultVariant = (product: Product | null): VariantFormState => ({
 
 export const createProductFormState = (product: Product | null): ProductFormState => {
   const variants = product?.variants?.map(toVariantFormState) ?? [createDefaultVariant(product)];
+  const specifications: Record<string, string> = Object.fromEntries(
+    Object.entries(product?.specifications ?? {}).filter((entry): entry is [string, string] => typeof entry[1] === 'string'),
+  ) as Record<string, string>;
   return {
   name: product?.name ?? '',
   brand: product?.brand ?? 'Apple',
-  category: product?.categoryName ?? product?.category ?? 'Smartphones',
+  category: product?.category ?? '',
   price: product ? String(product.price) : '',
   originalPrice: product?.originalPrice !== undefined ? String(product.originalPrice) : '',
   countInStock: product ? String(product.countInStock) : '',
   description: product?.description ?? '',
   storage: product?.specifications.storage ?? '',
   color: product?.specifications.color ?? '',
+  specifications,
   display: product?.specifications.display ?? '',
   processor: product?.specifications.processor ?? '',
   ram: product?.specifications.ram ?? '',
@@ -188,7 +194,7 @@ export const toProductCreateRequest = (form: ProductFormState): ProductCreateReq
 
   const storage = optionalText(form.storage);
   const color = optionalText(form.color);
-  const specifications = {
+  const legacySpecifications = {
     display: optionalText(form.display),
     processor: optionalText(form.processor),
     ram: optionalText(form.ram),
@@ -197,6 +203,11 @@ export const toProductCreateRequest = (form: ProductFormState): ProductCreateReq
     os: optionalText(form.os),
     network: optionalText(form.network),
   };
+  const configuredKeys = new Set(getCategorySpecificationFields(form.category).map((field) => field.key));
+  const specifications = Object.fromEntries(
+    Object.entries({ ...legacySpecifications, ...form.specifications })
+      .filter(([key, value]) => value !== undefined && (!configuredKeys.size || configuredKeys.has(key))),
+  );
   const variants = form.hasVariants
     ? form.variants.map((variant) => toVariantRequest(variant))
       : [toVariantRequest({
@@ -219,7 +230,7 @@ export const toProductCreateRequest = (form: ProductFormState): ProductCreateReq
   return {
     name: requiredText('Product name', form.name),
     brand: requiredText('Brand', form.brand),
-    category: requiredText('Product type', form.category),
+    category: requiredText('Category', form.category),
     description: requiredText('Description', form.description),
     price: lowestVariant.price,
     ...(lowestVariant.originalPrice !== undefined ? { originalPrice: lowestVariant.originalPrice } : {}),

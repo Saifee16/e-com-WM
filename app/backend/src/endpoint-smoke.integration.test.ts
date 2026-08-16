@@ -215,6 +215,7 @@ const cleanupScope = async (scope: string) => {
   await prisma.promoCode.deleteMany({ where: { code: { contains: scope.toUpperCase() } } });
   await prisma.product.deleteMany({ where: { slug: { contains: scope } } });
   await prisma.brand.deleteMany({ where: { slug: { contains: scope } } });
+  await prisma.category.updateMany({ where: { parentId: { not: null }, slug: { contains: scope } }, data: { parentId: null } });
   await prisma.category.deleteMany({ where: { slug: { contains: scope } } });
   await prisma.contactMessage.deleteMany({
     where: {
@@ -400,6 +401,34 @@ describe('endpoint smoke suite', () => {
     const adminCookie = extractCookieHeader(adminLoginResponse.headers['set-cookie']);
     expect(String(adminLoginResponse.headers['set-cookie'])).toContain('adminAccessToken=');
     expect(String(adminLoginResponse.headers['set-cookie'])).toContain('Path=/api/admin');
+    const managedCategory = parseSuccess<{ id: string; slug: string; parentId: string | null }>(
+      await app.inject({
+        method: 'POST',
+        url: '/api/admin/products/categories',
+        headers: csrfHeaders(adminCookie),
+        payload: { name: `Admin Child Category ${scope}`, parentId: category.id },
+      }),
+      201,
+    );
+    expect(managedCategory.parentId).toBe(category.id);
+    const deactivatedManagedCategory = parseSuccess<{ id: string; isActive: boolean }>(
+      await app.inject({
+        method: 'PUT',
+        url: `/api/admin/products/categories/${managedCategory.id}`,
+        headers: csrfHeaders(adminCookie),
+        payload: { isActive: false },
+      }),
+    );
+    expect(deactivatedManagedCategory.isActive).toBe(false);
+    const renamedManagedCategory = parseSuccess<{ id: string; slug: string; isActive: boolean }>(
+      await app.inject({
+        method: 'PUT',
+        url: `/api/admin/products/categories/${managedCategory.id}`,
+        headers: csrfHeaders(adminCookie),
+        payload: { name: `Renamed Child Category ${scope}`, isActive: true },
+      }),
+    );
+    expect(renamedManagedCategory.isActive).toBe(true);
     const coexistingCookies = `${customerCookie}; ${adminCookie}`;
 
     const coexistingCustomer = parseSuccess<UserResponse>(
@@ -671,7 +700,7 @@ describe('endpoint smoke suite', () => {
     const adminProductPayload = {
       name: `Admin CRUD Phone ${scope}`,
       brand: `Admin Brand ${scope}`,
-      category: `Admin Category ${scope}`,
+      category: renamedManagedCategory.slug,
       description: 'Product created by endpoint smoke tests.',
       price: 125_000,
       originalPrice: 135_000,
@@ -754,6 +783,7 @@ describe('endpoint smoke suite', () => {
       { ...adminProductPayload, name: '   ' },
       { ...adminProductPayload, unexpectedField: true },
       { ...adminProductPayload, price: String(adminProductPayload.price) },
+      { ...adminProductPayload, category: `missing-category-${scope}` },
     ]) {
       expectError(
         await app.inject({
@@ -785,6 +815,7 @@ describe('endpoint smoke suite', () => {
       brand: `Draft Brand ${scope}`,
       description: 'Draft product with optional fields omitted.',
       price: 99_000,
+      category: renamedManagedCategory.slug,
       status: 'DRAFT',
     };
     const draftProduct = parseSuccess<ProductResponse>(
@@ -821,6 +852,7 @@ describe('endpoint smoke suite', () => {
           brand: `Minimal Brand ${scope}`,
           description: 'Published product using only the required create fields.',
           price: 75_000,
+          category: renamedManagedCategory.slug,
         },
       }),
       201,
@@ -853,7 +885,7 @@ describe('endpoint smoke suite', () => {
         headers: csrfHeaders(adminCookie),
         payload: {
           brand: `Updated Admin Brand ${scope}`,
-          category: `Updated Category ${scope}`,
+          category: category.slug,
           price: 119_000,
           countInStock: 8,
           specifications: { ram: '16GB', network: '5G, eSIM' },
@@ -863,7 +895,7 @@ describe('endpoint smoke suite', () => {
     expect(updatedProduct.price).toBe(119_000);
     expect(updatedProduct.countInStock).toBe(8);
     expect(updatedProduct.brand).toBe(`Updated Admin Brand ${scope}`);
-    expect(updatedProduct.category).toBe(`updated-category-${scope}`);
+    expect(updatedProduct.category).toBe(category.slug);
     expect(updatedProduct.specifications).toMatchObject({ ram: '16GB', network: '5G, eSIM' });
 
     parseSuccess<{ deleted: boolean }>(

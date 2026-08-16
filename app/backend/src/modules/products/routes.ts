@@ -26,6 +26,83 @@ export const productInclude = {
 
 export type ProductWithRelations = Prisma.ProductGetPayload<{ include: typeof productInclude }>;
 
+const categoryListInclude = {
+  parent: { select: { id: true, name: true, slug: true } },
+  _count: { select: { products: true } },
+} satisfies Prisma.CategoryInclude;
+
+type CategoryWithRelations = Prisma.CategoryGetPayload<{ include: typeof categoryListInclude }>;
+
+export interface CategoryNode {
+  id: string;
+  parentId: string | null;
+  parentSlug: string | null;
+  name: string;
+  slug: string;
+  description: string | null;
+  imageUrl: string | null;
+  sortOrder: number;
+  isActive: boolean;
+  productCount: number;
+  children: CategoryNode[];
+}
+
+const mapCategory = (category: CategoryWithRelations): CategoryNode => ({
+  id: category.id,
+  parentId: category.parentId,
+  parentSlug: category.parent?.slug ?? null,
+  name: category.name,
+  slug: category.slug,
+  description: category.description,
+  imageUrl: category.imageUrl,
+  sortOrder: category.sortOrder,
+  isActive: category.isActive,
+  productCount: category._count.products,
+  children: [],
+});
+
+const getCategoryTree = async (activeOnly: boolean) => {
+  const categories = await prisma.category.findMany({
+    where: activeOnly ? { isActive: true } : {},
+    orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+    include: categoryListInclude,
+  });
+  const nodes = new Map(categories.map((category) => [category.id, mapCategory(category)]));
+  const roots: CategoryNode[] = [];
+
+  for (const category of categories) {
+    const node = nodes.get(category.id)!;
+    const parent: CategoryNode | undefined = category.parentId ? nodes.get(category.parentId) : undefined;
+    if (parent) parent.children.push(node);
+    else if (!activeOnly || !category.parentId) roots.push(node);
+  }
+
+  return roots;
+};
+
+const getCategoryDescendantIds = async (slug: string) => {
+  const root = await prisma.category.findFirst({
+    where: { slug: slugify(slug), isActive: true },
+    select: { id: true },
+  });
+  if (!root) return [];
+
+  const ids = [root.id];
+  const seen = new Set(ids);
+  let frontier = [root.id];
+  while (frontier.length) {
+    const children = await prisma.category.findMany({
+      where: { parentId: { in: frontier }, isActive: true },
+      select: { id: true },
+    });
+    frontier = children.map((category) => category.id).filter((id) => !seen.has(id));
+    frontier.forEach((id) => seen.add(id));
+    ids.push(...frontier);
+  }
+
+  return ids;
+};
+
 const asStringRecord = (value: unknown) =>
   value && typeof value === 'object' && !Array.isArray(value)
     ? Object.fromEntries(Object.entries(value).filter((entry): entry is [string, string] => typeof entry[1] === 'string'))
@@ -53,6 +130,7 @@ export const mapProduct = (product: ProductWithRelations, includeInactiveVariant
     product.specifications && typeof product.specifications === 'object' && !Array.isArray(product.specifications)
       ? product.specifications as Record<string, unknown>
       : {};
+  const stringSpecifications = asStringRecord(storedSpecifications);
   const commonImages = product.images.filter((image) => !image.variantId);
   const primaryImage = commonImages[0]?.url ?? product.images[0]?.url ?? 'https://placehold.co/800x800?text=Product';
   const rating =
@@ -74,15 +152,9 @@ export const mapProduct = (product: ProductWithRelations, includeInactiveVariant
     category: product.category.slug,
     categoryName: product.category.name,
     specifications: {
-      storage: variant?.storage ?? undefined,
-      color: variant?.color ?? undefined,
-      display: typeof storedSpecifications.display === 'string' ? storedSpecifications.display : undefined,
-      processor: typeof storedSpecifications.processor === 'string' ? storedSpecifications.processor : undefined,
-      ram: typeof storedSpecifications.ram === 'string' ? storedSpecifications.ram : undefined,
-      battery: typeof storedSpecifications.battery === 'string' ? storedSpecifications.battery : undefined,
-      camera: typeof storedSpecifications.camera === 'string' ? storedSpecifications.camera : undefined,
-      os: typeof storedSpecifications.os === 'string' ? storedSpecifications.os : undefined,
-      network: typeof storedSpecifications.network === 'string' ? storedSpecifications.network : undefined,
+      ...stringSpecifications,
+      storage: variant?.storage ?? stringSpecifications.storage,
+      color: variant?.color ?? stringSpecifications.color,
     },
     condition: (variant?.condition ?? 'new') as 'new' | 'used' | 'refurbished',
     ptaApproved: product.ptaApproved,
@@ -176,15 +248,14 @@ const imageUrlSchema = z.string().url().max(2048).refine(
     : 'Product image URLs must use HTTPS',
 );
 
-const productSpecificationsSchema = z.object({
-  display: z.string().trim().min(1).max(160).optional(),
-  processor: z.string().trim().min(1).max(160).optional(),
-  ram: z.string().trim().min(1).max(80).optional(),
-  battery: z.string().trim().min(1).max(160).optional(),
-  camera: z.string().trim().min(1).max(240).optional(),
-  os: z.string().trim().min(1).max(120).optional(),
-  network: z.string().trim().min(1).max(120).optional(),
-}).strict();
+const productSpecificationsSchema = z.record(
+  z.string().trim().min(1).max(80),
+  z.string().trim().min(1).max(240),
+).superRefine((specifications, context) => {
+  if (Object.keys(specifications).length > 40) {
+    context.addIssue({ code: 'custom', message: 'You can add up to 40 product specifications' });
+  }
+});
 
 const variantOptionsSchema = z.record(
   z.string().trim().min(1).max(80),
@@ -240,7 +311,7 @@ const validateVariantPayloads = (variants: ProductVariantPayload[] | undefined, 
 const productPayloadSchema = z.object({
   name: z.string().trim().min(1).max(200),
   brand: z.string().trim().min(1).max(80),
-  category: z.string().trim().min(1).max(80).default('Smartphones'),
+  category: z.string().trim().min(1).max(120),
   description: z.string().trim().min(1).max(5000),
   price: z.number().int().nonnegative(),
   originalPrice: z.number().int().nonnegative().optional(),
@@ -256,6 +327,47 @@ const productPayloadSchema = z.object({
   status: z.enum(['DRAFT', 'ACTIVE', 'ARCHIVED']).default('ACTIVE'),
   variants: z.array(productVariantPayloadSchema).min(1).max(100).optional(),
 }).strict();
+
+const categoryCreateSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+  slug: z.string().trim().min(1).max(120).optional(),
+  parentId: z.string().uuid().nullable().optional(),
+  description: z.string().trim().max(500).nullable().optional(),
+  imageUrl: z.string().url().max(2048).nullable().optional(),
+  sortOrder: z.number().int().min(0).max(100_000).default(0),
+  isActive: z.boolean().default(true),
+}).strict();
+
+const categoryUpdateSchema = categoryCreateSchema.partial();
+
+const findCategoryByIdentity = async (identity: string) => {
+  const isUuid = z.string().uuid().safeParse(identity).success;
+  return prisma.category.findFirst({
+    where: {
+      OR: [...(isUuid ? [{ id: identity }] : []), { slug: slugify(identity) }],
+    },
+  });
+};
+
+const validateCategoryParent = async (parentId: string | null | undefined, categoryId?: string) => {
+  if (parentId === null || parentId === undefined) return null;
+  const visited = new Set<string>();
+  let currentId: string | null = parentId;
+
+  while (currentId) {
+    if (currentId === categoryId) return 'A category cannot be its own ancestor';
+    if (visited.has(currentId)) return 'Category hierarchy contains a cycle';
+    visited.add(currentId);
+    const parent: { id: string; parentId: string | null } | null = await prisma.category.findUnique({
+      where: { id: currentId },
+      select: { id: true, parentId: true },
+    });
+    if (!parent) return 'Parent category not found';
+    currentId = parent.parentId;
+  }
+
+  return null;
+};
 
 const productCreateSchema = productPayloadSchema.refine(
   (product) => product.originalPrice === undefined || product.originalPrice > product.price,
@@ -301,21 +413,6 @@ const getOrCreateBrand = async (name: string) => {
   });
 };
 
-const getOrCreateCategory = async (nameOrSlug: string) => {
-  const slug = slugify(nameOrSlug);
-  const name = nameOrSlug
-    .split(/[-_\s]+/)
-    .filter(Boolean)
-    .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1).toLowerCase()}`)
-    .join(' ');
-
-  return prisma.category.upsert({
-    where: { slug },
-    update: { name, isActive: true },
-    create: { name, slug },
-  });
-};
-
 const getUniqueProductSlug = async (name: string, currentId?: string) => {
   const base = slugify(name);
   let slug = base;
@@ -353,25 +450,12 @@ export const productRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.get('/categories', async (_request, reply) => {
-    const categories = await prisma.category.findMany({
-      where: { isActive: true },
-      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
-      include: { _count: { select: { products: true } } },
-    });
-
-    return ok(
-      reply,
-      categories.map((category) => ({
-        id: category.id,
-        name: category.name,
-        slug: category.slug,
-        productCount: category._count.products,
-      })),
-    );
+    return ok(reply, await getCategoryTree(true));
   });
 
   app.get('/', async (request, reply) => {
     const query = productQuerySchema.parse(request.query);
+    const categoryIds = query.category ? await getCategoryDescendantIds(query.category) : undefined;
     const brandSlugs = query.brand
       ?.split(',')
       .map((brand) => slugify(brand))
@@ -380,7 +464,7 @@ export const productRoutes: FastifyPluginAsync = async (app) => {
       status: 'ACTIVE',
       ...(query.featured === true ? { isFeatured: true } : {}),
       ...(brandSlugs?.length ? { brand: { slug: { in: brandSlugs } } } : {}),
-      ...(query.category ? { category: { slug: slugify(query.category) } } : {}),
+      ...(query.category ? { categoryId: { in: categoryIds ?? [] } } : {}),
       ...(
         query.minPrice !== undefined
         || query.maxPrice !== undefined
@@ -555,6 +639,84 @@ export const adminProductRoutes: FastifyPluginAsync<AdminProductRoutesOptions> =
     publicApiBaseUrl: env.API_BASE_URL,
   };
 
+  app.get('/categories', async (_request, reply) => {
+    return ok(reply, await getCategoryTree(false));
+  });
+
+  app.post('/categories', async (request, reply) => {
+    const body = categoryCreateSchema.parse(request.body);
+    const slug = slugify(body.slug ?? body.name);
+    if (!slug) return fail(reply, 400, { code: 'INVALID_CATEGORY', message: 'Category slug is invalid' });
+    const parentError = await validateCategoryParent(body.parentId);
+    if (parentError) return fail(reply, 400, { code: 'INVALID_CATEGORY_PARENT', message: parentError });
+    const existing = await prisma.category.findUnique({ where: { slug } });
+    if (existing) return fail(reply, 409, { code: 'CATEGORY_EXISTS', message: 'A category with this slug already exists' });
+
+    const category = await prisma.category.create({
+      data: {
+        name: body.name,
+        slug,
+        ...(body.parentId !== undefined ? { parentId: body.parentId } : {}),
+        ...(body.description !== undefined ? { description: body.description } : {}),
+        ...(body.imageUrl !== undefined ? { imageUrl: body.imageUrl } : {}),
+        sortOrder: body.sortOrder,
+        isActive: body.isActive,
+      },
+    });
+    const created = await prisma.category.findUniqueOrThrow({ where: { id: category.id }, include: categoryListInclude });
+    await prisma.auditLog.create({
+      data: {
+        actorUserId: request.authUser!.id,
+        action: 'CREATE',
+        entityType: 'Category',
+        entityId: category.id,
+        after: mapCategory(created) as unknown as Prisma.InputJsonValue,
+      },
+    });
+    return ok(reply.status(201), mapCategory(created));
+  });
+
+  app.put('/categories/:id', async (request, reply) => {
+    const params = z.object({ id: z.string().uuid() }).parse(request.params);
+    const body = categoryUpdateSchema.parse(request.body);
+    const existing = await prisma.category.findUnique({ where: { id: params.id }, include: categoryListInclude });
+    if (!existing) return fail(reply, 404, { code: 'CATEGORY_NOT_FOUND', message: 'Category not found' });
+
+    const nextName = body.name ?? existing.name;
+    const slug = slugify(body.slug ?? (body.name !== undefined ? body.name : existing.slug));
+    if (!slug) return fail(reply, 400, { code: 'INVALID_CATEGORY', message: 'Category slug is invalid' });
+    const parentId = body.parentId !== undefined ? body.parentId : existing.parentId;
+    const parentError = await validateCategoryParent(parentId, existing.id);
+    if (parentError) return fail(reply, 400, { code: 'INVALID_CATEGORY_PARENT', message: parentError });
+    const slugConflict = await prisma.category.findFirst({ where: { slug, id: { not: existing.id } }, select: { id: true } });
+    if (slugConflict) return fail(reply, 409, { code: 'CATEGORY_EXISTS', message: 'A category with this slug already exists' });
+
+    const updated = await prisma.category.update({
+      where: { id: existing.id },
+      data: {
+        name: nextName,
+        slug,
+        parentId,
+        ...(body.description !== undefined ? { description: body.description } : {}),
+        ...(body.imageUrl !== undefined ? { imageUrl: body.imageUrl } : {}),
+        ...(body.sortOrder !== undefined ? { sortOrder: body.sortOrder } : {}),
+        ...(body.isActive !== undefined ? { isActive: body.isActive } : {}),
+      },
+    });
+    const refreshed = await prisma.category.findUniqueOrThrow({ where: { id: updated.id }, include: categoryListInclude });
+    await prisma.auditLog.create({
+      data: {
+        actorUserId: request.authUser!.id,
+        action: 'UPDATE',
+        entityType: 'Category',
+        entityId: updated.id,
+        before: mapCategory(existing) as unknown as Prisma.InputJsonValue,
+        after: mapCategory(refreshed) as unknown as Prisma.InputJsonValue,
+      },
+    });
+    return ok(reply, mapCategory(refreshed));
+  });
+
   app.post('/images', async (request, reply) => {
     const urls = await saveProductImages(request, localImageStorageOptions);
     return ok(reply.status(201), { urls });
@@ -611,7 +773,8 @@ export const adminProductRoutes: FastifyPluginAsync<AdminProductRoutesOptions> =
   app.post('/', async (request, reply) => {
     const body = productCreateSchema.parse(request.body);
     const brand = await getOrCreateBrand(body.brand);
-    const category = await getOrCreateCategory(body.category);
+    const category = await findCategoryByIdentity(body.category);
+    if (!category) return fail(reply, 400, { code: 'INVALID_CATEGORY', message: 'Select an existing category' });
     const slug = await getUniqueProductSlug(body.name);
     const imageUrls = body.images?.length ? body.images : body.imageUrl ? [body.imageUrl] : [];
     const variantPayloads = body.variants?.length ? body.variants : [legacyVariantPayload(body)];
@@ -688,7 +851,8 @@ export const adminProductRoutes: FastifyPluginAsync<AdminProductRoutesOptions> =
     }
 
     const brand = body.brand ? await getOrCreateBrand(body.brand) : null;
-    const category = body.category ? await getOrCreateCategory(body.category) : null;
+    const category = body.category ? await findCategoryByIdentity(body.category) : null;
+    if (body.category && !category) return fail(reply, 400, { code: 'INVALID_CATEGORY', message: 'Select an existing category' });
     const slug = body.name ? await getUniqueProductSlug(body.name, params.id) : existing.slug;
     const variant = existing.variants[0];
 

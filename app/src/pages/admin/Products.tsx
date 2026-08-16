@@ -10,9 +10,10 @@ import {
 } from 'lucide-react';
 import { formatPrice } from '../../utils/format';
 import { useToast } from '../../contexts/ToastContext';
-import type { Product } from '../../types';
+import type { Category, Product } from '../../types';
 import { productsAPI } from '../../services/api';
 import { getApiErrorMessage } from '../../utils/api-error';
+import { flattenCategories, getCategorySpecificationFields } from '../../config/category-catalog';
 import {
   MAX_PRODUCT_IMAGES,
   ProductFormValidationError,
@@ -23,26 +24,14 @@ import {
   type VariantFormState,
 } from './product-form';
 
-const comparisonFields = [
-  { key: 'display', label: 'Display', placeholder: 'e.g. 6.7-inch AMOLED, 120Hz' },
-  { key: 'processor', label: 'Processor', placeholder: 'e.g. Snapdragon 8 Gen 3' },
-  { key: 'ram', label: 'RAM', placeholder: 'e.g. 12GB' },
-  { key: 'battery', label: 'Battery', placeholder: 'e.g. 5,000mAh, 65W charging' },
-  { key: 'camera', label: 'Camera', placeholder: 'e.g. 50MP main + 12MP ultra-wide' },
-  { key: 'os', label: 'Operating System', placeholder: 'e.g. Android 15' },
-  { key: 'network', label: 'Network', placeholder: 'e.g. 5G, dual SIM' },
-] as const satisfies ReadonlyArray<{
-  key: 'display' | 'processor' | 'ram' | 'battery' | 'camera' | 'os' | 'network';
-  label: string;
-  placeholder: string;
-}>;
-
 const AdminProducts = () => {
   const { showToast } = useToast();
   const [productList, setProductList] = useState<Product[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isAddingProduct, setIsAddingProduct] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [isManagingCategories, setIsManagingCategories] = useState(false);
 
   const loadProducts = async () => {
     try {
@@ -53,8 +42,18 @@ const AdminProducts = () => {
     }
   };
 
+  const loadCategories = async () => {
+    try {
+      const response = await productsAPI.getAdminCategories();
+      setCategories(response.data.data);
+    } catch {
+      showToast('Failed to load categories', 'error');
+    }
+  };
+
   useEffect(() => {
     void loadProducts();
+    void loadCategories();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -91,14 +90,26 @@ const AdminProducts = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <h2 className="text-2xl font-bold text-gray-900">Products</h2>
-        <button
-          onClick={() => setIsAddingProduct(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition-colors"
-        >
-          <Plus className="w-5 h-5" />
-          Add Product
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => setIsManagingCategories((current) => !current)}
+            className="rounded-xl border border-gray-200 px-4 py-2 font-medium text-gray-700 hover:bg-gray-50"
+          >
+            {isManagingCategories ? 'Hide categories' : 'Manage categories'}
+          </button>
+          <button
+            onClick={() => setIsAddingProduct(true)}
+            className="flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 font-medium text-white transition-colors hover:bg-blue-700"
+          >
+            <Plus className="w-5 h-5" />
+            Add Product
+          </button>
+        </div>
       </div>
+
+      {isManagingCategories && (
+        <CategoryManager categories={categories} onChanged={loadCategories} />
+      )}
 
       {/* Search */}
       <div className="relative mb-6">
@@ -211,6 +222,7 @@ const AdminProducts = () => {
           setEditingProduct(null);
         }}
         product={editingProduct}
+        categories={flattenCategories(categories)}
         onSaved={loadProducts}
       />
     </div>
@@ -222,11 +234,13 @@ const ProductModal = ({
   isOpen,
   onClose,
   product,
+  categories,
   onSaved,
 }: {
   isOpen: boolean;
   onClose: () => void;
   product: Product | null;
+  categories: Category[];
   onSaved: () => Promise<void>;
 }) => {
   const { showToast } = useToast();
@@ -235,6 +249,7 @@ const ProductModal = ({
   const [isSaving, setIsSaving] = useState(false);
   const [storageDraft, setStorageDraft] = useState('');
   const [colorDraft, setColorDraft] = useState('');
+  const specificationFields = getCategorySpecificationFields(formData.category);
 
   const updateField = <Key extends keyof ProductFormState>(field: Key, value: ProductFormState[Key]) => {
     setFormData((current) => ({ ...current, [field]: value }));
@@ -413,22 +428,41 @@ const ProductModal = ({
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Product Type
+              <label htmlFor="product-category" className="block text-sm font-medium text-gray-700 mb-2">
+                Category
               </label>
               <select
+                id="product-category"
                 value={formData.category}
-                onChange={(event) => updateField('category', event.target.value)}
+                onChange={(event) => {
+                  const category = event.target.value;
+                  const allowedKeys = new Set(getCategorySpecificationFields(category).map((field) => field.key));
+                  setFormData((current) => ({
+                    ...current,
+                    category,
+                    specifications: Object.fromEntries(
+                      Object.entries(current.specifications).filter(([key]) => allowedKeys.has(key)),
+                    ),
+                    display: '',
+                    processor: '',
+                    ram: '',
+                    battery: '',
+                    camera: '',
+                    os: '',
+                    network: '',
+                  }));
+                }}
                 className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
               >
-                <option>Smartphones</option>
-                <option>Tablets</option>
-                <option>Smart Watches</option>
-                <option>Gadgets</option>
-                <option>Wearables</option>
-                <option>Headphones</option>
-                <option>Speakers</option>
+                <option value="">Select an existing category</option>
+                {categories.map((category) => (
+                  <option key={category.id} value={category.slug}>
+                    {category.parentSlug ? '↳ ' : ''}{category.name}{category.isActive === false ? ' (inactive)' : ''}
+                  </option>
+                ))}
               </select>
+              {categories.length === 0 && <p className="mt-2 text-xs text-amber-700">Create or activate a category before assigning this product.</p>}
             </div>
 
             <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-gray-200 p-4">
@@ -684,14 +718,14 @@ const ProductModal = ({
             <section aria-labelledby="comparison-specifications-heading">
               <div className="mb-4">
                 <h4 id="comparison-specifications-heading" className="text-sm font-semibold text-gray-900">
-                  Comparison specifications
+                  Category specifications
                 </h4>
                 <p className="mt-1 text-xs text-gray-500">
-                  These details appear on the Compare page, so customers can make a meaningful side-by-side choice.
+                  Only specifications relevant to the selected category are shown and saved.
                 </p>
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
-                {comparisonFields.map((field) => (
+                {specificationFields.map((field) => (
                   <div key={field.key}>
                     <label htmlFor={`product-${field.key}`} className="mb-2 block text-sm font-medium text-gray-700">
                       {field.label}
@@ -699,15 +733,18 @@ const ProductModal = ({
                     <input
                       id={`product-${field.key}`}
                       type="text"
-                      value={formData[field.key]}
-                      onChange={(event) => updateField(field.key, event.target.value)}
+                      value={formData.specifications[field.key] ?? ''}
+                      onChange={(event) => updateField('specifications', { ...formData.specifications, [field.key]: event.target.value })}
                       placeholder={field.placeholder}
-                      maxLength={field.key === 'camera' ? 240 : 160}
+                      maxLength={field.maxLength ?? 160}
                       className="w-full rounded-xl border border-gray-200 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
                 ))}
               </div>
+              {specificationFields.length === 0 && (
+                <p className="rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-500">No category-specific specification fields are configured for this category yet.</p>
+              )}
             </section>
 
             <div className="grid gap-6 sm:grid-cols-3">
@@ -786,6 +823,108 @@ const ProductModal = ({
         </motion.div>
       </motion.div>
     </AnimatePresence>
+  );
+};
+
+const CategoryManager = ({
+  categories,
+  onChanged,
+}: {
+  categories: Category[];
+  onChanged: () => Promise<void>;
+}) => {
+  const { showToast } = useToast();
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [name, setName] = useState('');
+  const [parentId, setParentId] = useState('');
+  const [isActive, setIsActive] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const flatCategories = flattenCategories(categories);
+
+  const reset = () => {
+    setEditingId(null);
+    setName('');
+    setParentId('');
+    setIsActive(true);
+  };
+
+  const startEditing = (category: Category) => {
+    setEditingId(category.id);
+    setName(category.name);
+    setParentId(category.parentId ?? '');
+    setIsActive(category.isActive !== false);
+  };
+
+  const save = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setIsSaving(true);
+    try {
+      const payload = {
+        name: name.trim(),
+        ...(parentId ? { parentId } : { parentId: null }),
+        isActive,
+      };
+      if (editingId) await productsAPI.updateCategory(editingId, payload);
+      else await productsAPI.createCategory(payload);
+      showToast(editingId ? 'Category updated' : 'Category created', 'success');
+      await onChanged();
+      reset();
+    } catch (error) {
+      showToast(getApiErrorMessage(error, 'Failed to save category'), 'error');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <section className="mb-6 rounded-2xl border border-gray-200 bg-white p-5" aria-labelledby="category-manager-heading">
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h3 id="category-manager-heading" className="text-lg font-bold text-gray-900">Category hierarchy</h3>
+          <p className="mt-1 text-sm text-gray-500">Create and maintain real parent/child categories. Products remain linked when a category is renamed or deactivated.</p>
+        </div>
+        {editingId && <button type="button" onClick={reset} className="text-sm font-medium text-gray-600 hover:text-gray-900">Cancel edit</button>}
+      </div>
+
+      <form onSubmit={save} className="grid gap-3 rounded-xl bg-gray-50 p-4 sm:grid-cols-[1.2fr_1fr_auto_auto] sm:items-end">
+        <label className="text-sm font-medium text-gray-700">
+          Category name
+          <input value={name} onChange={(event) => setName(event.target.value)} required maxLength={120} className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 font-normal" />
+        </label>
+        <label className="text-sm font-medium text-gray-700">
+          Parent category
+          <select value={parentId} onChange={(event) => setParentId(event.target.value)} className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 font-normal">
+            <option value="">Top level</option>
+            {flatCategories.filter((category) => category.id !== editingId).map((category) => (
+              <option key={category.id} value={category.id}>{category.parentSlug ? '↳ ' : ''}{category.name}</option>
+            ))}
+          </select>
+        </label>
+        <label className="flex items-center gap-2 pb-2 text-sm font-medium text-gray-700">
+          <input type="checkbox" checked={isActive} onChange={(event) => setIsActive(event.target.checked)} className="h-4 w-4" /> Active
+        </label>
+        <button type="submit" disabled={isSaving} className="rounded-lg bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700 disabled:opacity-60">
+          {isSaving ? 'Saving…' : editingId ? 'Save changes' : 'Create category'}
+        </button>
+      </form>
+
+      <div className="mt-4 divide-y divide-gray-100 rounded-xl border border-gray-100">
+        {flatCategories.length === 0 ? (
+          <p className="p-4 text-sm text-gray-500">No categories exist yet.</p>
+        ) : flatCategories.map((category) => (
+          <div key={category.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+            <div className="min-w-0">
+              <p className="truncate font-medium text-gray-900">{category.parentSlug ? '↳ ' : ''}{category.name}</p>
+              <p className="text-xs text-gray-500">/{category.slug} · {category.productCount} product{category.productCount === 1 ? '' : 's'}</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className={`rounded-full px-2 py-1 text-xs font-medium ${category.isActive === false ? 'bg-gray-100 text-gray-600' : 'bg-green-100 text-green-700'}`}>{category.isActive === false ? 'Inactive' : 'Active'}</span>
+              <button type="button" onClick={() => startEditing(category)} className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">Edit</button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
   );
 };
 

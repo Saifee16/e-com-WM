@@ -121,6 +121,10 @@ function App() {
               <Route path="/" element={<MainLayout />}>
                 <Route index element={<Home />} />
                 <Route path="products" element={<Products />} />
+                <Route path="phones" element={<Products />} />
+                <Route path="smart-watches" element={<Products />} />
+                <Route path="gadgets" element={<Products />} />
+                <Route path="gadgets/:categorySlug" element={<Products />} />
                 <Route path="products/:id" element={<ProductDetail />} />
                 <Route path="cart" element={<Cart />} />
                 <Route path="about" element={<About />} />

@@ -11,6 +11,7 @@ describe('admin product form contract', () => {
   it('converts HTML numeric input strings and omits empty optional fields', () => {
     const request = toProductCreateRequest({
       ...createProductFormState(null),
+      category: 'phones',
       name: '  Launch Phone  ',
       price: '125000',
       originalPrice: '',
@@ -49,6 +50,7 @@ describe('admin product form contract', () => {
   ])('rejects %s before submission', (_case, override, message) => {
     const form = {
       ...createProductFormState(null),
+      category: 'phones',
       name: 'Launch Phone',
       price: '125000',
       countInStock: '6',
@@ -66,6 +68,7 @@ describe('admin product form contract', () => {
     );
     const request = toProductCreateRequest({
       ...createProductFormState(null),
+      category: 'phones',
       name: 'Launch Phone',
       price: '125000',
       originalPrice: '135000',
@@ -81,6 +84,7 @@ describe('admin product form contract', () => {
   it('includes comparison specifications entered in the add product form', () => {
     const request = toProductCreateRequest({
       ...createProductFormState(null),
+      category: 'phones',
       name: 'Compare Phone',
       price: '125000',
       countInStock: '6',
@@ -108,6 +112,7 @@ describe('admin product form contract', () => {
   it('serializes multiple variants without turning their combinations into products', () => {
     const request = toProductCreateRequest({
       ...createProductFormState(null),
+      category: 'phones',
       name: 'Variant Phone',
       description: 'A phone with independently priced storage and color variants.',
       hasVariants: true,
@@ -181,6 +186,7 @@ describe('admin product form contract', () => {
   it('rejects more than five product images', () => {
     const form = {
       ...createProductFormState(null),
+      category: 'phones',
       name: 'Launch Phone',
       price: '125000',
       countInStock: '6',

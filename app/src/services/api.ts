@@ -1,6 +1,6 @@
 import axios, { AxiosError } from 'axios';
 import type { AxiosInstance, AxiosResponse } from 'axios';
-import type { Product, ProductSpecs } from '../types';
+import type { Category, Product, ProductSpecs } from '../types';
 
 type JsonObject = Record<string, unknown>;
 type OrderPayload = JsonObject;
@@ -17,7 +17,7 @@ export interface ProductCreateRequest {
   images?: string[];
   storage?: string;
   color?: string;
-  specifications?: Pick<ProductSpecs, 'display' | 'processor' | 'ram' | 'battery' | 'camera' | 'os' | 'network'>;
+  specifications?: ProductSpecs;
   condition: 'new' | 'used' | 'refurbished';
   countInStock: number;
   ptaApproved: boolean;
@@ -105,6 +105,16 @@ export interface Pagination {
 export interface ProductPage {
   items: Product[];
   pagination: Pagination;
+}
+
+export interface CategoryWriteRequest {
+  name: string;
+  slug?: string;
+  parentId?: string | null;
+  description?: string | null;
+  imageUrl?: string | null;
+  sortOrder?: number;
+  isActive?: boolean;
 }
 
 export interface OrderAddressSnapshot {
@@ -391,8 +401,11 @@ export const productsAPI = {
   getFeaturedProducts: () => api.get('/products/featured'),
   getProductsByBrand: (brand: string) => api.get(`/products/brand/${brand}`),
   getBrands: () => api.get('/products/brands'),
-  getCategories: () => api.get('/products/categories'),
+  getCategories: () => api.get<{ success: true; data: Category[] }>('/products/categories'),
   getAdminProducts: (params?: ProductQueryParams) => adminApi.get<ApiSuccess<ProductPage>>('/products', { params }),
+  getAdminCategories: () => adminApi.get<ApiSuccess<Category[]>>('/products/categories'),
+  createCategory: (data: CategoryWriteRequest) => adminApi.post<ApiSuccess<Category>>('/products/categories', data),
+  updateCategory: (id: string, data: Partial<CategoryWriteRequest>) => adminApi.put<ApiSuccess<Category>>(`/products/categories/${id}`, data),
   submitReview: (productId: string, data: { rating: number; title?: string; body: string }) =>
     api.post(`/products/${productId}/reviews`, data),
   // Admin only

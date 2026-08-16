@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   AlertCircle,
@@ -12,7 +12,7 @@ import {
   X,
 } from 'lucide-react';
 import { priceRanges, storageOptions } from '../data/products';
-import type { Product } from '../types';
+import type { Category, Product } from '../types';
 import { useCart } from '../contexts/CartContext';
 import { useToast } from '../contexts/ToastContext';
 import { productsAPI } from '../services/api';
@@ -20,6 +20,7 @@ import type { Pagination, ProductQueryParams } from '../services/api';
 import { getApiErrorMessage } from '../utils/api-error';
 import StorefrontProductCard from '../components/product/StorefrontProductCard';
 import { CONTACT_PHONE_NUMBERS } from '../config/contact';
+import { flattenCategories } from '../config/category-catalog';
 
 const PAGE_SIZE = 20;
 
@@ -51,9 +52,26 @@ const getRequestedCondition = (
 const getRequestedPrice = (value: string | null) =>
   priceRanges.some((range) => range.label === value) ? value ?? '' : '';
 
+const getRouteCategory = (pathname: string) => {
+  const segments = pathname.split('/').filter(Boolean);
+  if (segments[0] === 'phones' || segments[0] === 'smart-watches' || segments[0] === 'gadgets') {
+    return segments[1] ?? segments[0];
+  }
+  return '';
+};
+
+const categoryHref = (category: Category) => {
+  const routeRoots = new Set(['phones', 'smart-watches', 'gadgets']);
+  if (category.parentSlug && routeRoots.has(category.parentSlug)) return `/${category.parentSlug}/${category.slug}`;
+  if (routeRoots.has(category.slug)) return `/${category.slug}`;
+  return `/products?category=${encodeURIComponent(category.slug)}`;
+};
+
 const Products = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const routeCategory = getRouteCategory(location.pathname);
 
   const pendingUrlSyncRef = useRef<string | null>(
     searchParams.toString(),
@@ -73,9 +91,8 @@ const Products = () => {
   });
 
   const [brands, setBrands] = useState<string[]>([]);
-  const [categories, setCategories] = useState<
-    { name: string; slug: string }[]
-  >([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const categoryOptions = flattenCategories(categories);
 
   const [isLoadingProducts, setIsLoadingProducts] = useState(true);
   const [productsError, setProductsError] = useState<string | null>(null);
@@ -101,7 +118,7 @@ const Products = () => {
   >(() => getRequestedCondition(searchParams.get('condition')));
 
   const [selectedCategory, setSelectedCategory] = useState(
-    () => searchParams.get('category') ?? '',
+    () => searchParams.get('category') ?? routeCategory,
   );
 
   const [sortOption, setSortOption] = useState<
@@ -144,7 +161,7 @@ const Products = () => {
       searchParams.get('brand')?.split(',').filter(Boolean) ?? [],
     );
 
-    setSelectedCategory(searchParams.get('category') ?? '');
+    setSelectedCategory(searchParams.get('category') ?? routeCategory);
 
     setSelectedCondition(
       getRequestedCondition(searchParams.get('condition')),
@@ -177,7 +194,7 @@ const Products = () => {
         ? requestedPage
         : 1,
     );
-  }, [searchParams]);
+  }, [routeCategory, searchParams]);
 
   useEffect(() => {
     let isActive = true;
@@ -304,7 +321,7 @@ const Products = () => {
       nextParams.set('brand', selectedBrands.join(','));
     }
 
-    if (selectedCategory) {
+    if (selectedCategory && selectedCategory !== routeCategory) {
       nextParams.set('category', selectedCategory);
     }
 
@@ -358,6 +375,7 @@ const Products = () => {
     selectedCategory,
     selectedCondition,
     selectedPriceRange,
+    routeCategory,
     selectedStorage,
     setSearchParams,
     sortOption,
@@ -467,11 +485,11 @@ const Products = () => {
 
       {categories.length > 0 && (
         <FilterGroup title="Product type">
-          {categories.map((category) => (
+          {categoryOptions.map((category) => (
             <FilterRadio
               key={category.slug}
               name="category"
-              label={category.name}
+              label={`${category.parentSlug ? '↳ ' : ''}${category.name}`}
               checked={
                 selectedCategory === category.slug
               }
@@ -538,7 +556,7 @@ const Products = () => {
           className="h-4 w-4 rounded border-slate-300 text-blue-700 focus:ring-blue-600"
         />
 
-        Featured phones only
+        Featured products only
       </label>
 
       {hasActiveSearch && (
@@ -559,7 +577,7 @@ const Products = () => {
         <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
           <div>
             <h1 className="text-3xl font-extrabold tracking-tight text-slate-950 sm:text-4xl">
-              Shop phones
+              Shop products
             </h1>
 
             <p className="mt-2 text-sm text-slate-600">
@@ -567,8 +585,8 @@ const Products = () => {
                 ? 'Loading the live catalogue'
                 : `${pagination.total} ${
                     pagination.total === 1
-                      ? 'phone'
-                      : 'phones'
+                      ? 'product'
+                      : 'products'
                   } available`}
             </p>
           </div>
@@ -596,6 +614,20 @@ const Products = () => {
             </Link>
           </div>
         </div>
+
+        {categories.length > 0 && (
+          <nav className="mt-5 flex gap-2 overflow-x-auto pb-1" aria-label="Browse categories">
+            {categoryOptions.map((category) => (
+              <Link
+                key={category.id}
+                to={categoryHref(category)}
+                className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-bold ${selectedCategory === category.slug ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-slate-200 bg-white text-slate-600 hover:border-blue-300 hover:text-blue-700'}`}
+              >
+                {category.parentSlug ? '↳ ' : ''}{category.name}
+              </Link>
+            ))}
+          </nav>
+        )}
 
         <div className="mt-6 rounded-xl border border-slate-200 bg-white p-3 shadow-[0_10px_30px_rgba(15,46,82,0.05)] sm:p-4">
           <div className="grid gap-3 lg:grid-cols-[1fr_auto_auto]">
@@ -748,7 +780,7 @@ const Products = () => {
             {selectedCategory && (
               <FilterChip
                 label={
-                  categories.find(
+                  categoryOptions.find(
                     (category) =>
                       category.slug ===
                       selectedCategory,
@@ -787,7 +819,7 @@ const Products = () => {
             <div className="sticky top-36 rounded-xl border border-slate-200 bg-white p-5">
               <div className="mb-5 flex items-center justify-between border-b border-slate-200 pb-4">
                 <h2 className="font-extrabold text-slate-950">
-                  Filter phones
+                  Filter products
                 </h2>
 
                 {activeFiltersCount > 0 && (
@@ -860,7 +892,7 @@ const Products = () => {
 
                   <h2 className="mt-5 text-xl font-extrabold text-slate-950">
                     {hasActiveSearch
-                      ? 'No phones match these filters'
+                      ? 'No products match these filters'
                       : 'The catalogue is currently empty'}
                   </h2>
 
@@ -1010,7 +1042,7 @@ const Products = () => {
             >
               <div className="flex h-16 items-center justify-between border-b border-slate-200 px-5">
                 <h2 className="font-extrabold text-slate-950">
-                  Filter phones
+                  Filter products
                 </h2>
 
                 <button

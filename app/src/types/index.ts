@@ -80,9 +80,16 @@ export interface Brand {
 
 export interface Category {
   id: string;
+  parentId?: string | null;
+  parentSlug?: string | null;
   name: string;
   slug: string;
+  description?: string | null;
+  imageUrl?: string | null;
+  sortOrder?: number;
+  isActive?: boolean;
   productCount: number;
+  children?: Category[];
 }
 
 export interface ContactMessage {
@@ -100,6 +107,7 @@ export interface ContactMessage {
 }
 
 export interface ProductSpecs {
+  [key: string]: string | undefined;
   storage?: string;
   color?: string;
   display?: string;
