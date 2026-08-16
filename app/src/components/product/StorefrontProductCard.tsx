@@ -84,7 +84,7 @@ const StorefrontProductCard = ({
           {product.name}
         </h3>
         <ProductRating product={product} className="mt-2" compact />
-        <div className="mt-auto pt-3">
+        <div className="pt-3">
           <PriceBlock product={product} discount={null} />
           {(isOutOfStock || onAddToCart) && (
             <div className={`mt-2 flex items-center gap-2 border-t border-slate-100 pt-2 ${isOutOfStock ? 'justify-between' : 'justify-end'}`}>
