@@ -9,11 +9,7 @@ interface ProductRatingProps {
 
 const ProductRating = ({ product, className = '', compact = false }: ProductRatingProps) => {
   if (!product.numReviews || product.rating === null) {
-    return (
-      <div className={`text-sm text-slate-500 ${className}`}>
-        No reviews yet
-      </div>
-    );
+    return null;
   }
 
   return (

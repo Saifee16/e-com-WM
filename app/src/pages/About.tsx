@@ -81,35 +81,54 @@ const About = () => (
     </section>
 
     <section className="py-11 sm:py-14">
-      <div className="mx-auto grid max-w-[1400px] items-center gap-8 px-4 sm:px-6 lg:grid-cols-[1.08fr_.92fr] lg:px-8">
-        <figure className="overflow-hidden rounded-xl border border-slate-200 bg-white p-2 shadow-[0_18px_50px_rgba(15,46,82,0.1)]">
-          <img src="/assets/wahab-shop.jpg" alt="Wahab Mobiles shop interior in Hyderabad" className="aspect-[16/10] w-full rounded-lg object-cover" />
-        </figure>
-        <div className="lg:pl-5">
-          <h2 className="text-3xl font-extrabold tracking-tight text-slate-950">Serving Hyderabad since 2009</h2>
-          <p className="mt-4 text-base leading-7 text-slate-600">
-            Customers can browse catalogue details online, then order, call or visit the shop to confirm the right device.
+      <div className="mx-auto max-w-[1400px] px-4 sm:px-6 lg:px-8">
+        <div className="max-w-2xl">
+          <h2 className="text-3xl font-extrabold tracking-tight text-slate-950">Visit the Saddar Cantt store</h2>
+          <p className="mt-3 text-base leading-7 text-slate-600">
+            Browse catalogue details online, then call or visit the shop to confirm the right device.
           </p>
-          <div className="mt-6 space-y-4 border-t border-slate-200 pt-6 text-sm text-slate-700">
-            <a href={SHOP_MAPS_URL} target="_blank" rel="noreferrer" className="flex items-start gap-3 hover:text-blue-700">
-              <MapPin className="mt-0.5 h-5 w-5 shrink-0 text-blue-700" aria-hidden="true" />
-              <span><strong className="block text-slate-950">Visit the shop</strong>{SHOP_ADDRESS}</span>
+        </div>
+
+        <div className="mt-7 grid gap-5 lg:grid-cols-2 lg:gap-8">
+          <figure className="overflow-hidden rounded-xl border border-slate-200 bg-white p-2 shadow-[0_18px_50px_rgba(15,46,82,0.1)]">
+            <img src="/assets/wahab-shop.jpg" alt="Wahab Mobiles shop interior in Hyderabad" className="aspect-[16/10] w-full rounded-lg object-cover" />
+          </figure>
+          <div className="overflow-hidden rounded-xl border border-slate-200 bg-slate-100 shadow-[0_18px_50px_rgba(15,46,82,0.1)]">
+            <iframe
+              title="Wahab Mobiles location in Hyderabad"
+              src={`https://www.google.com/maps?q=${encodeURIComponent(SHOP_ADDRESS)}&output=embed`}
+              className="aspect-[16/10] w-full border-0"
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+            />
+          </div>
+        </div>
+
+        <div className="mt-6 flex flex-col gap-4 border-t border-slate-200 pt-6 text-sm text-slate-700 sm:flex-row sm:items-start sm:justify-between">
+          <a href={SHOP_MAPS_URL} target="_blank" rel="noreferrer" className="flex items-start gap-3 hover:text-blue-700">
+            <MapPin className="mt-0.5 h-5 w-5 shrink-0 text-blue-700" aria-hidden="true" />
+            <span><strong className="block text-slate-950">Shop address</strong>{SHOP_ADDRESS}</span>
+          </a>
+          <div className="flex flex-wrap gap-3">
+            {CONTACT_PHONE_NUMBERS.map((phone, index) => (
+              <a
+                key={phone.href}
+                href={phone.href}
+                className={index === 0
+                  ? 'inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-blue-700 px-4 font-bold text-white hover:bg-blue-800'
+                  : 'inline-flex min-h-11 items-center justify-center rounded-lg border border-slate-300 px-4 font-semibold text-slate-700 hover:border-blue-300 hover:text-blue-700'}
+              >
+                {index === 0 && <Phone className="h-4 w-4" aria-hidden="true" />}
+                {index === 0 ? `Call the shop (${phone.label})` : phone.label}
+              </a>
+            ))}
+            <a href={`mailto:${CONTACT_EMAIL}`} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-slate-300 px-4 font-semibold text-slate-700 hover:border-blue-300 hover:text-blue-700">
+              <Mail className="h-4 w-4" aria-hidden="true" />
+              Email support
             </a>
-            <div className="flex items-start gap-3">
-              <Phone className="mt-0.5 h-5 w-5 shrink-0 text-blue-700" aria-hidden="true" />
-              <span>
-                <strong className="block text-slate-950">Call directly</strong>
-                {CONTACT_PHONE_NUMBERS.map((phone, index) => (
-                  <span key={phone.href}>
-                    {index > 0 && <span className="mx-2 text-slate-300">/</span>}
-                    <a href={phone.href} className="hover:text-blue-700">{phone.label}</a>
-                  </span>
-                ))}
-              </span>
-            </div>
-            <a href={`mailto:${CONTACT_EMAIL}`} className="flex items-start gap-3 hover:text-blue-700">
-              <Mail className="mt-0.5 h-5 w-5 shrink-0 text-blue-700" aria-hidden="true" />
-              <span><strong className="block text-slate-950">Email support</strong>{CONTACT_EMAIL}</span>
+            <a href={SHOP_MAPS_URL} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-slate-300 px-4 font-bold text-slate-700 hover:border-blue-300 hover:text-blue-700">
+              <MapPin className="h-4 w-4" aria-hidden="true" />
+              Open in Google Maps
             </a>
           </div>
         </div>

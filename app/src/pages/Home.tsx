@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 import {
   ArrowRight,
   Banknote,
-  MapPin,
   Phone,
   ShieldCheck,
   ShoppingBag,
@@ -314,15 +313,18 @@ const Home = () => {
             <p className="text-sm font-bold text-blue-700">Visit Wahab Mobiles</p>
             <h2 className="mt-2 text-3xl font-extrabold tracking-tight text-slate-950 sm:text-4xl">See the shop behind the storefront.</h2>
             <p className="mt-4 max-w-xl text-base leading-7 text-slate-600">{SHOP_ADDRESS}</p>
-            <div className="mt-6 flex flex-col gap-3 min-[430px]:flex-row">
-              <a href={SHOP_MAPS_URL} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-blue-700 px-5 text-sm font-bold text-white hover:bg-blue-800">
-                <MapPin className="h-4 w-4" aria-hidden="true" />
-                Open map
-              </a>
-              <Link to="/about#about-us" className="inline-flex min-h-11 items-center justify-center rounded-lg border border-slate-300 px-5 text-sm font-bold text-slate-700 hover:border-blue-300 hover:text-blue-700">
-                About the store
-              </Link>
+            <div className="mt-6 overflow-hidden rounded-xl border border-slate-200 bg-slate-100 shadow-[0_18px_50px_rgba(15,46,82,0.1)]">
+              <iframe
+                title="Wahab Mobiles location in Hyderabad"
+                src={`https://www.google.com/maps?q=${encodeURIComponent(SHOP_ADDRESS)}&output=embed`}
+                className="aspect-[16/10] w-full border-0"
+                loading="lazy"
+                referrerPolicy="no-referrer-when-downgrade"
+              />
             </div>
+            <Link to="/about#about-us" className="mt-4 inline-flex min-h-11 items-center justify-center rounded-lg border border-slate-300 px-5 text-sm font-bold text-slate-700 hover:border-blue-300 hover:text-blue-700">
+              About the store
+            </Link>
           </div>
         </div>
       </section>
