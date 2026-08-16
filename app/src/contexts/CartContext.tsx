@@ -8,9 +8,9 @@ interface CartContextType {
   items: CartItem[];
   totals: CartTotals;
   isLoading: boolean;
-  addToCart: (product: Product, quantity?: number) => Promise<void>;
-  updateQuantity: (productId: string, quantity: number) => Promise<void>;
-  removeFromCart: (productId: string) => Promise<void>;
+  addToCart: (product: Product, quantity?: number, variantId?: string) => Promise<void>;
+  updateQuantity: (variantId: string, quantity: number) => Promise<void>;
+  removeFromCart: (variantId: string) => Promise<void>;
   clearCart: () => Promise<void>;
   applyPromoCode: (code: string) => Promise<{ discount: number; discountRate: number }>;
   refreshCart: () => Promise<void>;
@@ -91,10 +91,10 @@ export const CartProvider: React.FC<CartProviderProps> = ({ children }) => {
     void refreshCart();
   }, [refreshCart]);
 
-  const addToCart = async (product: Product, quantity: number = 1) => {
+  const addToCart = async (product: Product, quantity: number = 1, variantId?: string) => {
     try {
       setIsLoading(true);
-      const response = await cartAPI.addToCart(product._id, quantity);
+      const response = await cartAPI.addToCart(product._id, variantId, quantity);
       hydrateCart(response.data.data);
       showToast('Item added to cart', 'success');
     } catch (error: unknown) {
@@ -109,10 +109,10 @@ export const CartProvider: React.FC<CartProviderProps> = ({ children }) => {
     }
   };
 
-  const updateQuantity = async (productId: string, quantity: number) => {
+  const updateQuantity = async (variantId: string, quantity: number) => {
     try {
       setIsLoading(true);
-      const response = await cartAPI.updateQuantity(productId, quantity);
+      const response = await cartAPI.updateQuantity(variantId, quantity);
       hydrateCart(response.data.data);
     } catch (error: unknown) {
       const apiError = getApiError(error);
@@ -126,10 +126,10 @@ export const CartProvider: React.FC<CartProviderProps> = ({ children }) => {
     }
   };
 
-  const removeFromCart = async (productId: string) => {
+  const removeFromCart = async (variantId: string) => {
     try {
       setIsLoading(true);
-      const response = await cartAPI.removeFromCart(productId);
+      const response = await cartAPI.removeFromCart(variantId);
       hydrateCart(response.data.data);
       showToast('Item removed from cart', 'success');
     } catch (error: unknown) {

@@ -1,5 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
 import type { Prisma } from '@prisma/client';
+import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import path from 'node:path';
 import { prisma } from '../../db/prisma.js';
@@ -25,13 +26,32 @@ export const productInclude = {
 
 export type ProductWithRelations = Prisma.ProductGetPayload<{ include: typeof productInclude }>;
 
-export const mapProduct = (product: ProductWithRelations) => {
-  const variant = product.variants.find((item) => item.isActive) ?? product.variants[0];
+const asStringRecord = (value: unknown) =>
+  value && typeof value === 'object' && !Array.isArray(value)
+    ? Object.fromEntries(Object.entries(value).filter((entry): entry is [string, string] => typeof entry[1] === 'string'))
+    : {};
+
+const variantTitle = (variant: { title: string; storage: string | null; color: string | null; condition: string | null; options: unknown }) => {
+  if (variant.title.trim()) return variant.title;
+  return [variant.storage, variant.color, variant.condition, ...Object.values(asStringRecord(variant.options))]
+    .filter(Boolean)
+    .join(' / ') || 'Default';
+};
+
+export const mapProduct = (product: ProductWithRelations, includeInactiveVariants = false) => {
+  const availableVariants = product.variants.filter((item) => item.isActive);
+  const variants = includeInactiveVariants ? product.variants : availableVariants;
+  const pricingVariants = availableVariants.length ? availableVariants : product.variants;
+  const variant = pricingVariants.reduce<typeof pricingVariants[number] | undefined>(
+    (lowest, item) => !lowest || item.priceAmount < lowest.priceAmount ? item : lowest,
+    undefined,
+  );
   const storedSpecifications =
     product.specifications && typeof product.specifications === 'object' && !Array.isArray(product.specifications)
       ? product.specifications as Record<string, unknown>
       : {};
-  const primaryImage = product.images[0]?.url ?? 'https://placehold.co/800x800?text=Product';
+  const commonImages = product.images.filter((image) => !image.variantId);
+  const primaryImage = commonImages[0]?.url ?? product.images[0]?.url ?? 'https://placehold.co/800x800?text=Product';
   const rating =
     product.reviews.length > 0
       ? product.reviews.reduce((total, review) => total + review.rating, 0) / product.reviews.length
@@ -47,7 +67,7 @@ export const mapProduct = (product: ProductWithRelations) => {
     description: product.description,
     price: variant?.priceAmount ?? 0,
     originalPrice: variant?.compareAtPriceAmount ?? undefined,
-    images: product.images.length > 0 ? product.images.map((image) => image.url) : [primaryImage],
+    images: commonImages.length > 0 ? commonImages.map((image) => image.url) : [primaryImage],
     category: product.category.slug,
     categoryName: product.category.name,
     specifications: {
@@ -78,6 +98,24 @@ export const mapProduct = (product: ProductWithRelations) => {
     tags: [product.brand.slug, product.category.slug],
     status: product.status,
     createdAt: product.createdAt.toISOString(),
+    variants: variants.map((item) => {
+      const variantImages = product.images.filter((image) => image.variantId === item.id).map((image) => image.url);
+      return {
+        id: item.id,
+        sku: item.sku,
+        title: variantTitle(item),
+        storage: item.storage ?? undefined,
+        color: item.color ?? undefined,
+        condition: item.condition as 'new' | 'used' | 'refurbished' | null,
+        options: asStringRecord(item.options),
+        price: item.priceAmount,
+        originalPrice: item.compareAtPriceAmount ?? undefined,
+        countInStock: item.stockQuantity,
+        isActive: item.isActive,
+        images: variantImages,
+        image: variantImages[0] ?? primaryImage,
+      };
+    }),
   };
 };
 
@@ -144,6 +182,30 @@ const productSpecificationsSchema = z.object({
   network: z.string().trim().min(1).max(120).optional(),
 }).strict();
 
+const variantOptionsSchema = z.record(
+  z.string().trim().min(1).max(80),
+  z.string().trim().min(1).max(120),
+);
+
+const productVariantPayloadSchema = z.object({
+  id: z.string().uuid().optional(),
+  sku: z.string().trim().min(1).max(120).optional(),
+  title: z.string().trim().min(1).max(200).optional(),
+  storage: z.string().trim().min(1).max(40).optional(),
+  color: z.string().trim().min(1).max(80).optional(),
+  condition: z.enum(['new', 'used', 'refurbished']).optional(),
+  options: variantOptionsSchema.optional(),
+  price: z.number().int().nonnegative(),
+  originalPrice: z.number().int().nonnegative().optional(),
+  countInStock: z.number().int().nonnegative(),
+  isActive: z.boolean().default(true),
+  imageUrl: imageUrlSchema.optional(),
+}).superRefine((variant, context) => {
+  if (variant.originalPrice !== undefined && variant.originalPrice <= variant.price) {
+    context.addIssue({ code: 'custom', path: ['originalPrice'], message: 'Regular price must be greater than the sale price' });
+  }
+});
+
 const productPayloadSchema = z.object({
   name: z.string().trim().min(1).max(200),
   brand: z.string().trim().min(1).max(80),
@@ -161,6 +223,7 @@ const productPayloadSchema = z.object({
   ptaApproved: z.boolean().default(true),
   isFeatured: z.boolean().default(false),
   status: z.enum(['DRAFT', 'ACTIVE', 'ARCHIVED']).default('ACTIVE'),
+  variants: z.array(productVariantPayloadSchema).min(1).max(100).optional(),
 }).strict();
 
 const productCreateSchema = productPayloadSchema.refine(
@@ -172,6 +235,32 @@ const productCreateSchema = productPayloadSchema.refine(
 );
 
 const productUpdateSchema = productPayloadSchema.partial();
+
+type ProductVariantPayload = z.infer<typeof productVariantPayloadSchema>;
+
+const createVariantData = (variant: ProductVariantPayload, slug: string, index: number) => ({
+  sku: variant.sku ?? `${slug.toUpperCase()}-${index + 1}-${randomUUID().slice(0, 8).toUpperCase()}`,
+  title: variant.title ?? [variant.storage, variant.color, variant.condition, ...Object.values(variant.options ?? {})].filter(Boolean).join(' / ') || 'Default',
+  ...(variant.storage ? { storage: variant.storage } : {}),
+  ...(variant.color ? { color: variant.color } : {}),
+  ...(variant.condition ? { condition: variant.condition } : {}),
+  ...(variant.options ? { options: variant.options } : {}),
+  priceAmount: variant.price,
+  ...(variant.originalPrice !== undefined ? { compareAtPriceAmount: variant.originalPrice } : {}),
+  stockQuantity: variant.countInStock,
+  isActive: variant.isActive,
+});
+
+const legacyVariantPayload = (body: z.infer<typeof productPayloadSchema>): ProductVariantPayload => ({
+  title: body.storage ?? 'Default',
+  ...(body.storage ? { storage: body.storage } : {}),
+  ...(body.color ? { color: body.color } : {}),
+  condition: body.condition,
+  price: body.price,
+  ...(body.originalPrice !== undefined ? { originalPrice: body.originalPrice } : {}),
+  countInStock: body.countInStock,
+  isActive: true,
+});
 
 const getOrCreateBrand = async (name: string) => {
   const slug = slugify(name);
@@ -485,7 +574,7 @@ export const adminProductRoutes: FastifyPluginAsync<AdminProductRoutesOptions> =
       }),
     ]);
     return ok(reply, {
-      items: products.map(mapProduct),
+      items: products.map((product) => mapProduct(product, true)),
       pagination: {
         page: query.page,
         limit: query.limit,
@@ -501,6 +590,8 @@ export const adminProductRoutes: FastifyPluginAsync<AdminProductRoutesOptions> =
     const category = await getOrCreateCategory(body.category);
     const slug = await getUniqueProductSlug(body.name);
     const imageUrls = body.images?.length ? body.images : body.imageUrl ? [body.imageUrl] : [];
+    const variantPayloads = body.variants?.length ? body.variants : [legacyVariantPayload(body)];
+    const variantData = variantPayloads.map((variant, index) => createVariantData(variant, slug, index));
 
     const product = await prisma.product.create({
       data: {
@@ -515,16 +606,7 @@ export const adminProductRoutes: FastifyPluginAsync<AdminProductRoutesOptions> =
         ptaApproved: body.ptaApproved,
         ...(body.specifications ? { specifications: body.specifications } : {}),
         variants: {
-          create: {
-            sku: `${slug.toUpperCase()}-${Date.now()}`,
-            title: body.storage ?? 'Default',
-            ...(body.storage ? { storage: body.storage } : {}),
-            ...(body.color ? { color: body.color } : {}),
-            condition: body.condition,
-            priceAmount: body.price,
-            ...(body.originalPrice !== undefined ? { compareAtPriceAmount: body.originalPrice } : {}),
-            stockQuantity: body.countInStock,
-          },
+          create: variantData,
         },
         ...(imageUrls.length > 0
           ? {
@@ -541,18 +623,29 @@ export const adminProductRoutes: FastifyPluginAsync<AdminProductRoutesOptions> =
       },
       include: productInclude,
     });
+    const variantImageData = variantPayloads.flatMap((variant, index) =>
+      variant.imageUrl
+        ? [{ productId: product.id, variantId: product.variants[index]!.id, url: variant.imageUrl, altText: body.name }]
+        : [],
+    );
+    if (variantImageData.length) {
+      await prisma.productImage.createMany({ data: variantImageData });
+    }
+    const createdProduct = variantImageData.length
+      ? await prisma.product.findUniqueOrThrow({ where: { id: product.id }, include: productInclude })
+      : product;
 
     await prisma.auditLog.create({
       data: {
         actorUserId: request.authUser!.id,
         action: 'CREATE',
         entityType: 'Product',
-        entityId: product.id,
-        after: mapProduct(product),
+        entityId: createdProduct.id,
+        after: mapProduct(createdProduct, true),
       },
     });
 
-    return ok(reply.status(201), mapProduct(product));
+    return ok(reply.status(201), mapProduct(createdProduct, true));
   });
 
   app.put('/:id', async (request, reply) => {
@@ -587,7 +680,50 @@ export const adminProductRoutes: FastifyPluginAsync<AdminProductRoutesOptions> =
       });
     }
 
-    if (variant) {
+    if (body.variants !== undefined) {
+      const requestedIds = new Set(body.variants.flatMap((item) => item.id ? [item.id] : []));
+      const existingIds = new Set(existing.variants.map((item) => item.id));
+      if ([...requestedIds].some((id) => !existingIds.has(id))) {
+        return fail(reply, 400, {
+          code: 'VALIDATION_ERROR',
+          message: 'A variant does not belong to this product',
+        });
+      }
+
+      await prisma.$transaction(async (tx) => {
+        await tx.productVariant.updateMany({
+          where: { productId: params.id, id: { notIn: [...requestedIds] } },
+          data: { isActive: false },
+        });
+        for (const [index, requested] of body.variants!.entries()) {
+          const data = createVariantData(requested, slug, index);
+          const { sku, ...variantData } = data;
+          if (requested.id) {
+            await tx.productVariant.update({
+              where: { id: requested.id },
+              data: {
+                ...variantData,
+                ...(requested.sku ? { sku } : {}),
+              },
+            });
+            if (requested.imageUrl) {
+              await tx.productImage.deleteMany({ where: { productId: params.id, variantId: requested.id } });
+              await tx.productImage.create({
+                data: { productId: params.id, variantId: requested.id, url: requested.imageUrl, altText: body.name ?? existing.name },
+              });
+            }
+          } else {
+            const createdVariant = await tx.productVariant.create({ data: { productId: params.id, ...data } });
+            if (requested.imageUrl) {
+              await tx.productImage.create({
+                data: { productId: params.id, variantId: createdVariant.id, url: requested.imageUrl, altText: body.name ?? existing.name },
+              });
+            }
+          }
+        }
+
+      });
+    } else if (variant) {
       await prisma.productVariant.update({
         where: { id: variant.id },
         data: {
@@ -644,15 +780,15 @@ export const adminProductRoutes: FastifyPluginAsync<AdminProductRoutesOptions> =
         action: 'UPDATE',
         entityType: 'Product',
         entityId: updated.id,
-        before: mapProduct(existing),
-        after: mapProduct(updated),
+        before: mapProduct(existing, true),
+        after: mapProduct(updated, true),
       },
     });
     if (removedImageUrls.length) {
       await deleteProductImageUrls(removedImageUrls, localImageStorageOptions);
     }
 
-    return ok(reply, mapProduct(updated));
+    return ok(reply, mapProduct(updated, true));
   });
 
   app.delete('/:id', async (request, reply) => {
@@ -681,8 +817,8 @@ export const adminProductRoutes: FastifyPluginAsync<AdminProductRoutesOptions> =
         action: 'DELETE',
         entityType: 'Product',
         entityId: updated.id,
-        before: mapProduct(existing),
-        after: mapProduct(updated),
+        before: mapProduct(existing, true),
+        after: mapProduct(updated, true),
       },
     });
     const archivedImageUrls = existing.images.map((image) => image.url);

@@ -20,6 +20,7 @@ import {
   toProductCreateRequest,
   validateProductImageSelection,
   type ProductFormState,
+  type VariantFormState,
 } from './product-form';
 
 const comparisonFields = [
@@ -232,9 +233,49 @@ const ProductModal = ({
   const isEditing = !!product;
   const [formData, setFormData] = useState<ProductFormState>(() => createProductFormState(product));
   const [isSaving, setIsSaving] = useState(false);
+  const [storageDraft, setStorageDraft] = useState('');
+  const [colorDraft, setColorDraft] = useState('');
 
   const updateField = <Key extends keyof ProductFormState>(field: Key, value: ProductFormState[Key]) => {
     setFormData((current) => ({ ...current, [field]: value }));
+  };
+  const updateVariant = <Key extends keyof VariantFormState>(index: number, field: Key, value: VariantFormState[Key]) => {
+    setFormData((current) => ({
+      ...current,
+      variants: current.variants.map((variant, variantIndex) => variantIndex === index ? { ...variant, [field]: value } : variant),
+    }));
+  };
+  const addOptionValue = (field: 'variantStorageOptions' | 'variantColorOptions', value: string) => {
+    const normalized = value.trim();
+    if (!normalized) return;
+    updateField(field, [...new Set([...formData[field], normalized])]);
+  };
+  const generatePhoneVariants = () => {
+    const storages = formData.variantStorageOptions.length ? formData.variantStorageOptions : [''];
+    const colors = formData.variantColorOptions.length ? formData.variantColorOptions : [''];
+    const currentVariants = new Map(formData.variants.map((variant) => [`${variant.storage}\u0000${variant.color}`, variant]));
+    const generated: VariantFormState[] = storages.flatMap((storage) => colors.map((color) => {
+      const existing = currentVariants.get(`${storage}\u0000${color}`);
+      return existing ?? {
+        sku: '',
+        title: [storage, color].filter(Boolean).join(' / ') || 'Default',
+        storage,
+        color,
+        condition: formData.condition,
+        options: {},
+        price: formData.price,
+        originalPrice: formData.originalPrice,
+        countInStock: formData.countInStock,
+        isActive: true,
+      };
+    }));
+    updateField('variants', generated);
+  };
+  const addGenericVariant = () => {
+    updateField('variants', [...formData.variants, {
+      sku: '', title: '', storage: '', color: '', condition: formData.condition, options: {},
+      price: formData.price, originalPrice: formData.originalPrice, countInStock: formData.countInStock, isActive: true,
+    }]);
   };
 
   const imagePreviews = useMemo(
@@ -390,7 +431,76 @@ const ProductModal = ({
               </select>
             </div>
 
-            <div className="grid sm:grid-cols-3 gap-6">
+            <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-gray-200 p-4">
+              <input
+                type="checkbox"
+                checked={formData.hasVariants}
+                onChange={(event) => updateField('hasVariants', event.target.checked)}
+                className="h-5 w-5 rounded text-blue-600"
+              />
+              <span>
+                <span className="block text-sm font-semibold text-gray-900">Does this product have variants?</span>
+                <span className="block text-xs text-gray-500">Use one product for all storage, color, or future option combinations.</span>
+              </span>
+            </label>
+
+            {formData.hasVariants && (
+              <section className="space-y-4 rounded-xl border border-gray-200 p-4" aria-labelledby="variant-builder-heading">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h4 id="variant-builder-heading" className="text-sm font-semibold text-gray-900">Variant builder</h4>
+                    <p className="mt-1 text-xs text-gray-500">Add storage and color values, then generate editable combinations.</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button type="button" onClick={generatePhoneVariants} className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700">Generate combinations</button>
+                    <button type="button" onClick={addGenericVariant} className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Add variant</button>
+                  </div>
+                </div>
+                {(['variantStorageOptions', 'variantColorOptions'] as const).map((field) => {
+                  const isStorage = field === 'variantStorageOptions';
+                  const values = formData[field];
+                  const draft = isStorage ? storageDraft : colorDraft;
+                  const setDraft = isStorage ? setStorageDraft : setColorDraft;
+                  return (
+                    <div key={field}>
+                      <p className="mb-2 text-sm font-medium text-gray-700">{isStorage ? 'Storage' : 'Color'}</p>
+                      <div className="flex flex-wrap gap-2">
+                        {values.map((value) => (
+                          <button key={value} type="button" onClick={() => updateField(field, values.filter((item) => item !== value))} className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-sm text-blue-800 hover:border-red-300 hover:text-red-700">{value} <span aria-hidden="true">×</span></button>
+                        ))}
+                        <div className="flex gap-2">
+                          <input value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); addOptionValue(field, draft); setDraft(''); } }} placeholder={isStorage ? '128GB' : 'Black'} className="w-28 rounded-lg border border-gray-300 px-3 py-1.5 text-sm" />
+                          <button type="button" onClick={() => { addOptionValue(field, draft); setDraft(''); }} className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">+ Add</button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[760px] text-left text-sm">
+                    <thead className="text-xs text-gray-500"><tr><th className="pb-2">Storage</th><th className="pb-2">Color / options</th><th className="pb-2">Condition</th><th className="pb-2">Price</th><th className="pb-2">Regular price</th><th className="pb-2">Stock</th><th className="pb-2">SKU</th><th className="pb-2">Active</th><th className="pb-2"></th></tr></thead>
+                    <tbody>
+                      {formData.variants.map((variant, index) => (
+                        <tr key={variant.id ?? `${variant.storage}-${variant.color}-${index}`} className="border-t border-gray-100">
+                          <td className="py-2 pr-2"><input value={variant.storage} onChange={(event) => updateVariant(index, 'storage', event.target.value)} className="w-24 rounded border border-gray-300 px-2 py-1.5" /></td>
+                          <td className="py-2 pr-2"><input value={variant.color} onChange={(event) => updateVariant(index, 'color', event.target.value)} placeholder="Color" className="w-28 rounded border border-gray-300 px-2 py-1.5" /><input value={Object.entries(variant.options).map(([key, value]) => `${key}: ${value}`).join(', ')} onChange={(event) => updateVariant(index, 'options', Object.fromEntries(event.target.value.split(',').map((item) => item.split(':').map((part) => part.trim())).filter((parts) => parts.length === 2 && parts[0] && parts[1]) as [string, string][]))} placeholder="Size: 44mm" className="mt-1 w-36 rounded border border-gray-300 px-2 py-1.5 text-xs" /></td>
+                          <td className="py-2 pr-2"><select value={variant.condition} onChange={(event) => updateVariant(index, 'condition', event.target.value as VariantFormState['condition'])} className="rounded border border-gray-300 px-2 py-1.5"><option value="new">New</option><option value="used">Used</option><option value="refurbished">Refurbished</option></select></td>
+                          <td className="py-2 pr-2"><input type="number" min="0" value={variant.price} onChange={(event) => updateVariant(index, 'price', event.target.value)} className="w-24 rounded border border-gray-300 px-2 py-1.5" /></td>
+                          <td className="py-2 pr-2"><input type="number" min="0" value={variant.originalPrice} onChange={(event) => updateVariant(index, 'originalPrice', event.target.value)} className="w-24 rounded border border-gray-300 px-2 py-1.5" /></td>
+                          <td className="py-2 pr-2"><input type="number" min="0" value={variant.countInStock} onChange={(event) => updateVariant(index, 'countInStock', event.target.value)} className="w-20 rounded border border-gray-300 px-2 py-1.5" /></td>
+                          <td className="py-2 pr-2"><input value={variant.sku} onChange={(event) => updateVariant(index, 'sku', event.target.value)} placeholder="Auto if blank" className="w-32 rounded border border-gray-300 px-2 py-1.5" /></td>
+                          <td className="py-2 pr-2"><input type="checkbox" checked={variant.isActive} onChange={(event) => updateVariant(index, 'isActive', event.target.checked)} className="h-4 w-4" /></td>
+                          <td className="py-2 text-right"><button type="button" onClick={() => updateField('variants', formData.variants.filter((_, variantIndex) => variantIndex !== index))} className="rounded p-1.5 text-gray-500 hover:bg-red-50 hover:text-red-600" aria-label={`Remove variant ${index + 1}`}><Trash2 className="h-4 w-4" /></button></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            )}
+
+            {!formData.hasVariants && <div className="grid sm:grid-cols-3 gap-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Sale Price (PKR)
@@ -434,7 +544,7 @@ const ProductModal = ({
                   className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
-            </div>
+            </div>}
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -539,7 +649,7 @@ const ProductModal = ({
               )}
             </div>
 
-            <div className="grid sm:grid-cols-2 gap-6">
+            {!formData.hasVariants && <div className="grid sm:grid-cols-2 gap-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Storage
@@ -549,6 +659,7 @@ const ProductModal = ({
                   onChange={(event) => updateField('storage', event.target.value)}
                   className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
+                  <option value="">Not specified</option>
                   <option>64GB</option>
                   <option>128GB</option>
                   <option>256GB</option>
@@ -568,7 +679,7 @@ const ProductModal = ({
                   className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
-            </div>
+            </div>}
 
             <section aria-labelledby="comparison-specifications-heading">
               <div className="mb-4">

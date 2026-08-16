@@ -57,15 +57,22 @@ const calculateTotals = (items: CartItemWithRelations[], promo?: CartPromo | nul
 const mapCart = (items: CartItemWithRelations[], promo?: CartPromo | null) => ({
   items: items.map((item) => {
     const product = mapProduct(item.variant.product);
+    const variantImage = item.variant.product.images.find((image) => image.variantId === item.variantId)?.url;
+    const optionValues = item.variant.options && typeof item.variant.options === 'object' && !Array.isArray(item.variant.options)
+      ? Object.values(item.variant.options).filter((value): value is string => typeof value === 'string')
+      : [];
     return {
       product: product._id,
       variantId: item.variantId,
       name: product.name,
-      image: product.images[0],
+      image: variantImage ?? product.images[0],
       price: item.variant.priceAmount,
       quantity: item.quantity,
       brand: product.brand,
-      specs: [item.variant.storage, item.variant.color].filter(Boolean).join(' / '),
+      specs: [item.variant.storage, item.variant.color, ...optionValues].filter(Boolean).join(' / ') || item.variant.title,
+      variantTitle: item.variant.title,
+      sku: item.variant.sku,
+      options: item.variant.options,
       ptaApproved: product.ptaApproved,
     };
   }),
@@ -135,14 +142,25 @@ const loadCartResponse = async (cartId: string) => {
   return mapCart(items, cart?.promoCode);
 };
 
-const findPrimaryVariant = async (productId: string) => {
+const findSelectedVariant = async (productId: string | undefined, variantId: string | undefined) => {
+  if (!variantId) {
+    if (!productId) return null;
+    const variants = await prisma.productVariant.findMany({
+      where: { productId, isActive: true, product: { status: 'ACTIVE' } },
+      orderBy: { createdAt: 'asc' },
+      take: 2,
+    });
+    return variants.length === 1 ? variants[0] : null;
+  }
   return prisma.productVariant.findFirst({
     where: {
-      productId,
+      id: variantId,
       isActive: true,
-      product: { status: 'ACTIVE' },
+      product: {
+        status: 'ACTIVE',
+        ...(productId ? { id: productId } : {}),
+      },
     },
-    orderBy: { createdAt: 'asc' },
   });
 };
 
@@ -170,9 +188,11 @@ export const cartRoutes: FastifyPluginAsync = async (app) => {
   app.post('/add', async (request, reply) => {
     const body = z
       .object({
-        productId: z.string().uuid(),
+        productId: z.string().uuid().optional(),
+        variantId: z.string().uuid().optional(),
         quantity: z.coerce.number().int().positive().max(99).default(1),
       })
+      .refine((body) => Boolean(body.productId || body.variantId), { message: 'productId or variantId is required' })
       .parse(request.body);
     const owner = await resolveCartOwner(request, reply, true);
     const cart = await getOrCreateCart(owner);
@@ -184,7 +204,7 @@ export const cartRoutes: FastifyPluginAsync = async (app) => {
       });
     }
 
-    const variant = await findPrimaryVariant(body.productId);
+    const variant = await findSelectedVariant(body.productId, body.variantId);
     if (!variant) {
       return fail(reply, 404, {
         code: 'PRODUCT_NOT_AVAILABLE',
@@ -236,8 +256,8 @@ export const cartRoutes: FastifyPluginAsync = async (app) => {
     return ok(reply, await loadCartResponse(cart.id));
   });
 
-  app.put('/update/:productId', async (request, reply) => {
-    const params = z.object({ productId: z.string().uuid() }).parse(request.params);
+  app.put('/update/:variantId', async (request, reply) => {
+    const params = z.object({ variantId: z.string().uuid() }).parse(request.params);
     const body = z.object({ quantity: z.coerce.number().int().min(0).max(99) }).parse(request.body);
     const owner = await resolveCartOwner(request, reply, true);
     const cart = await getOrCreateCart(owner);
@@ -246,12 +266,8 @@ export const cartRoutes: FastifyPluginAsync = async (app) => {
       return ok(reply, mapCart([]));
     }
 
-    const item = await prisma.cartItem.findFirst({
-      where: {
-        cartId: cart.id,
-        variant: { productId: params.productId },
-      },
-    });
+    const item = await prisma.cartItem.findFirst({ where: { cartId: cart.id, variantId: params.variantId } })
+      ?? await prisma.cartItem.findFirst({ where: { cartId: cart.id, variant: { productId: params.variantId } } });
 
     if (item) {
       const result = await prisma.$transaction(async (tx) => {
@@ -283,8 +299,8 @@ export const cartRoutes: FastifyPluginAsync = async (app) => {
     return ok(reply, await loadCartResponse(cart.id));
   });
 
-  app.delete('/remove/:productId', async (request, reply) => {
-    const params = z.object({ productId: z.string().uuid() }).parse(request.params);
+  app.delete('/remove/:variantId', async (request, reply) => {
+    const params = z.object({ variantId: z.string().uuid() }).parse(request.params);
     const owner = await resolveCartOwner(request, reply, true);
     const cart = await getOrCreateCart(owner);
 
@@ -292,12 +308,10 @@ export const cartRoutes: FastifyPluginAsync = async (app) => {
       return ok(reply, mapCart([]));
     }
 
-    await prisma.cartItem.deleteMany({
-      where: {
-        cartId: cart.id,
-        variant: { productId: params.productId },
-      },
-    });
+    const deleted = await prisma.cartItem.deleteMany({ where: { cartId: cart.id, variantId: params.variantId } });
+    if (deleted.count === 0) {
+      await prisma.cartItem.deleteMany({ where: { cartId: cart.id, variant: { productId: params.variantId } } });
+    }
 
     return ok(reply, await loadCartResponse(cart.id));
   });

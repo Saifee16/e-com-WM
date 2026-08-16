@@ -26,6 +26,22 @@ export interface UserPreferences {
 }
 
 // Product Types
+export interface ProductVariant {
+  id: string;
+  sku: string;
+  title: string;
+  storage?: string;
+  color?: string;
+  condition?: 'new' | 'used' | 'refurbished' | null;
+  options: Record<string, string>;
+  price: number;
+  originalPrice?: number;
+  countInStock: number;
+  isActive: boolean;
+  images: string[];
+  image: string;
+}
+
 export interface Product {
   _id: string;
   name: string;
@@ -50,6 +66,7 @@ export interface Product {
   tags: string[];
   status?: 'DRAFT' | 'ACTIVE' | 'ARCHIVED';
   createdAt?: string;
+  variants?: ProductVariant[];
 }
 
 export interface Brand {
@@ -105,6 +122,10 @@ export interface Review {
 // Cart Types
 export interface CartItem {
   product: string | Product;
+  variantId: string;
+  sku?: string;
+  variantTitle?: string;
+  options?: Record<string, string>;
   name: string;
   image: string;
   price: number;
@@ -159,6 +180,8 @@ export type OrderStatus = 'pending' | 'processing' | 'shipped' | 'delivered' | '
 
 export interface OrderItem {
   product: string | Product;
+  variantId?: string;
+  sku?: string;
   name: string;
   image: string;
   price: number;

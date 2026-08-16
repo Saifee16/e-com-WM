@@ -14,7 +14,7 @@ import {
   ShoppingCart,
   ChevronRight,
 } from 'lucide-react';
-import type { Product } from '../types';
+import type { Product, ProductVariant } from '../types';
 import { formatPrice } from '../utils/format';
 import { useCart } from '../contexts/CartContext';
 import { useToast } from '../contexts/ToastContext';
@@ -27,6 +27,8 @@ const ProductDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [product, setProduct] = useState<Product | null>(null);
+  const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
+  const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
   const [selectedImage, setSelectedImage] = useState(0);
   const [quantity, setQuantity] = useState(1);
   const [activeTab, setActiveTab] = useState<'description' | 'specs' | 'reviews'>('description');
@@ -51,6 +53,9 @@ const ProductDetail = () => {
         const response = await productsAPI.getProductById(id);
         const loadedProduct = response.data.data as Product;
         setProduct(loadedProduct);
+        const activeVariants = (loadedProduct.variants ?? []).filter((variant) => variant.isActive);
+        setSelectedVariantId(activeVariants.length === 1 ? activeVariants[0]!.id : null);
+        setSelectedOptions({});
         setSelectedImage(0);
         const relatedResponse = await productsAPI.getProducts({ brand: loadedProduct.brand, limit: 5 });
         setRelatedProducts(
@@ -68,8 +73,12 @@ const ProductDetail = () => {
 
   const handleAddToCart = async () => {
     if (product) {
+      if (requiresVariantSelection && !selectedVariant) {
+        showToast('Select a valid variant before adding this product to cart', 'error');
+        return;
+      }
       try {
-        await addToCart(product, quantity);
+        await addToCart(product, quantity, selectedVariant?.id);
       } catch {
         // CartContext shows the backend error toast.
       }
@@ -78,12 +87,16 @@ const ProductDetail = () => {
 
   const handleBuyNow = async () => {
     if (product) {
+      if (requiresVariantSelection && !selectedVariant) {
+        showToast('Select a valid variant before buying this product', 'error');
+        return;
+      }
       if (!isAuthenticated) {
         setIsAuthModalOpen(true);
         return;
       }
       try {
-        await addToCart(product, quantity);
+        await addToCart(product, quantity, selectedVariant?.id);
         navigate('/checkout');
       } catch {
         // CartContext shows the backend error toast.
@@ -93,7 +106,8 @@ const ProductDetail = () => {
 
   const completeBuyNowAfterAuth = async () => {
     if (!product) return;
-    await addToCart(product, quantity);
+    if (requiresVariantSelection && !selectedVariant) return;
+    await addToCart(product, quantity, selectedVariant?.id);
     navigate('/checkout');
   };
 
@@ -150,8 +164,40 @@ const ProductDetail = () => {
     );
   }
 
-  const discount = product.originalPrice
-    ? Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)
+  const activeVariants = (product.variants ?? []).filter((variant) => variant.isActive);
+  const requiresVariantSelection = activeVariants.length > 1;
+  const selectedVariant = activeVariants.find((variant) => variant.id === selectedVariantId);
+  const currentPrice = selectedVariant?.price ?? product.price;
+  const currentOriginalPrice = selectedVariant?.originalPrice ?? product.originalPrice;
+  const currentStock = selectedVariant?.countInStock ?? product.countInStock;
+  const currentCondition = selectedVariant?.condition ?? product.condition;
+  const currentImages = selectedVariant?.images.length ? selectedVariant.images : product.images;
+  const optionGroups = activeVariants.reduce<Record<string, string[]>>((groups, variant) => {
+    const values: Record<string, string | undefined> = {
+      ...(variant.storage ? { Storage: variant.storage } : {}),
+      ...(variant.color ? { Color: variant.color } : {}),
+      ...variant.options,
+    };
+    Object.entries(values).forEach(([name, value]) => {
+      if (value && !groups[name]?.includes(value)) groups[name] = [...(groups[name] ?? []), value];
+    });
+    return groups;
+  }, {});
+  const variantMatchesOptions = (variant: ProductVariant, options: Record<string, string>) =>
+    Object.entries(options).every(([name, value]) => {
+      const variantValue = name === 'Storage' ? variant.storage : name === 'Color' ? variant.color : variant.options[name];
+      return variantValue === value;
+    });
+  const chooseOption = (name: string, value: string) => {
+    const nextOptions = { ...selectedOptions, [name]: value };
+    const matchingVariants = activeVariants.filter((variant) => variantMatchesOptions(variant, nextOptions));
+    setSelectedOptions(nextOptions);
+    setSelectedVariantId(matchingVariants.length === 1 ? matchingVariants[0]!.id : null);
+    setSelectedImage(0);
+    setQuantity(1);
+  };
+  const discount = currentOriginalPrice
+    ? Math.round(((currentOriginalPrice - currentPrice) / currentOriginalPrice) * 100)
     : 0;
 
   return (
@@ -173,7 +219,7 @@ const ProductDetail = () => {
             <div>
               <div className="relative aspect-square bg-gray-100 rounded-2xl overflow-hidden mb-4">
                 <img
-                  src={product.images[selectedImage]}
+                  src={currentImages[selectedImage] ?? currentImages[0]}
                   alt={product.name}
                   className="w-full h-full object-cover"
                 />
@@ -191,9 +237,9 @@ const ProductDetail = () => {
               </div>
               
               {/* Thumbnail Gallery */}
-              {product.images.length > 1 && (
+              {currentImages.length > 1 && (
                 <div className="flex gap-2 justify-center">
-                  {product.images.map((image, index) => (
+                  {currentImages.map((image, index) => (
                     <button
                       key={index}
                       onClick={() => setSelectedImage(index)}
@@ -218,13 +264,13 @@ const ProductDetail = () => {
                 <span className="px-3 py-1 bg-blue-100 text-blue-600 rounded-full text-sm font-medium">
                   {product.brand}
                 </span>
-                <span className="text-gray-500">{product.specifications.storage}</span>
+                {selectedVariant?.storage && <span className="text-gray-500">{selectedVariant.storage}</span>}
                 <span className={`px-3 py-1 rounded-full text-sm font-medium capitalize ${
-                  product.condition === 'new' ? 'bg-green-100 text-green-600' :
-                  product.condition === 'used' ? 'bg-yellow-100 text-yellow-600' :
+                  currentCondition === 'new' ? 'bg-green-100 text-green-600' :
+                  currentCondition === 'used' ? 'bg-yellow-100 text-yellow-600' :
                   'bg-purple-100 text-purple-600'
                 }`}>
-                  {product.condition}
+                  {currentCondition}
                 </span>
               </div>
 
@@ -233,23 +279,53 @@ const ProductDetail = () => {
               <div className="flex items-center gap-4 mb-6">
                 <ProductRating product={product} />
                 <span className="text-gray-300">|</span>
-                <span className={`text-sm font-medium ${product.countInStock > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {product.countInStock > 0 ? 'In Stock' : 'Out of Stock'}
+                <span className={`text-sm font-medium ${currentStock > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {requiresVariantSelection && !selectedVariant ? 'Select options' : currentStock > 0 ? 'In Stock' : 'Out of Stock'}
                 </span>
               </div>
 
               <div className="flex items-baseline gap-4 mb-6">
                 <span className="text-4xl font-bold text-gray-900">
-                  {formatPrice(product.price)}
+                  {formatPrice(currentPrice)}
                 </span>
-                {product.originalPrice && (
+                {currentOriginalPrice && (
                   <span className="text-xl text-gray-400 line-through">
-                    {formatPrice(product.originalPrice)}
+                    {formatPrice(currentOriginalPrice)}
                   </span>
                 )}
               </div>
 
               <p className="text-gray-600 mb-8">{product.description}</p>
+
+              {requiresVariantSelection && (
+                <div className="mb-8 space-y-5" aria-label="Product variants">
+                  {Object.entries(optionGroups).map(([name, values]) => (
+                    <div key={name}>
+                      <p className="mb-2 text-sm font-semibold text-gray-800">{name}</p>
+                      <div className="flex flex-wrap gap-2">
+                        {values.map((value) => {
+                          const nextOptions = { ...selectedOptions, [name]: value };
+                          const available = activeVariants.some((variant) => variantMatchesOptions(variant, nextOptions));
+                          const selected = selectedOptions[name] === value;
+                          return (
+                            <button
+                              key={value}
+                              type="button"
+                              disabled={!available}
+                              onClick={() => chooseOption(name, value)}
+                              className={`rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+                                selected ? 'border-blue-600 bg-blue-600 text-white' : 'border-gray-300 bg-white text-gray-700 hover:border-blue-400'
+                              } disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400`}
+                            >
+                              {value}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               {/* Quantity Selector */}
               <div className="flex items-center gap-4 mb-8">
@@ -263,7 +339,8 @@ const ProductDetail = () => {
                   </button>
                   <span className="w-12 text-center font-medium">{quantity}</span>
                   <button
-                    onClick={() => setQuantity(Math.min(product.countInStock, quantity + 1))}
+                    onClick={() => setQuantity(Math.min(currentStock, quantity + 1))}
+                    disabled={requiresVariantSelection && !selectedVariant}
                     className="p-3 hover:bg-gray-50 transition-colors"
                   >
                     <Plus className="w-5 h-5" />
@@ -275,7 +352,7 @@ const ProductDetail = () => {
               <div className="flex gap-4 mb-8">
                 <button
                   onClick={handleAddToCart}
-                  disabled={product.countInStock === 0}
+                  disabled={currentStock === 0 || (requiresVariantSelection && !selectedVariant)}
                   className="flex-1 flex items-center justify-center gap-2 px-6 py-4 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
                 >
                   <ShoppingCart className="w-5 h-5" />
@@ -283,7 +360,7 @@ const ProductDetail = () => {
                 </button>
                 <button
                   onClick={handleBuyNow}
-                  disabled={product.countInStock === 0}
+                  disabled={currentStock === 0 || (requiresVariantSelection && !selectedVariant)}
                   className="flex-1 px-6 py-4 border-2 border-blue-600 text-blue-600 rounded-xl font-semibold hover:bg-blue-50 transition-colors disabled:border-gray-300 disabled:text-gray-300 disabled:cursor-not-allowed"
                 >
                   Buy Now

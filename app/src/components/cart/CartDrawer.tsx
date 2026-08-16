@@ -78,7 +78,7 @@ const CartDrawer = ({ open, onOpenChange }: CartDrawerProps) => {
                 {items.map((item) => {
                   const productId = getProductId(item);
                   return (
-                    <div key={productId} className="flex gap-4 py-5">
+                    <div key={item.variantId} className="flex gap-4 py-5">
                       <Link
                         to={`/products/${productId}`}
                         onClick={() => onOpenChange(false)}
@@ -103,7 +103,7 @@ const CartDrawer = ({ open, onOpenChange }: CartDrawerProps) => {
                           </div>
                           <button
                             type="button"
-                            onClick={() => void removeFromCart(productId)}
+                            onClick={() => void removeFromCart(item.variantId)}
                             className="rounded-md p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600"
                             aria-label={`Remove ${item.name}`}
                           >
@@ -115,7 +115,7 @@ const CartDrawer = ({ open, onOpenChange }: CartDrawerProps) => {
                           <div className="flex h-9 items-center rounded-md border bg-white">
                             <button
                               type="button"
-                              onClick={() => void updateQuantity(productId, item.quantity - 1)}
+                              onClick={() => void updateQuantity(item.variantId, item.quantity - 1)}
                               disabled={isLoading}
                               className="flex h-9 w-9 items-center justify-center rounded-l-md text-gray-600 transition-colors hover:bg-gray-50 disabled:opacity-50"
                               aria-label={`Decrease quantity for ${item.name}`}
@@ -125,7 +125,7 @@ const CartDrawer = ({ open, onOpenChange }: CartDrawerProps) => {
                             <span className="w-9 text-center text-sm font-semibold">{item.quantity}</span>
                             <button
                               type="button"
-                              onClick={() => void updateQuantity(productId, item.quantity + 1)}
+                              onClick={() => void updateQuantity(item.variantId, item.quantity + 1)}
                               disabled={isLoading}
                               className="flex h-9 w-9 items-center justify-center rounded-r-md text-gray-600 transition-colors hover:bg-gray-50 disabled:opacity-50"
                               aria-label={`Increase quantity for ${item.name}`}

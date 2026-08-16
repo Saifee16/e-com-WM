@@ -1,5 +1,19 @@
-import type { Product } from '../../types';
-import type { ProductCreateRequest } from '../../services/api';
+import type { Product, ProductVariant } from '../../types';
+import type { ProductCreateRequest, ProductVariantRequest } from '../../services/api';
+
+export interface VariantFormState {
+  id?: string;
+  sku: string;
+  title: string;
+  storage: string;
+  color: string;
+  condition: ProductCreateRequest['condition'];
+  options: Record<string, string>;
+  price: string;
+  originalPrice: string;
+  countInStock: string;
+  isActive: boolean;
+}
 
 export interface ProductFormState {
   name: string;
@@ -24,6 +38,10 @@ export interface ProductFormState {
   ptaApproved: boolean;
   isFeatured: boolean;
   status: ProductCreateRequest['status'];
+  hasVariants: boolean;
+  variants: VariantFormState[];
+  variantStorageOptions: string[];
+  variantColorOptions: string[];
 }
 
 export const MAX_PRODUCT_IMAGES = 5;
@@ -37,7 +55,36 @@ export class ProductFormValidationError extends Error {
   }
 }
 
-export const createProductFormState = (product: Product | null): ProductFormState => ({
+const toVariantFormState = (variant: ProductVariant): VariantFormState => ({
+  id: variant.id,
+  sku: variant.sku,
+  title: variant.title,
+  storage: variant.storage ?? '',
+  color: variant.color ?? '',
+  condition: variant.condition ?? 'new',
+  options: variant.options,
+  price: String(variant.price),
+  originalPrice: variant.originalPrice === undefined ? '' : String(variant.originalPrice),
+  countInStock: String(variant.countInStock),
+  isActive: variant.isActive,
+});
+
+const createDefaultVariant = (product: Product | null): VariantFormState => ({
+  sku: '',
+  title: product?.specifications.storage ?? 'Default',
+  storage: product?.specifications.storage ?? '',
+  color: product?.specifications.color ?? '',
+  condition: product?.condition ?? 'new',
+  options: {},
+  price: product ? String(product.price) : '',
+  originalPrice: product?.originalPrice === undefined ? '' : String(product.originalPrice),
+  countInStock: product ? String(product.countInStock) : '',
+  isActive: true,
+});
+
+export const createProductFormState = (product: Product | null): ProductFormState => {
+  const variants = product?.variants?.map(toVariantFormState) ?? [createDefaultVariant(product)];
+  return {
   name: product?.name ?? '',
   brand: product?.brand ?? 'Apple',
   category: product?.categoryName ?? product?.category ?? 'Smartphones',
@@ -45,7 +92,7 @@ export const createProductFormState = (product: Product | null): ProductFormStat
   originalPrice: product?.originalPrice !== undefined ? String(product.originalPrice) : '',
   countInStock: product ? String(product.countInStock) : '',
   description: product?.description ?? '',
-  storage: product?.specifications.storage ?? '64GB',
+  storage: product?.specifications.storage ?? '',
   color: product?.specifications.color ?? '',
   display: product?.specifications.display ?? '',
   processor: product?.specifications.processor ?? '',
@@ -59,8 +106,13 @@ export const createProductFormState = (product: Product | null): ProductFormStat
   condition: product?.condition ?? 'new',
   ptaApproved: product?.ptaApproved ?? true,
   isFeatured: product?.isFeatured ?? false,
-  status: product?.status ?? 'ACTIVE',
-});
+    status: product?.status ?? 'ACTIVE',
+    hasVariants: variants.length > 1,
+    variants,
+    variantStorageOptions: [...new Set(variants.map((variant) => variant.storage).filter(Boolean))],
+    variantColorOptions: [...new Set(variants.map((variant) => variant.color).filter(Boolean))],
+  };
+};
 
 const requiredText = (label: string, value: string) => {
   const normalized = value.trim();
@@ -78,6 +130,30 @@ const nonNegativeInteger = (label: string, value: string) => {
 };
 
 const optionalText = (value: string) => value.trim() || undefined;
+
+const toVariantRequest = (variant: VariantFormState): ProductVariantRequest => {
+  const price = nonNegativeInteger('Variant price', variant.price);
+  const countInStock = nonNegativeInteger('Variant stock quantity', variant.countInStock);
+  const originalPrice = optionalText(variant.originalPrice)
+    ? nonNegativeInteger('Variant regular price', variant.originalPrice)
+    : undefined;
+  if (originalPrice !== undefined && originalPrice <= price) {
+    throw new ProductFormValidationError('Variant regular price must be greater than the variant price.');
+  }
+  return {
+    ...(variant.id ? { id: variant.id } : {}),
+    ...(optionalText(variant.sku) ? { sku: requiredText('Variant SKU', variant.sku) } : {}),
+    ...(optionalText(variant.title) ? { title: optionalText(variant.title) } : {}),
+    ...(optionalText(variant.storage) ? { storage: optionalText(variant.storage) } : {}),
+    ...(optionalText(variant.color) ? { color: optionalText(variant.color) } : {}),
+    condition: variant.condition,
+    ...(Object.keys(variant.options).length ? { options: variant.options } : {}),
+    price,
+    ...(originalPrice !== undefined ? { originalPrice } : {}),
+    countInStock,
+    isActive: variant.isActive,
+  };
+};
 
 export const validateProductImageSelection = (existingImageUrls: string[], imageFiles: File[]) => {
   if (existingImageUrls.length + imageFiles.length > MAX_PRODUCT_IMAGES) {
@@ -97,8 +173,6 @@ export const validateProductImageSelection = (existingImageUrls: string[], image
 export const toProductCreateRequest = (form: ProductFormState): ProductCreateRequest => {
   validateProductImageSelection(form.existingImageUrls, form.imageFiles);
 
-  const price = nonNegativeInteger('Sale price', form.price);
-  const countInStock = nonNegativeInteger('Stock quantity', form.countInStock);
   const storage = optionalText(form.storage);
   const color = optionalText(form.color);
   const specifications = {
@@ -110,29 +184,36 @@ export const toProductCreateRequest = (form: ProductFormState): ProductCreateReq
     os: optionalText(form.os),
     network: optionalText(form.network),
   };
-  const originalPrice = form.originalPrice.trim()
-    ? nonNegativeInteger('Regular price', form.originalPrice)
-    : undefined;
-
-  if (originalPrice !== undefined && originalPrice <= price) {
-    throw new ProductFormValidationError('Regular price must be greater than the sale price.');
-  }
+  const variants = form.hasVariants
+    ? form.variants.map(toVariantRequest)
+      : [toVariantRequest({
+        ...(form.variants[0] ?? createDefaultVariant(null)),
+        price: form.price,
+        originalPrice: form.originalPrice,
+        countInStock: form.countInStock,
+        storage: form.storage,
+        color: form.color,
+        condition: form.condition,
+      })];
+  if (!variants.length) throw new ProductFormValidationError('Add at least one variant.');
+  const lowestVariant = variants.reduce((lowest, variant) => variant.price < lowest.price ? variant : lowest);
 
   return {
     name: requiredText('Product name', form.name),
     brand: requiredText('Brand', form.brand),
     category: requiredText('Product type', form.category),
     description: requiredText('Description', form.description),
-    price,
-    ...(originalPrice !== undefined ? { originalPrice } : {}),
+    price: lowestVariant.price,
+    ...(lowestVariant.originalPrice !== undefined ? { originalPrice: lowestVariant.originalPrice } : {}),
     ...(form.existingImageUrls.length ? { images: form.existingImageUrls } : {}),
     ...(storage ? { storage } : {}),
     ...(color ? { color } : {}),
     specifications,
-    condition: form.condition,
-    countInStock,
+    condition: lowestVariant.condition ?? form.condition,
+    countInStock: variants.reduce((total, variant) => total + variant.countInStock, 0),
     ptaApproved: form.ptaApproved,
     isFeatured: form.isFeatured,
     status: form.status,
+    variants,
   };
 };

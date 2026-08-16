@@ -104,6 +104,26 @@ describe('admin product form contract', () => {
     });
   });
 
+  it('serializes multiple variants without turning their combinations into products', () => {
+    const request = toProductCreateRequest({
+      ...createProductFormState(null),
+      name: 'Variant Phone',
+      description: 'A phone with independently priced storage and color variants.',
+      hasVariants: true,
+      variants: [
+        { sku: 'PHONE-128-BLK', title: '128GB / Black', storage: '128GB', color: 'Black', condition: 'new', options: {}, price: '100000', originalPrice: '110000', countInStock: '2', isActive: true },
+        { sku: 'PHONE-256-GLD', title: '256GB / Gold', storage: '256GB', color: 'Gold', condition: 'new', options: { Finish: 'Matte' }, price: '120000', originalPrice: '', countInStock: '3', isActive: true },
+      ],
+    });
+
+    expect(request.price).toBe(100000);
+    expect(request.countInStock).toBe(5);
+    expect(request.variants).toEqual([
+      expect.objectContaining({ sku: 'PHONE-128-BLK', storage: '128GB', color: 'Black', price: 100000, countInStock: 2 }),
+      expect.objectContaining({ sku: 'PHONE-256-GLD', options: { Finish: 'Matte' }, price: 120000, countInStock: 3 }),
+    ]);
+  });
+
   it('rejects more than five product images', () => {
     const form = {
       ...createProductFormState(null),

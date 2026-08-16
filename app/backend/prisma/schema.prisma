@@ -256,6 +256,7 @@ model ProductVariant {
   color                String?
   storage              String?
   condition            String?
+  options              Json?               @db.JsonB
   priceAmount          Int                 @map("price_amount")
   compareAtPriceAmount Int?                @map("compare_at_price_amount")
   currency             String              @default("PKR")

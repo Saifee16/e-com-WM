@@ -99,6 +99,8 @@ const mapOrder = (order: OrderWithRelations) => ({
   billingAddress: order.billingAddressSnapshot,
   items: order.items.map((item) => ({
     product: item.productId,
+    variantId: item.variantId,
+    sku: item.skuSnapshot,
     name: item.productNameSnapshot,
     image: item.imageUrlSnapshot ?? '',
     price: item.unitPriceAmount,
@@ -244,7 +246,10 @@ export const orderRoutes: FastifyPluginAsync = async (app) => {
           throw new Error('INSUFFICIENT_STOCK');
         }
 
-        purchasableItems.push({ cartItem: item, variant });
+        const imageUrl = variant.product.images.find((image) => image.variantId === variant.id)?.url
+          ?? variant.product.images.find((image) => !image.variantId)?.url
+          ?? variant.product.images[0]?.url;
+        purchasableItems.push({ cartItem: item, variant, imageUrl });
       }
 
       const subtotal = purchasableItems.reduce(
@@ -312,13 +317,13 @@ export const orderRoutes: FastifyPluginAsync = async (app) => {
           billingAddressSnapshot: addressSnapshot,
           ...(body.notes ? { notes: body.notes } : {}),
           items: {
-            create: purchasableItems.map(({ cartItem, variant }) => ({
+            create: purchasableItems.map(({ cartItem, variant, imageUrl }) => ({
               product: { connect: { id: variant.productId } },
               variant: { connect: { id: variant.id } },
               skuSnapshot: variant.sku,
               productNameSnapshot: variant.product.name,
               variantTitleSnapshot: variant.title,
-              ...(variant.product.images[0]?.url ? { imageUrlSnapshot: variant.product.images[0].url } : {}),
+              ...(imageUrl ? { imageUrlSnapshot: imageUrl } : {}),
               unitPriceAmount: variant.priceAmount,
               quantity: cartItem.quantity,
               lineTotalAmount: variant.priceAmount * cartItem.quantity,

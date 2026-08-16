@@ -23,6 +23,22 @@ export interface ProductCreateRequest {
   ptaApproved: boolean;
   isFeatured: boolean;
   status: 'DRAFT' | 'ACTIVE' | 'ARCHIVED';
+  variants?: ProductVariantRequest[];
+}
+
+export interface ProductVariantRequest {
+  id?: string;
+  sku?: string;
+  title?: string;
+  storage?: string;
+  color?: string;
+  condition?: 'new' | 'used' | 'refurbished';
+  options?: Record<string, string>;
+  price: number;
+  originalPrice?: number;
+  countInStock: number;
+  isActive: boolean;
+  imageUrl?: string;
 }
 
 export type ProductUpdateRequest = Partial<ProductCreateRequest>;
@@ -106,6 +122,8 @@ export interface OrderAddressSnapshot {
 
 export interface ApiOrderItem {
   product: string;
+  variantId?: string;
+  sku?: string;
   name: string;
   image: string;
   price: number;
@@ -400,11 +418,11 @@ export const businessAPI = {
 // Cart API
 export const cartAPI = {
   getCart: () => api.get('/cart'),
-  addToCart: (productId: string, quantity: number = 1) =>
-    api.post('/cart/add', { productId, quantity }),
-  updateQuantity: (productId: string, quantity: number) =>
-    api.put(`/cart/update/${productId}`, { quantity }),
-  removeFromCart: (productId: string) => api.delete(`/cart/remove/${productId}`),
+  addToCart: (productId: string, variantId?: string, quantity: number = 1) =>
+    api.post('/cart/add', { productId, ...(variantId ? { variantId } : {}), quantity }),
+  updateQuantity: (variantId: string, quantity: number) =>
+    api.put(`/cart/update/${variantId}`, { quantity }),
+  removeFromCart: (variantId: string) => api.delete(`/cart/remove/${variantId}`),
   clearCart: () => api.delete('/cart/clear'),
   applyPromoCode: (code: string) => api.post('/cart/promo', { code }),
   mergeGuestCart: () => api.post('/cart/merge', {}),
