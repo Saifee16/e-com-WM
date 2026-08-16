@@ -118,11 +118,19 @@ const variantTitle = (variant: { title: string; storage: string | null; color: s
 const availableVariantStock = (variant: { stockQuantity: number; reservedQuantity: number }) =>
   Math.max(0, variant.stockQuantity - variant.reservedQuantity);
 
-export const mapProduct = (product: ProductWithRelations, includeInactiveVariants = false) => {
+export const mapProduct = (
+  product: ProductWithRelations,
+  includeInactiveVariants = false,
+  preferredVariantIds?: ReadonlySet<string>,
+) => {
   const availableVariants = product.variants.filter((item) => item.isActive);
   const variants = includeInactiveVariants ? product.variants : availableVariants;
   const pricingVariants = availableVariants.length ? availableVariants : product.variants;
-  const variant = pricingVariants.reduce<typeof pricingVariants[number] | undefined>(
+  const matchingPricingVariants = preferredVariantIds
+    ? pricingVariants.filter((item) => preferredVariantIds.has(item.id))
+    : pricingVariants;
+  const variantPool = matchingPricingVariants.length ? matchingPricingVariants : pricingVariants;
+  const variant = variantPool.reduce<typeof pricingVariants[number] | undefined>(
     (lowest, item) => !lowest || item.priceAmount < lowest.priceAmount ? item : lowest,
     undefined,
   );
@@ -512,7 +520,27 @@ export const productRoutes: FastifyPluginAsync = async (app) => {
         : {}),
     });
 
-    const filtered = products.map((p) => mapProduct(p));
+    const hasVariantFilter =
+      query.minPrice !== undefined
+      || query.maxPrice !== undefined
+      || query.storage !== undefined
+      || query.condition !== undefined;
+    const filtered = products.map((product) => {
+      const preferredVariantIds = hasVariantFilter
+        ? new Set(
+            product.variants
+              .filter((variant) =>
+                variant.isActive
+                && (query.minPrice === undefined || variant.priceAmount >= query.minPrice)
+                && (query.maxPrice === undefined || variant.priceAmount <= query.maxPrice)
+                && (query.storage === undefined || variant.storage === query.storage)
+                && (query.condition === undefined || variant.condition === query.condition),
+              )
+              .map((variant) => variant.id),
+          )
+        : undefined;
+      return mapProduct(product, false, preferredVariantIds);
+    });
 
     filtered.sort((left, right) => {
       let comparison = 0;

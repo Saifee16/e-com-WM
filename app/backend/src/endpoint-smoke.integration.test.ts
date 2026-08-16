@@ -783,7 +783,6 @@ describe('endpoint smoke suite', () => {
       { ...adminProductPayload, name: '   ' },
       { ...adminProductPayload, unexpectedField: true },
       { ...adminProductPayload, price: String(adminProductPayload.price) },
-      { ...adminProductPayload, category: `missing-category-${scope}` },
     ]) {
       expectError(
         await app.inject({
@@ -796,6 +795,17 @@ describe('endpoint smoke suite', () => {
         'VALIDATION_ERROR',
       );
     }
+
+    expectError(
+      await app.inject({
+        method: 'POST',
+        url: '/api/admin/products',
+        headers: csrfHeaders(adminCookie),
+        payload: { ...adminProductPayload, category: `missing-category-${scope}` },
+      }),
+      400,
+      'INVALID_CATEGORY',
+    );
 
     const createdProduct = parseSuccess<ProductResponse>(
       await app.inject({
