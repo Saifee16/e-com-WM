@@ -131,14 +131,27 @@ const nonNegativeInteger = (label: string, value: string) => {
 
 const optionalText = (value: string) => value.trim() || undefined;
 
-const toVariantRequest = (variant: VariantFormState): ProductVariantRequest => {
-  const price = nonNegativeInteger('Variant price', variant.price);
-  const countInStock = nonNegativeInteger('Variant stock quantity', variant.countInStock);
+const toVariantRequest = (
+  variant: VariantFormState,
+  labels: {
+    price: string;
+    stock: string;
+    regularPrice: string;
+    regularPriceError: string;
+  } = {
+    price: 'Variant price',
+    stock: 'Variant stock quantity',
+    regularPrice: 'Variant regular price',
+    regularPriceError: 'Variant regular price must be greater than the variant price.',
+  },
+): ProductVariantRequest => {
+  const price = nonNegativeInteger(labels.price, variant.price);
+  const countInStock = nonNegativeInteger(labels.stock, variant.countInStock);
   const originalPrice = optionalText(variant.originalPrice)
-    ? nonNegativeInteger('Variant regular price', variant.originalPrice)
+    ? nonNegativeInteger(labels.regularPrice, variant.originalPrice)
     : undefined;
   if (originalPrice !== undefined && originalPrice <= price) {
-    throw new ProductFormValidationError('Variant regular price must be greater than the variant price.');
+    throw new ProductFormValidationError(labels.regularPriceError);
   }
   return {
     ...(variant.id ? { id: variant.id } : {}),
@@ -185,7 +198,7 @@ export const toProductCreateRequest = (form: ProductFormState): ProductCreateReq
     network: optionalText(form.network),
   };
   const variants = form.hasVariants
-    ? form.variants.map(toVariantRequest)
+    ? form.variants.map((variant) => toVariantRequest(variant))
       : [toVariantRequest({
         ...(form.variants[0] ?? createDefaultVariant(null)),
         price: form.price,
@@ -194,6 +207,11 @@ export const toProductCreateRequest = (form: ProductFormState): ProductCreateReq
         storage: form.storage,
         color: form.color,
         condition: form.condition,
+      }, {
+        price: 'Sale price',
+        stock: 'Stock quantity',
+        regularPrice: 'Regular price',
+        regularPriceError: 'Regular price must be greater than the sale price.',
       })];
   if (!variants.length) throw new ProductFormValidationError('Add at least one variant.');
   const lowestVariant = variants.reduce((lowest, variant) => variant.price < lowest.price ? variant : lowest);

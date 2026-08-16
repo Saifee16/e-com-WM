@@ -240,7 +240,7 @@ type ProductVariantPayload = z.infer<typeof productVariantPayloadSchema>;
 
 const createVariantData = (variant: ProductVariantPayload, slug: string, index: number) => ({
   sku: variant.sku ?? `${slug.toUpperCase()}-${index + 1}-${randomUUID().slice(0, 8).toUpperCase()}`,
-  title: variant.title ?? [variant.storage, variant.color, variant.condition, ...Object.values(variant.options ?? {})].filter(Boolean).join(' / ') || 'Default',
+  title: (variant.title ?? [variant.storage, variant.color, variant.condition, ...Object.values(variant.options ?? {})].filter(Boolean).join(' / ')) || 'Default',
   ...(variant.storage ? { storage: variant.storage } : {}),
   ...(variant.color ? { color: variant.color } : {}),
   ...(variant.condition ? { condition: variant.condition } : {}),
@@ -400,7 +400,7 @@ export const productRoutes: FastifyPluginAsync = async (app) => {
     });
 
     const filtered = products
-      .map(mapProduct)
+      .map((p) => mapProduct(p))
       .filter((product) => query.minPrice === undefined || product.price >= query.minPrice)
       .filter((product) => query.maxPrice === undefined || product.price <= query.maxPrice)
       .filter((product) => query.storage === undefined || product.specifications.storage === query.storage)
@@ -448,7 +448,7 @@ export const productRoutes: FastifyPluginAsync = async (app) => {
       orderBy: { createdAt: 'desc' },
     });
 
-    return ok(reply, products.map(mapProduct));
+    return ok(reply, products.map((p) => mapProduct(p)));
   });
 
   app.get('/brand/:brand', async (request, reply) => {
@@ -459,7 +459,7 @@ export const productRoutes: FastifyPluginAsync = async (app) => {
       orderBy: { createdAt: 'desc' },
     });
 
-    return ok(reply, products.map(mapProduct));
+    return ok(reply, products.map((p) => mapProduct(p)));
   });
 
   app.post('/:id/reviews', { preHandler: authenticateCustomer }, async (request, reply) => {

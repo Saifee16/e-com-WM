@@ -94,6 +94,12 @@ interface OrderResponse {
   total: number;
   items: Array<{
     product: string;
+    variantId?: string;
+    sku?: string;
+    name?: string;
+    image?: string;
+    price?: number;
+    specs?: string;
     quantity: number;
   }>;
 }
@@ -985,6 +991,77 @@ describe('endpoint smoke suite', () => {
     );
     expect(order.guestEmail).toBeNull();
     expect(order.items).toHaveLength(1);
+
+    const variantProduct = await prisma.product.create({
+      data: {
+        name: `Variant Checkout Phone ${scope}`,
+        slug: `variant-checkout-phone-${scope}`,
+        description: 'Variant checkout test product',
+        status: 'ACTIVE',
+        brandId: brand.id,
+        categoryId: category.id,
+        variants: {
+          create: [
+            {
+              sku: `VARIANT-BLACK-${scope}`,
+              title: '128GB / Black',
+              storage: '128GB',
+              color: 'Black',
+              priceAmount: 100_000,
+              stockQuantity: 2,
+              isActive: true,
+            },
+            {
+              sku: `VARIANT-GOLD-${scope}`,
+              title: '256GB / Gold',
+              storage: '256GB',
+              color: 'Gold',
+              priceAmount: 125_000,
+              stockQuantity: 3,
+              isActive: true,
+            },
+          ],
+        },
+      },
+      include: { variants: true },
+    });
+    const selectedVariant = variantProduct.variants.find((variant) => variant.color === 'Gold')!;
+    await prisma.productImage.create({
+      data: {
+        productId: variantProduct.id,
+        variantId: selectedVariant.id,
+        url: 'https://example.com/variant-gold.jpg',
+        altText: selectedVariant.title,
+      },
+    });
+    await prisma.cart.create({
+      data: {
+        userId: customer.id,
+        items: { create: { variantId: selectedVariant.id, quantity: 1 } },
+      },
+    });
+    const variantOrder = parseSuccess<OrderResponse>(
+      await app.inject({
+        method: 'POST',
+        url: '/api/orders',
+        headers: { ...csrfHeaders(customerCookie), 'idempotency-key': randomUUID() },
+        payload: checkoutPayload(`variant-buyer-${scope}@example.com`),
+      }),
+      201,
+    );
+    expect(variantOrder.items[0]).toMatchObject({
+      product: variantProduct.id,
+      variantId: selectedVariant.id,
+      sku: selectedVariant.sku,
+      name: variantProduct.name,
+      image: 'https://example.com/variant-gold.jpg',
+      price: selectedVariant.priceAmount,
+      specs: selectedVariant.title,
+      quantity: 1,
+    });
+    await expect(prisma.productVariant.findUniqueOrThrow({ where: { id: selectedVariant.id } })).resolves.toMatchObject({
+      stockQuantity: 2,
+    });
 
     expectError(
       await app.inject({
