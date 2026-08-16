@@ -38,6 +38,9 @@ const variantTitle = (variant: { title: string; storage: string | null; color: s
     .join(' / ') || 'Default';
 };
 
+const availableVariantStock = (variant: { stockQuantity: number; reservedQuantity: number }) =>
+  Math.max(0, variant.stockQuantity - variant.reservedQuantity);
+
 export const mapProduct = (product: ProductWithRelations, includeInactiveVariants = false) => {
   const availableVariants = product.variants.filter((item) => item.isActive);
   const variants = includeInactiveVariants ? product.variants : availableVariants;
@@ -83,7 +86,7 @@ export const mapProduct = (product: ProductWithRelations, includeInactiveVariant
     },
     condition: (variant?.condition ?? 'new') as 'new' | 'used' | 'refurbished',
     ptaApproved: product.ptaApproved,
-    countInStock: variant?.stockQuantity ?? 0,
+    countInStock: availableVariants.reduce((total, item) => total + availableVariantStock(item), 0),
     rating: rating === null ? null : Number(rating.toFixed(1)),
     numReviews: product.reviews.length,
     reviews: product.reviews.map((review) => ({
@@ -111,6 +114,7 @@ export const mapProduct = (product: ProductWithRelations, includeInactiveVariant
         price: item.priceAmount,
         originalPrice: item.compareAtPriceAmount ?? undefined,
         countInStock: item.stockQuantity,
+        availableCountInStock: availableVariantStock(item),
         isActive: item.isActive,
         images: variantImages,
         image: variantImages[0] ?? primaryImage,
@@ -206,6 +210,33 @@ const productVariantPayloadSchema = z.object({
   }
 });
 
+type ProductVariantPayload = z.infer<typeof productVariantPayloadSchema>;
+
+const validateVariantPayloads = (variants: ProductVariantPayload[] | undefined, context: z.RefinementCtx) => {
+  if (!variants) return;
+  const seenCombinations = new Set<string>();
+  const seenSkus = new Set<string>();
+  variants.forEach((variant, index) => {
+    const options = Object.fromEntries(Object.entries(variant.options ?? {}).sort(([left], [right]) => left.localeCompare(right)));
+    const combination = JSON.stringify({
+      storage: variant.storage ?? '',
+      color: variant.color ?? '',
+      condition: variant.condition ?? '',
+      options,
+    });
+    if (seenCombinations.has(combination)) {
+      context.addIssue({ code: 'custom', path: ['variants', index], message: 'Variant combinations must be unique' });
+    }
+    seenCombinations.add(combination);
+    if (variant.sku) {
+      if (seenSkus.has(variant.sku)) {
+        context.addIssue({ code: 'custom', path: ['variants', index, 'sku'], message: 'Variant SKUs must be unique' });
+      }
+      seenSkus.add(variant.sku);
+    }
+  });
+};
+
 const productPayloadSchema = z.object({
   name: z.string().trim().min(1).max(200),
   brand: z.string().trim().min(1).max(80),
@@ -232,11 +263,9 @@ const productCreateSchema = productPayloadSchema.refine(
     message: 'Regular price must be greater than the sale price',
     path: ['originalPrice'],
   },
-);
+).superRefine((product, context) => validateVariantPayloads(product.variants, context));
 
-const productUpdateSchema = productPayloadSchema.partial();
-
-type ProductVariantPayload = z.infer<typeof productVariantPayloadSchema>;
+const productUpdateSchema = productPayloadSchema.partial().superRefine((product, context) => validateVariantPayloads(product.variants, context));
 
 const createVariantData = (variant: ProductVariantPayload, slug: string, index: number) => ({
   sku: variant.sku ?? `${slug.toUpperCase()}-${index + 1}-${randomUUID().slice(0, 8).toUpperCase()}`,
@@ -399,12 +428,7 @@ export const productRoutes: FastifyPluginAsync = async (app) => {
         : {}),
     });
 
-    const filtered = products
-      .map((p) => mapProduct(p))
-      .filter((product) => query.minPrice === undefined || product.price >= query.minPrice)
-      .filter((product) => query.maxPrice === undefined || product.price <= query.maxPrice)
-      .filter((product) => query.storage === undefined || product.specifications.storage === query.storage)
-      .filter((product) => query.condition === undefined || product.condition === query.condition);
+    const filtered = products.map((p) => mapProduct(p));
 
     filtered.sort((left, right) => {
       let comparison = 0;

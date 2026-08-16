@@ -14,7 +14,8 @@ import {
   ShoppingCart,
   ChevronRight,
 } from 'lucide-react';
-import type { Product, ProductVariant } from '../types';
+import type { Product } from '../types';
+import { getVariantAvailableStock, getVariantOptionGroups, resolveVariantSelection, variantMatchesOptions } from './variant-selection';
 import { formatPrice } from '../utils/format';
 import { useCart } from '../contexts/CartContext';
 import { useToast } from '../contexts/ToastContext';
@@ -169,30 +170,14 @@ const ProductDetail = () => {
   const selectedVariant = activeVariants.find((variant) => variant.id === selectedVariantId);
   const currentPrice = selectedVariant?.price ?? product.price;
   const currentOriginalPrice = selectedVariant?.originalPrice ?? product.originalPrice;
-  const currentStock = selectedVariant?.countInStock ?? product.countInStock;
+  const currentStock = selectedVariant?.availableCountInStock ?? selectedVariant?.countInStock ?? product.countInStock;
   const currentCondition = selectedVariant?.condition ?? product.condition;
   const currentImages = selectedVariant?.images.length ? selectedVariant.images : product.images;
-  const optionGroups = activeVariants.reduce<Record<string, string[]>>((groups, variant) => {
-    const values: Record<string, string | undefined> = {
-      ...(variant.storage ? { Storage: variant.storage } : {}),
-      ...(variant.color ? { Color: variant.color } : {}),
-      ...variant.options,
-    };
-    Object.entries(values).forEach(([name, value]) => {
-      if (value && !groups[name]?.includes(value)) groups[name] = [...(groups[name] ?? []), value];
-    });
-    return groups;
-  }, {});
-  const variantMatchesOptions = (variant: ProductVariant, options: Record<string, string>) =>
-    Object.entries(options).every(([name, value]) => {
-      const variantValue = name === 'Storage' ? variant.storage : name === 'Color' ? variant.color : variant.options[name];
-      return variantValue === value;
-    });
+  const optionGroups = getVariantOptionGroups(activeVariants);
   const chooseOption = (name: string, value: string) => {
-    const nextOptions = { ...selectedOptions, [name]: value };
-    const matchingVariants = activeVariants.filter((variant) => variantMatchesOptions(variant, nextOptions));
-    setSelectedOptions(nextOptions);
-    setSelectedVariantId(matchingVariants.length === 1 ? matchingVariants[0]!.id : null);
+    const selection = resolveVariantSelection(activeVariants, selectedOptions, name, value);
+    setSelectedOptions(selection.options);
+    setSelectedVariantId(selection.variant?.id ?? null);
     setSelectedImage(0);
     setQuantity(1);
   };
@@ -280,7 +265,11 @@ const ProductDetail = () => {
                 <ProductRating product={product} />
                 <span className="text-gray-300">|</span>
                 <span className={`text-sm font-medium ${currentStock > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {requiresVariantSelection && !selectedVariant ? 'Select options' : currentStock > 0 ? 'In Stock' : 'Out of Stock'}
+                  {requiresVariantSelection && !selectedVariant
+                    ? 'Select options'
+                    : currentStock > 0
+                      ? currentStock <= 3 ? `Only ${currentStock} left` : `${currentStock} available`
+                      : 'Sold out'}
                 </span>
               </div>
 
@@ -297,6 +286,12 @@ const ProductDetail = () => {
 
               <p className="text-gray-600 mb-8">{product.description}</p>
 
+              {selectedVariant && (
+                <p className="mb-6 text-sm text-gray-500">
+                  {selectedVariant.title} / SKU {selectedVariant.sku}
+                </p>
+              )}
+
               {requiresVariantSelection && (
                 <div className="mb-8 space-y-5" aria-label="Product variants">
                   {Object.entries(optionGroups).map(([name, values]) => (
@@ -305,7 +300,10 @@ const ProductDetail = () => {
                       <div className="flex flex-wrap gap-2">
                         {values.map((value) => {
                           const nextOptions = { ...selectedOptions, [name]: value };
-                          const available = activeVariants.some((variant) => variantMatchesOptions(variant, nextOptions));
+                          const matchingVariants = activeVariants.filter((variant) => variantMatchesOptions(variant, nextOptions));
+                          if (!matchingVariants.length) return null;
+                          const available = matchingVariants.some((variant) => getVariantAvailableStock(variant) > 0);
+                          const soldOut = matchingVariants.length > 0 && !available;
                           const selected = selectedOptions[name] === value;
                           return (
                             <button
@@ -317,7 +315,7 @@ const ProductDetail = () => {
                                 selected ? 'border-blue-600 bg-blue-600 text-white' : 'border-gray-300 bg-white text-gray-700 hover:border-blue-400'
                               } disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400`}
                             >
-                              {value}
+                              {value}{soldOut ? ' (Sold out)' : ''}
                             </button>
                           );
                         })}

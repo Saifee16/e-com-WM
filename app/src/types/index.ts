@@ -37,6 +37,7 @@ export interface ProductVariant {
   price: number;
   originalPrice?: number;
   countInStock: number;
+  availableCountInStock?: number;
   isActive: boolean;
   images: string[];
   image: string;

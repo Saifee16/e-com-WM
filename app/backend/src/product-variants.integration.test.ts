@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import argon2 from 'argon2';
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildApp } from './app.js';
@@ -11,6 +12,9 @@ describe('product variants', () => {
   let productId = '';
   let blackVariantId = '';
   let goldVariantId = '';
+  let convertedProductId = '';
+  const adminEmail = `variant-admin-${scope}@example.com`;
+  const adminPassword = `Admin123!${scope.slice(-8)}`;
 
   beforeAll(async () => {
     app = await buildApp();
@@ -39,11 +43,23 @@ describe('product variants', () => {
     blackVariantId = product.variants.find((variant) => variant.color === 'Black')!.id;
     goldVariantId = product.variants.find((variant) => variant.color === 'Gold' && variant.isActive)!.id;
     await prisma.cart.create({ data: { guestId } });
+    await prisma.user.create({
+      data: {
+        email: adminEmail,
+        passwordHash: await argon2.hash(adminPassword),
+        firstName: 'Variant',
+        lastName: 'Admin',
+        role: 'ADMIN',
+        status: 'ACTIVE',
+      },
+    });
   }, 30_000);
 
   afterAll(async () => {
     await prisma.cart.deleteMany({ where: { guestId } });
     await prisma.product.deleteMany({ where: { id: productId } });
+    if (convertedProductId) await prisma.product.deleteMany({ where: { id: convertedProductId } });
+    await prisma.user.deleteMany({ where: { email: adminEmail } });
     await prisma.brand.deleteMany({ where: { slug: `brand-${scope}` } });
     await prisma.category.deleteMany({ where: { slug: `category-${scope}` } });
     await app.close();
@@ -80,5 +96,120 @@ describe('product variants', () => {
     expect(response.statusCode).toBe(404);
     const items = await prisma.cartItem.findMany({ where: { cart: { guestId } } });
     expect(items).toHaveLength(2);
+  });
+
+  it('rejects inactive variants and variants belonging to another product', async () => {
+    const inactive = await prisma.productVariant.findFirstOrThrow({ where: { productId, isActive: false } });
+    const inactiveResponse = await app.inject({
+      method: 'POST',
+      url: '/api/cart/add',
+      headers: { 'x-guest-id': guestId },
+      payload: { productId, variantId: inactive.id, quantity: 1 },
+    });
+    expect(inactiveResponse.statusCode).toBe(404);
+
+    const source = await prisma.product.findUniqueOrThrow({ where: { id: productId } });
+    const otherProduct = await prisma.product.create({
+      data: {
+        name: `Other ${scope}`,
+        slug: `other-${scope}`,
+        description: 'Separate product for variant ownership validation',
+        status: 'ACTIVE',
+        brandId: source.brandId,
+        categoryId: source.categoryId,
+        variants: {
+          create: { sku: `OTHER-${scope}`, title: 'Default', priceAmount: 1, stockQuantity: 1, isActive: true },
+        },
+      },
+      include: { variants: true },
+    });
+    const foreignResponse = await app.inject({
+      method: 'POST',
+      url: '/api/cart/add',
+      headers: { 'x-guest-id': guestId },
+      payload: { productId, variantId: otherProduct.variants[0]!.id, quantity: 1 },
+    });
+    expect(foreignResponse.statusCode).toBe(404);
+    await prisma.product.delete({ where: { id: otherProduct.id } });
+  });
+
+  it('converts an existing single variant without hiding the product from the catalogue', async () => {
+    const source = await prisma.product.findUniqueOrThrow({ where: { id: productId } });
+    const brand = await prisma.brand.findUniqueOrThrow({ where: { id: source.brandId } });
+    const single = await prisma.product.create({
+      data: {
+        name: `Convertible ${scope}`,
+        slug: `convertible-${scope}`,
+        description: 'Existing single-variant product',
+        status: 'ACTIVE',
+        brandId: source.brandId,
+        categoryId: source.categoryId,
+        variants: {
+          create: {
+            sku: `CONVERTIBLE-DEFAULT-${scope}`,
+            title: '256GB / Black',
+            storage: '256GB',
+            color: 'Black',
+            priceAmount: 100_000,
+            stockQuantity: 4,
+            isActive: true,
+          },
+        },
+      },
+      include: { variants: true },
+    });
+    convertedProductId = single.id;
+    const existingVariant = single.variants[0]!;
+    const login = await app.inject({
+      method: 'POST',
+      url: '/api/admin/auth/login',
+      payload: { email: adminEmail, password: adminPassword },
+    });
+    expect(login.statusCode).toBe(200);
+    const cookies = (Array.isArray(login.headers['set-cookie']) ? login.headers['set-cookie'] : [login.headers['set-cookie']])
+      .map((cookie) => String(cookie ?? '').split(';')[0])
+      .filter((cookie): cookie is string => Boolean(cookie));
+    const csrfCookie = cookies.find((cookie) => cookie.startsWith('csrfToken='));
+    expect(csrfCookie).toBeDefined();
+    const update = await app.inject({
+      method: 'PUT',
+      url: `/api/admin/products/${single.id}`,
+      headers: {
+        cookie: cookies.join('; '),
+        'x-csrf-token': csrfCookie!.slice('csrfToken='.length),
+      },
+      payload: {
+        variants: [
+          {
+            id: existingVariant.id,
+            sku: existingVariant.sku,
+            title: '256GB / Black',
+            storage: '256GB',
+            color: 'Black',
+            price: 100_000,
+            countInStock: 4,
+            isActive: true,
+          },
+          {
+            storage: '128GB',
+            color: 'Blue',
+            price: 90_000,
+            countInStock: 2,
+            isActive: true,
+          },
+        ],
+      },
+    });
+    expect(update.statusCode).toBe(200);
+
+    const detail = await app.inject({ method: 'GET', url: `/api/products/${single.id}` });
+    expect(detail.statusCode).toBe(200);
+    expect(detail.json().data.variants).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: existingVariant.id, storage: '256GB', color: 'Black', isActive: true }),
+      expect.objectContaining({ storage: '128GB', color: 'Blue', isActive: true }),
+    ]));
+    const listing = await app.inject({ method: 'GET', url: `/api/products?brand=${brand.slug}` });
+    expect(listing.statusCode).toBe(200);
+    expect(listing.json().data.items.some((item: { id: string }) => item.id === single.id)).toBe(true);
   });
 });

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { Product } from '../../types';
 import {
   MAX_PRODUCT_IMAGES,
   ProductFormValidationError,
@@ -122,6 +123,59 @@ describe('admin product form contract', () => {
       expect.objectContaining({ sku: 'PHONE-128-BLK', storage: '128GB', color: 'Black', price: 100000, countInStock: 2 }),
       expect.objectContaining({ sku: 'PHONE-256-GLD', options: { Finish: 'Matte' }, price: 120000, countInStock: 3 }),
     ]);
+  });
+
+  it('retains an existing single variant when converting the product to multiple variants', () => {
+    const existing = createProductFormState({
+      _id: 'product-1',
+      name: 'Existing Phone',
+      brand: 'Apple',
+      description: 'Existing single-variant product',
+      price: 100000,
+      images: [],
+      category: 'smartphones',
+      specifications: { storage: '256GB', color: 'Black' },
+      condition: 'new',
+      ptaApproved: true,
+      countInStock: 4,
+      rating: null,
+      numReviews: 0,
+      reviews: [],
+      isFeatured: false,
+      tags: [],
+      status: 'ACTIVE',
+      variants: [{
+        id: 'variant-1',
+        sku: 'PHONE-256-BLK',
+        title: '256GB / Black',
+        storage: '256GB',
+        color: 'Black',
+        condition: 'new',
+        options: {},
+        price: 100000,
+        countInStock: 4,
+        isActive: true,
+        images: [],
+        image: '',
+      }],
+    } satisfies Product);
+
+    expect(existing.hasVariants).toBe(false);
+    const request = toProductCreateRequest({
+      ...existing,
+      hasVariants: true,
+      name: 'Existing Phone',
+      description: 'Converted product with two variants',
+      variants: [
+        existing.variants[0]!,
+        { ...existing.variants[0]!, id: undefined, sku: '', title: '128GB / Blue', storage: '128GB', color: 'Blue', price: '90000', countInStock: '2' },
+      ],
+    });
+
+    expect(request.variants).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'variant-1', sku: 'PHONE-256-BLK', storage: '256GB', color: 'Black' }),
+      expect.objectContaining({ storage: '128GB', color: 'Blue', price: 90000, countInStock: 2 }),
+    ]));
   });
 
   it('rejects more than five product images', () => {
