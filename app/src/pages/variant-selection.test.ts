@@ -30,4 +30,20 @@ describe('dependent variant selection', () => {
     expect(switched.options).toEqual({ Storage: '128GB' });
     expect(switched.variant).toBeUndefined();
   });
+
+  it('orders Storage then RAM then Color when one ROM has multiple RAM options', () => {
+    const phoneVariants: ProductVariant[] = [
+      { id: '128-4-black', sku: '128-4-BLK', title: '128GB / 4GB / Black', storage: '128GB', color: 'Black', options: { RAM: '4GB' }, price: 100, countInStock: 2, availableCountInStock: 2, isActive: true, images: [], image: '' },
+      { id: '128-6-blue', sku: '128-6-BLU', title: '128GB / 6GB / Blue', storage: '128GB', color: 'Blue', options: { RAM: '6GB' }, price: 110, countInStock: 1, availableCountInStock: 1, isActive: true, images: [], image: '' },
+      { id: '256-8-black', sku: '256-8-BLK', title: '256GB / 8GB / Black', storage: '256GB', color: 'Black', options: { RAM: '8GB' }, price: 120, countInStock: 3, availableCountInStock: 3, isActive: true, images: [], image: '' },
+    ];
+    expect(Object.keys(getVariantOptionGroups(phoneVariants))).toEqual(['Storage', 'RAM', 'Color']);
+    const storage = resolveVariantSelection(phoneVariants, {}, 'Storage', '128GB');
+    const ram = resolveVariantSelection(phoneVariants, storage.options, 'RAM', '6GB');
+    expect(ram.matchingVariants).toHaveLength(1);
+    expect(ram.variant).toMatchObject({ id: '128-6-blue' });
+    expect(phoneVariants.some((item) => variantMatchesOptions(item, { ...ram.options, Color: 'Black' }))).toBe(false);
+    const color = resolveVariantSelection(phoneVariants, ram.options, 'Color', 'Blue');
+    expect(color.variant).toMatchObject({ id: '128-6-blue', price: 110, countInStock: 1 });
+  });
 });

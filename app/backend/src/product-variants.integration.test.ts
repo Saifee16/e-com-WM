@@ -13,8 +13,18 @@ describe('product variants', () => {
   let blackVariantId = '';
   let goldVariantId = '';
   let convertedProductId = '';
+  let phoneFormProductId = '';
   const adminEmail = `variant-admin-${scope}@example.com`;
   const adminPassword = `Admin123!${scope.slice(-8)}`;
+
+  const getAdminHeaders = async () => {
+    const login = await app.inject({ method: 'POST', url: '/api/admin/auth/login', payload: { email: adminEmail, password: adminPassword } });
+    const cookies = (Array.isArray(login.headers['set-cookie']) ? login.headers['set-cookie'] : [login.headers['set-cookie']])
+      .map((cookie) => String(cookie ?? '').split(';')[0])
+      .filter((cookie): cookie is string => Boolean(cookie));
+    const csrfCookie = cookies.find((cookie) => cookie.startsWith('csrfToken='));
+    return { cookie: cookies.join('; '), 'x-csrf-token': csrfCookie!.slice('csrfToken='.length) };
+  };
 
   beforeAll(async () => {
     app = await buildApp();
@@ -59,6 +69,7 @@ describe('product variants', () => {
     await prisma.cart.deleteMany({ where: { guestId } });
     await prisma.product.deleteMany({ where: { id: productId } });
     if (convertedProductId) await prisma.product.deleteMany({ where: { id: convertedProductId } });
+    if (phoneFormProductId) await prisma.product.deleteMany({ where: { id: phoneFormProductId } });
     await prisma.user.deleteMany({ where: { email: adminEmail } });
     await prisma.brand.deleteMany({ where: { slug: `brand-${scope}` } });
     await prisma.category.deleteMany({ where: { slug: `category-${scope}` } });
@@ -232,6 +243,70 @@ describe('product variants', () => {
     const goldAfter = await prisma.productVariant.findUniqueOrThrow({ where: { id: goldVariantId }, include: { images: true } });
     expect(goldAfter).toMatchObject({ sku: goldBefore.sku, priceAmount: goldBefore.priceAmount, stockQuantity: goldBefore.stockQuantity, isActive: goldBefore.isActive, options: goldBefore.options });
     expect(goldAfter.images.map((image) => image.url)).toEqual(goldBefore.images.map((image) => image.url));
+  });
+
+  it('maps phone memory/color cells to exact variants and soft-deactivates disabled cells', async () => {
+    const headers = await getAdminHeaders();
+    const create = await app.inject({
+      method: 'POST',
+      url: '/api/admin/products',
+      headers,
+      payload: {
+        name: `Phone Form ${scope}`,
+        brand: `Brand ${scope}`,
+        category: `category-${scope}`,
+        description: 'Phone configuration matrix coverage',
+        price: 55_000,
+        countInStock: 8,
+        ptaApproved: true,
+        isFeatured: false,
+        status: 'ACTIVE',
+        condition: 'new',
+        specifications: { display: '6.4-inch AMOLED', processor: 'Helio G80', rearCamera: '64MP', frontCamera: '20MP', fingerprint: 'In-display', launchYear: '2021' },
+        variants: [
+          { sku: `PHONE-FORM-BLACK-${scope}`, title: '64GB / 4GB / Black', storage: '64GB', color: 'Black', options: { RAM: '4GB' }, price: 55_000, countInStock: 3, isActive: true },
+          { sku: `PHONE-FORM-WHITE-${scope}`, title: '64GB / 4GB / White', storage: '64GB', color: 'White', options: { RAM: '4GB' }, price: 55_000, countInStock: 2, isActive: true },
+          { sku: `PHONE-FORM-BLUE-${scope}`, title: '128GB / 6GB / Blue', storage: '128GB', color: 'Blue', options: { RAM: '6GB' }, price: 62_000, countInStock: 3, isActive: true },
+        ],
+      },
+    });
+    expect(create.statusCode).toBe(201);
+    phoneFormProductId = create.json().data.id;
+    const created = await prisma.product.findUniqueOrThrow({ where: { id: phoneFormProductId }, include: { variants: true } });
+    const black = created.variants.find((item) => item.color === 'Black')!;
+    const white = created.variants.find((item) => item.color === 'White')!;
+    const blue = created.variants.find((item) => item.color === 'Blue')!;
+    expect(created.variants).toEqual(expect.arrayContaining([
+      expect.objectContaining({ storage: '64GB', color: 'Black', options: { RAM: '4GB' }, priceAmount: 55_000, stockQuantity: 3 }),
+      expect.objectContaining({ storage: '128GB', color: 'Blue', options: { RAM: '6GB' }, priceAmount: 62_000, stockQuantity: 3 }),
+    ]));
+    await prisma.productImage.create({ data: { productId: phoneFormProductId, variantId: white.id, url: `https://example.com/phone-form-white-${scope}.jpg` } });
+
+    const update = await app.inject({
+      method: 'PUT',
+      url: `/api/admin/products/${phoneFormProductId}`,
+      headers,
+      payload: {
+        variants: [
+          { id: black.id, sku: black.sku, title: black.title, storage: black.storage, color: black.color, options: { RAM: '4GB' }, price: 55_000, countInStock: 1, isActive: true },
+          { id: white.id, sku: white.sku, title: white.title, storage: white.storage, color: white.color, options: { RAM: '4GB' }, price: 55_000, countInStock: 2, isActive: false },
+          { id: blue.id, sku: blue.sku, title: blue.title, storage: blue.storage, color: blue.color, options: { RAM: '6GB' }, price: 62_000, countInStock: 3, isActive: true },
+        ],
+      },
+    });
+    expect(update.statusCode).toBe(200);
+    const after = await prisma.product.findUniqueOrThrow({ where: { id: phoneFormProductId }, include: { variants: { include: { images: true } } } });
+    expect(after.variants.find((item) => item.id === black.id)).toMatchObject({ sku: black.sku, stockQuantity: 1, isActive: true });
+    expect(after.variants.find((item) => item.id === white.id)).toMatchObject({ sku: white.sku, stockQuantity: 2, isActive: false, images: [expect.objectContaining({ url: `https://example.com/phone-form-white-${scope}.jpg` })] });
+    expect(after.variants.find((item) => item.id === blue.id)).toMatchObject({ sku: blue.sku, stockQuantity: 3, isActive: true });
+
+    const publicProduct = await app.inject({ method: 'GET', url: `/api/products/${phoneFormProductId}` });
+    expect(publicProduct.statusCode).toBe(200);
+    expect(publicProduct.json().data.variants).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: black.id, options: { RAM: '4GB' }, price: 55_000, countInStock: 1 }),
+      expect.objectContaining({ id: blue.id, options: { RAM: '6GB' }, price: 62_000, countInStock: 3 }),
+    ]));
+    expect(publicProduct.json().data.variants.some((item: { id: string }) => item.id === white.id)).toBe(false);
   });
 
   it('discards and restores a product without deleting its images', async () => {

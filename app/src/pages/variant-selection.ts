@@ -5,17 +5,27 @@ export type VariantOptions = Record<string, string>;
 export const getVariantAvailableStock = (variant: ProductVariant) =>
   variant.availableCountInStock ?? variant.countInStock;
 
-export const getVariantOptionGroups = (variants: ProductVariant[]) => variants.reduce<Record<string, string[]>>((groups, variant) => {
-  const values: Record<string, string | undefined> = {
-    ...(variant.storage ? { Storage: variant.storage } : {}),
-    ...(variant.color ? { Color: variant.color } : {}),
-    ...variant.options,
-  };
-  Object.entries(values).forEach(([name, value]) => {
-    if (value && !groups[name]?.includes(value)) groups[name] = [...(groups[name] ?? []), value];
-  });
-  return groups;
-}, {});
+export const getVariantOptionGroups = (variants: ProductVariant[]) => {
+  const groups = variants.reduce<Record<string, string[]>>((result, variant) => {
+    const values: Record<string, string | undefined> = {
+      ...(variant.storage ? { Storage: variant.storage } : {}),
+      ...(variant.color ? { Color: variant.color } : {}),
+      ...variant.options,
+    };
+    Object.entries(values).forEach(([name, value]) => {
+      if (value && !result[name]?.includes(value)) result[name] = [...(result[name] ?? []), value];
+    });
+    return result;
+  }, {});
+
+  const orderedNames = [
+    ...(groups.Storage ? ['Storage'] : []),
+    ...(groups.RAM ? ['RAM'] : []),
+    ...(groups.Color ? ['Color'] : []),
+    ...Object.keys(groups).filter((name) => !['Storage', 'RAM', 'Color'].includes(name)),
+  ];
+  return Object.fromEntries(orderedNames.map((name) => [name, groups[name]!])) as Record<string, string[]>;
+};
 
 export const variantMatchesOptions = (variant: ProductVariant, options: VariantOptions) =>
   Object.entries(options).every(([name, value]) => {
