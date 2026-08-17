@@ -181,6 +181,23 @@ describe('checkout transaction routes', () => {
     expect(addResponse.statusCode).toBe(200);
     const cookies = cookieHeader(addResponse);
 
+    expect((await app.inject({
+      method: 'GET',
+      url: '/api/cart',
+      headers: { cookie: cookies },
+    })).json()).toMatchObject({
+      success: true,
+      data: {
+        totals: {
+          subtotal: 100_000,
+          shipping: 0,
+          tax: 0,
+          discount: 0,
+          total: 100_000,
+        },
+      },
+    });
+
     const response = await app.inject({
       method: 'POST',
       url: '/api/orders',
@@ -192,6 +209,7 @@ describe('checkout transaction routes', () => {
       payload: {
         ...checkoutPayload(`guest-${scope}@example.com`),
         subtotal: 1,
+        tax: 999_999,
         total: 1,
         items: [{ variantId: randomUUID(), price: 1, quantity: 99 }],
       },
@@ -203,9 +221,9 @@ describe('checkout transaction routes', () => {
       data: {
         guestEmail: `guest-${scope}@example.com`,
         subtotal: 100_000,
-        tax: 2_000,
+        tax: 0,
         shippingCost: 0,
-        total: 102_000,
+        total: 100_000,
         items: [{ variantId: variant.id, quantity: 2, price: 50_000 }],
       },
     });
@@ -213,6 +231,8 @@ describe('checkout transaction routes', () => {
     const order = await prisma.order.findFirstOrThrow({ where: { guestEmail: `guest-${scope}@example.com` } });
     expect(order.userId).toBeNull();
     expect(order.guestId).toBeTruthy();
+    expect(order.taxAmount).toBe(0);
+    expect(order.totalAmount).toBe(order.subtotalAmount + order.shippingAmount - order.discountAmount);
     await expect(prisma.cartItem.count({ where: { cart: { guestId: order.guestId! } } })).resolves.toBe(0);
     await expect(prisma.productVariant.findUniqueOrThrow({ where: { id: variant.id } })).resolves.toMatchObject({
       stockQuantity: 3,

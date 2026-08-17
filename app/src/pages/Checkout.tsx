@@ -53,7 +53,7 @@ const Checkout = () => {
   const selectedShipping = totals.freeShipping || qualifiesForFreeStandardShipping
     ? 0
     : shippingCosts[shippingMethod];
-  const finalTotal = totals.subtotal + totals.tax + selectedShipping - (totals.discount ?? 0);
+  const finalTotal = totals.subtotal + selectedShipping - (totals.discount ?? 0);
 
   const handleShippingSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -417,10 +417,6 @@ const Checkout = () => {
                     <span>-{formatPrice(totals.discount)}</span>
                   </div>
                 )}
-                <div className="flex justify-between text-gray-600">
-                  <span>Tax</span>
-                  <span>{formatPrice(totals.tax)}</span>
-                </div>
                 <div className="border-t border-gray-200 pt-3 flex justify-between items-center">
                   <span className="text-lg font-bold text-gray-900">Total</span>
                   <span className="text-2xl font-bold text-blue-600">{formatPrice(finalTotal)}</span>

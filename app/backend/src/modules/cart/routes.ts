@@ -33,7 +33,6 @@ const calculateTotals = (items: CartItemWithRelations[], promo?: CartPromo | nul
   const itemCount = items.reduce((total, item) => total + item.quantity, 0);
   const freeShipping = promo?.type === 'FREE_SHIPPING';
   const shipping = freeShipping || subtotal >= 100_000 || subtotal === 0 ? 0 : 500;
-  const tax = Math.round(subtotal * 0.02);
   const discount = promo?.type === 'PERCENTAGE'
     ? Math.min(
         Math.round((subtotal * (promo.valuePercent ?? 0)) / 100),
@@ -47,11 +46,11 @@ const calculateTotals = (items: CartItemWithRelations[], promo?: CartPromo | nul
     subtotal,
     itemCount,
     shipping,
-    tax,
+    tax: 0,
     discount,
     freeShipping,
     promoCode: promo?.code,
-    total: subtotal + shipping + tax - discount,
+    total: subtotal + shipping - discount,
   };
 };
 

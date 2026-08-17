@@ -83,6 +83,9 @@ interface CartResponse {
   totals: {
     subtotal: number;
     itemCount: number;
+    shipping: number;
+    tax: number;
+    discount: number;
     total: number;
   };
 }
@@ -91,6 +94,10 @@ interface OrderResponse {
   id: string;
   guestEmail?: string;
   status: string;
+  subtotal: number;
+  tax: number;
+  discount: number;
+  shippingCost: number;
   total: number;
   items: Array<{
     product: string;
@@ -1033,6 +1040,8 @@ describe('endpoint smoke suite', () => {
     );
     expect(order.guestEmail).toBeNull();
     expect(order.items).toHaveLength(1);
+    expect(order.tax).toBe(0);
+    expect(order.total).toBe(order.subtotal + order.shippingCost - order.discount);
 
     const variantProduct = await prisma.product.create({
       data: {
@@ -1076,18 +1085,28 @@ describe('endpoint smoke suite', () => {
         altText: selectedVariant.title,
       },
     });
-    await prisma.cart.create({
+    const checkoutPromo = await prisma.promoCode.create({
+      data: {
+        code: `AUTH-${scope.toUpperCase()}`,
+        type: 'PERCENTAGE',
+        valuePercent: 10,
+        maxDiscountAmount: 5_000,
+        isActive: true,
+      },
+    });
+    const customerCart = await prisma.cart.create({
       data: {
         userId: customer.id,
         items: { create: { variantId: selectedVariant.id, quantity: 1 } },
       },
     });
+    await prisma.cart.update({ where: { id: customerCart.id }, data: { promoCodeId: checkoutPromo.id } });
     const variantOrder = parseSuccess<OrderResponse>(
       await app.inject({
         method: 'POST',
         url: '/api/orders',
         headers: { ...csrfHeaders(customerCookie), 'idempotency-key': randomUUID() },
-        payload: checkoutPayload(`variant-buyer-${scope}@example.com`),
+        payload: { ...checkoutPayload(`variant-buyer-${scope}@example.com`), shippingMethod: 'express' },
       }),
       201,
     );
@@ -1101,6 +1120,10 @@ describe('endpoint smoke suite', () => {
       specs: selectedVariant.title,
       quantity: 1,
     });
+    expect(variantOrder.tax).toBe(0);
+    expect(variantOrder.shippingCost).toBe(1_500);
+    expect(variantOrder.discount).toBe(5_000);
+    expect(variantOrder.total).toBe(variantOrder.subtotal + variantOrder.shippingCost - variantOrder.discount);
     await expect(prisma.productVariant.findUniqueOrThrow({ where: { id: selectedVariant.id } })).resolves.toMatchObject({
       stockQuantity: 2,
     });

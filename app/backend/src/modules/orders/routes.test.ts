@@ -40,8 +40,8 @@ const baseOrder = {
   subtotalAmount: 100_000,
   discountAmount: 0,
   shippingAmount: 500,
-  taxAmount: 2_000,
-  totalAmount: 102_500,
+  taxAmount: 0,
+  totalAmount: 100_500,
   shippingAddressSnapshot: {
     fullName: 'Customer Name',
     email: 'customer@example.com',

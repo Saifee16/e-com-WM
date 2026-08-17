@@ -37,8 +37,8 @@ const order: OrderEmailDetails = {
   subtotal: 100_000,
   discount: 5_000,
   shipping: 500,
-  tax: 2_000,
-  total: 97_500,
+  tax: 0,
+  total: 95_500,
   shippingMethod: 'standard',
   shippingAddress: '123 Test Street, Lahore, Punjab, 54000, Pakistan',
   trackingNumber: 'TRACK-123',
@@ -77,6 +77,8 @@ describe('order mailer', () => {
     expect(customer.payload.html).toContain('&lt;strong&gt;Phone&lt;/strong&gt;');
     expect(customer.payload.html).not.toContain('<script>');
     expect(customer.payload.text).toContain('256GB / Blue / Matte');
+    expect(customer.payload.text).toContain('Total: PKR 95,500');
+    expect(customer.payload.text).not.toContain('Tax:');
 
     expect(store.options.headers).toMatchObject({
       'Idempotency-Key': `order-${order.id}-placed-store`,

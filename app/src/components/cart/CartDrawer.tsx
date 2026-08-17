@@ -160,10 +160,6 @@ const CartDrawer = ({ open, onOpenChange }: CartDrawerProps) => {
                       {totals.shipping === 0 ? 'Free' : formatPrice(totals.shipping)}
                     </span>
                   </div>
-                  <div className="flex items-center justify-between text-gray-600">
-                    <span>Tax</span>
-                    <span className="font-medium text-gray-950">{formatPrice(totals.tax)}</span>
-                  </div>
                 </div>
                 <Separator />
                 <div className="flex items-center justify-between">

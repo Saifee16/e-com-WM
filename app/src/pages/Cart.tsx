@@ -18,7 +18,7 @@ const Cart = () => {
         <p className="text-sm font-medium text-blue-600">Cart review</p>
         <h1 className="mt-3 text-3xl font-bold tracking-tight text-gray-950">Your cart opens in the side panel</h1>
         <p className="mt-3 text-gray-600">
-          Pricing, stock, shipping, and tax are refreshed from the backend before checkout.
+          Pricing, stock, shipping, and discounts are refreshed from the backend before checkout.
         </p>
       </div>
       <CartDrawer open={isOpen} onOpenChange={setIsOpen} />

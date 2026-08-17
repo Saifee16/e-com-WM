@@ -82,7 +82,7 @@ const toOrderEmailDetails = (order: OrderWithRelations): OrderEmailDetails => {
     subtotal: order.subtotalAmount,
     discount: order.discountAmount,
     shipping: order.shippingAmount,
-    tax: order.taxAmount,
+    tax: 0,
     total: order.totalAmount,
     shippingMethod: getString(address.shippingMethod),
     shippingAddress: [address.line1, address.city, address.state, address.postalCode, address.country]
@@ -103,7 +103,7 @@ const mapOrder = (order: OrderWithRelations) => ({
   status: order.status.toLowerCase(),
   paymentStatus: order.paymentStatus.toLowerCase(),
   subtotal: order.subtotalAmount,
-  tax: order.taxAmount,
+  tax: 0,
   discount: order.discountAmount,
   shippingCost: order.shippingAmount,
   total: order.totalAmount,
@@ -282,7 +282,6 @@ export const orderRoutes: FastifyPluginAsync = async (app) => {
         (total, item) => total + item.variant.priceAmount * item.cartItem.quantity,
         0,
       );
-      const tax = Math.round(subtotal * 0.02);
       let shipping = body.shippingMethod === 'standard' && subtotal >= 100_000
         ? 0
         : shippingCosts[body.shippingMethod];
@@ -324,7 +323,7 @@ export const orderRoutes: FastifyPluginAsync = async (app) => {
           discount = Math.min(promo.valueAmount ?? 0, subtotal);
         }
       }
-      const total = subtotal + tax + shipping - discount;
+      const total = subtotal + shipping - discount;
 
       const created = await tx.order.create({
         data: {
@@ -337,7 +336,7 @@ export const orderRoutes: FastifyPluginAsync = async (app) => {
           subtotalAmount: subtotal,
           discountAmount: discount,
           shippingAmount: shipping,
-          taxAmount: tax,
+          taxAmount: 0,
           totalAmount: total,
           idempotencyKey,
           ...(lockedCart.promoCodeId ? { promoCode: { connect: { id: lockedCart.promoCodeId } } } : {}),

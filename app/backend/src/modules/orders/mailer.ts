@@ -57,7 +57,6 @@ const orderTotals = (order: OrderEmailDetails) => [
   `Subtotal: ${formatAmount(order.subtotal)}`,
   ...(order.discount > 0 ? [`Discount: -${formatAmount(order.discount)}`] : []),
   `Shipping: ${formatAmount(order.shipping)}`,
-  `Tax: ${formatAmount(order.tax)}`,
   `Total: ${formatAmount(order.total)}`,
 ];
 

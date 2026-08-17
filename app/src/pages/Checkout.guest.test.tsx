@@ -18,7 +18,7 @@ vi.mock('../contexts/AuthContext', () => ({
 vi.mock('../contexts/CartContext', () => ({
   useCart: () => ({
     items: [{ product: 'product-1', variantId: 'variant-1', name: 'Guest phone', image: '', price: 50_000, quantity: 1 }],
-    totals: { subtotal: 50_000, tax: 1_000, discount: 0, freeShipping: false },
+    totals: { subtotal: 50_000, tax: 10_000, discount: 0, freeShipping: false },
     clearCart: vi.fn(),
   }),
 }));
@@ -34,5 +34,6 @@ describe('guest checkout', () => {
     expect(screen.getByText('Shipping Information')).toBeInTheDocument();
     expect(screen.getByText('Guest phone')).toBeInTheDocument();
     expect(screen.queryByText('Sign In')).not.toBeInTheDocument();
+    expect(screen.queryByText('Tax')).not.toBeInTheDocument();
   });
 });
