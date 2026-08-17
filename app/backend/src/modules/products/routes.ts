@@ -80,16 +80,31 @@ const getCategoryTree = async (activeOnly: boolean) => {
   return roots;
 };
 
+const legacyCategoryAliases: Record<string, string[]> = {
+  phones: ['smartphones', 'iphone', 'android'],
+  'smart-watches': ['wearables', 'fitness-bands', 'calling-watches'],
+  gadgets: [
+    'wireless-earbuds',
+    'headphones',
+    'speakers',
+    'power-banks',
+    'chargers',
+    'charging-cables',
+    'mobile-accessories',
+  ],
+};
+
 const getCategoryDescendantIds = async (slug: string) => {
-  const root = await prisma.category.findFirst({
-    where: { slug: slugify(slug), isActive: true },
+  const categorySlugs = [slugify(slug), ...(legacyCategoryAliases[slugify(slug)] ?? [])];
+  const roots = await prisma.category.findMany({
+    where: { slug: { in: categorySlugs }, isActive: true },
     select: { id: true },
   });
-  if (!root) return [];
+  if (roots.length === 0) return [];
 
-  const ids = [root.id];
+  const ids = roots.map((root) => root.id);
   const seen = new Set(ids);
-  let frontier = [root.id];
+  let frontier = [...ids];
   while (frontier.length) {
     const children = await prisma.category.findMany({
       where: { parentId: { in: frontier }, isActive: true },

@@ -52,7 +52,9 @@ const getRequestedCondition = (
 const getRequestedPrice = (value: string | null) =>
   priceRanges.some((range) => range.label === value) ? value ?? '' : '';
 
-const getRouteCategory = (pathname: string) => {
+// This stateless route helper is exported for focused route-parser coverage.
+// eslint-disable-next-line react-refresh/only-export-components
+export const getRouteCategory = (pathname: string) => {
   const segments = pathname.split('/').filter(Boolean);
   if (segments[0] === 'phones' || segments[0] === 'smart-watches' || segments[0] === 'gadgets') {
     return segments[1] ?? segments[0];
@@ -455,7 +457,7 @@ const Products = () => {
     setSelectedPriceRange('');
     setSelectedStorage('');
     setSelectedCondition('');
-    setSelectedCategory('');
+    setSelectedCategory(routeCategory);
     setSearchQuery('');
     setFeaturedOnly(false);
     setDiscountedOnly(false);
@@ -463,18 +465,31 @@ const Products = () => {
     setCurrentPage(1);
   };
 
+  const hasOptionalFilters =
+    Boolean(debouncedSearch) ||
+    selectedBrands.length > 0 ||
+    Boolean(selectedPriceRange) ||
+    Boolean(selectedStorage) ||
+    Boolean(selectedCondition) ||
+    featuredOnly ||
+    discountedOnly ||
+    ptaApprovedOnly;
+
   const activeFiltersCount =
     selectedBrands.length +
     (selectedPriceRange ? 1 : 0) +
     (selectedStorage ? 1 : 0) +
     (selectedCondition ? 1 : 0) +
-    (selectedCategory ? 1 : 0) +
+    (selectedCategory && selectedCategory !== routeCategory ? 1 : 0) +
     (featuredOnly ? 1 : 0) +
     (discountedOnly ? 1 : 0) +
     (ptaApprovedOnly ? 1 : 0);
 
-  const hasActiveSearch =
-    activeFiltersCount > 0 || Boolean(debouncedSearch);
+  const hasActiveSearch = hasOptionalFilters || activeFiltersCount > 0;
+  const isEmptyRouteCategory =
+    Boolean(routeCategory) &&
+    selectedCategory === routeCategory &&
+    !hasOptionalFilters;
 
   const renderFilters = () => (
     <div className="space-y-6">
@@ -967,19 +982,30 @@ const Products = () => {
                   </div>
 
                   <h2 className="mt-5 text-xl font-extrabold text-slate-950">
-                    {hasActiveSearch
-                      ? 'No products match these filters'
-                      : 'The catalogue is currently empty'}
+                    {isEmptyRouteCategory
+                      ? 'No products are available in this category yet.'
+                      : hasActiveSearch
+                        ? 'No products match these filters'
+                        : 'The catalogue is currently empty'}
                   </h2>
 
                   <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-slate-600">
-                    {hasActiveSearch
-                      ? 'Clear a filter or try a broader search.'
-                      : 'Products will appear here automatically when they are published. Contact the shop to ask about current stock.'}
+                    {isEmptyRouteCategory
+                      ? 'Browse all products to explore the full catalogue.'
+                      : hasActiveSearch
+                        ? 'Clear a filter or try a broader search.'
+                        : 'Products will appear here automatically when they are published. Contact the shop to ask about current stock.'}
                   </p>
 
                   <div className="mt-6 flex flex-col justify-center gap-3 min-[430px]:flex-row">
-                    {hasActiveSearch ? (
+                    {isEmptyRouteCategory ? (
+                      <Link
+                        to="/products"
+                        className="inline-flex min-h-11 items-center justify-center rounded-lg bg-blue-700 px-5 text-sm font-bold text-white hover:bg-blue-800"
+                      >
+                        Browse all products
+                      </Link>
+                    ) : hasActiveSearch ? (
                       <button
                         type="button"
                         onClick={clearFilters}

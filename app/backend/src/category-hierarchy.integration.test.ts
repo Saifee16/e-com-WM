@@ -28,15 +28,33 @@ describe('hierarchical product catalogue', () => {
   const phoneSlug = `phones-${scope}`;
   const gadgetSlug = `gadgets-${scope}`;
   const earbudsSlug = `wireless-earbuds-${scope}`;
+  const deepEarbudsSlug = `earbuds-cases-${scope}`;
   const inactiveSlug = `inactive-gadgets-${scope}`;
 
   beforeAll(async () => {
     app = await buildApp();
     const brand = await prisma.brand.create({ data: { name: `Category Test Brand ${scope}`, slug: brandSlug } });
+    const canonicalPhones = await prisma.category.create({ data: { name: 'Phones', slug: 'phones' } });
+    const legacySmartphones = await prisma.category.create({ data: { name: 'Smartphones', slug: 'smartphones' } });
+    const phoneChild = await prisma.category.create({ data: { name: `Phone Child ${scope}`, slug: `phone-child-${scope}`, parentId: canonicalPhones.id } });
+    await prisma.category.create({ data: { name: `Phone Grandchild ${scope}`, slug: `phone-grandchild-${scope}`, parentId: phoneChild.id } });
     const phones = await prisma.category.create({ data: { name: `Phones ${scope}`, slug: phoneSlug } });
     const gadgets = await prisma.category.create({ data: { name: `Gadgets ${scope}`, slug: gadgetSlug } });
     const earbuds = await prisma.category.create({ data: { name: `Wireless Earbuds ${scope}`, slug: earbudsSlug, parentId: gadgets.id } });
+    const deepEarbuds = await prisma.category.create({ data: { name: `Earbuds Cases ${scope}`, slug: deepEarbudsSlug, parentId: earbuds.id } });
     await prisma.category.create({ data: { name: `Inactive Gadgets ${scope}`, slug: inactiveSlug, parentId: gadgets.id, isActive: false } });
+
+    await prisma.product.create({
+      data: {
+        name: `Legacy Smartphone ${scope}`,
+        slug: `legacy-smartphone-${scope}`,
+        description: 'Legacy phone category fixture',
+        status: 'ACTIVE',
+        brandId: brand.id,
+        categoryId: legacySmartphones.id,
+        variants: { create: { sku: `LEGACY-PHONE-${scope}`, title: 'Default', priceAmount: 90_000, stockQuantity: 2 } },
+      },
+    });
 
     await prisma.product.create({
       data: {
@@ -69,6 +87,18 @@ describe('hierarchical product catalogue', () => {
         variants: { create: { sku: `EARBUDS-${scope}`, title: 'Black', color: 'Black', priceAmount: 20_000, stockQuantity: 3 } },
       },
     });
+    await prisma.product.create({
+      data: {
+        name: `Deep Earbuds ${scope}`,
+        slug: `deep-earbuds-${scope}`,
+        description: 'Nested earbuds category fixture',
+        status: 'ACTIVE',
+        brandId: brand.id,
+        categoryId: deepEarbuds.id,
+        ptaApproved: false,
+        variants: { create: { sku: `DEEP-EARBUDS-${scope}`, title: 'Black', priceAmount: 8_000, stockQuantity: 3 } },
+      },
+    });
   }, 60_000);
 
   afterAll(async () => {
@@ -76,6 +106,8 @@ describe('hierarchical product catalogue', () => {
     await prisma.brand.deleteMany({ where: { slug: brandSlug } });
     await prisma.category.updateMany({ where: { slug: { contains: scope }, parentId: { not: null } }, data: { parentId: null } });
     await prisma.category.deleteMany({ where: { slug: { contains: scope } } });
+    await prisma.category.updateMany({ where: { slug: { in: ['smartphones', 'phones'] }, parentId: { not: null } }, data: { parentId: null } });
+    await prisma.category.deleteMany({ where: { slug: { in: ['smartphones', 'phones'] } } });
     await app.close();
   });
 
@@ -86,17 +118,34 @@ describe('hierarchical product catalogue', () => {
     expect(categories.flatMap((category) => [category.slug, ...category.children.map((child) => child.slug)])).not.toContain(inactiveSlug);
   });
 
-  it('includes descendants for a parent and returns only the child for a child category', async () => {
+  it('includes direct and nested descendants without duplicate products', async () => {
     const parent = parseSuccess<{ items: Array<{ id: string; name: string }>; pagination: { total: number } }>(
       await app.inject({ method: 'GET', url: `/api/products?category=${gadgetSlug}` }),
     );
     const child = parseSuccess<{ items: Array<{ id: string; name: string }>; pagination: { total: number } }>(
       await app.inject({ method: 'GET', url: `/api/products?category=${earbudsSlug}` }),
     );
-    expect(parent.pagination.total).toBe(1);
+    const deepChild = parseSuccess<{ items: Array<{ id: string; name: string }>; pagination: { total: number } }>(
+      await app.inject({ method: 'GET', url: `/api/products?category=${deepEarbudsSlug}` }),
+    );
+    expect(parent.pagination.total).toBe(2);
     expect(new Set(parent.items.map((item) => item.id)).size).toBe(parent.items.length);
-    expect(child.pagination.total).toBe(1);
+    expect(child.pagination.total).toBe(2);
     expect(child.items[0]?.name).toContain('Earbuds');
+    expect(deepChild.pagination.total).toBe(1);
+    expect(deepChild.items[0]?.name).toContain('Deep Earbuds');
+  });
+
+  it('keeps legacy smartphone products visible through the canonical phones route', async () => {
+    const canonical = parseSuccess<{ items: Array<{ id: string }>; pagination: { total: number } }>(
+      await app.inject({ method: 'GET', url: `/api/products?category=phones&brand=${brandSlug}` }),
+    );
+    const legacy = parseSuccess<{ items: Array<{ id: string }>; pagination: { total: number } }>(
+      await app.inject({ method: 'GET', url: `/api/products?category=smartphones&brand=${brandSlug}` }),
+    );
+    expect(canonical.pagination.total).toBe(1);
+    expect(legacy.pagination.total).toBe(1);
+    expect(canonical.items[0]?.id).toBe(legacy.items[0]?.id);
   });
 
   it('keeps a multi-variant product singular while filtering relevant active variants and serializing specs', async () => {
