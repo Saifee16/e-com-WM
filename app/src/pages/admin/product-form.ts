@@ -99,6 +99,13 @@ export const normalizePhoneValue = (value: string) => value.trim().replace(/\s+/
 
 export const phoneCellKey = (memoryClientId: string, colorClientId: string) => `${memoryClientId}\u0000${colorClientId}`;
 
+export const phoneConfigurationTotalStock = (form: Pick<ProductFormState, 'colors' | 'phoneAvailability'>, memoryClientId: string) =>
+  form.colors.reduce((total, color) => {
+    const cell = form.phoneAvailability[phoneCellKey(memoryClientId, color.clientId)];
+    const stock = Number(cell?.countInStock ?? 0);
+    return total + (cell?.enabled && Number.isFinite(stock) && stock >= 0 ? stock : 0);
+  }, 0);
+
 const normalizedPhoneKey = (value: string) => normalizePhoneValue(value).toLocaleLowerCase();
 
 const phoneVariantRam = (variant: ProductVariant, fallback: string) =>

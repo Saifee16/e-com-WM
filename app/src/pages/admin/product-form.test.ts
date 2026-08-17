@@ -5,6 +5,7 @@ import {
   ProductFormValidationError,
   createProductFormState,
   phoneCellKey,
+  phoneConfigurationTotalStock,
   toProductCreateRequest,
   type ProductFormState,
 } from './product-form';
@@ -89,6 +90,16 @@ describe('admin product form contract', () => {
     }));
     expect(request.variants).toEqual([expect.objectContaining({ options: { RAM: '4GB' }, color: 'Black', countInStock: 0, isActive: true })]);
     expect(request.countInStock).toBe(0);
+  });
+
+  it('derives total stock per storage configuration from enabled color cells', () => {
+    const form = createPhoneForm();
+    expect(phoneConfigurationTotalStock(form, 'memory-64')).toBe(5);
+    expect(phoneConfigurationTotalStock(form, 'memory-128')).toBe(7);
+
+    form.phoneAvailability[phoneCellKey('memory-64', 'color-black')].countInStock = '0';
+    expect(phoneConfigurationTotalStock(form, 'memory-64')).toBe(2);
+    expect(phoneConfigurationTotalStock(form, 'memory-128')).toBe(7);
   });
 
   it('rejects duplicate memory configurations and duplicate colors', () => {

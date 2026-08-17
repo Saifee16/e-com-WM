@@ -21,6 +21,7 @@ import {
   toProductCreateRequest,
   normalizePhoneValue,
   phoneCellKey,
+  phoneConfigurationTotalStock,
   validateProductImageSelection,
   type ProductFormState,
   type PhoneMemoryConfiguration,
@@ -340,7 +341,7 @@ export const ProductModal = ({
   const [isSaving, setIsSaving] = useState(false);
   const [storageDraft, setStorageDraft] = useState('');
   const [colorDraft, setColorDraft] = useState('');
-  const [phoneColorDraft, setPhoneColorDraft] = useState('');
+  const [phoneColorDrafts, setPhoneColorDrafts] = useState<Record<string, string>>({});
   const isPhoneProduct = formData.phoneCategory || isPhoneCategory(formData.category, categories);
   const specificationFields = getCategorySpecificationFields(formData.category, categories);
 
@@ -404,13 +405,16 @@ export const ProductModal = ({
     cell: Partial<ProductFormState['phoneAvailability'][string]>,
   ) => {
     const key = phoneCellKey(memoryClientId, colorClientId);
-    updateField('phoneAvailability', {
-      ...formData.phoneAvailability,
-      [key]: {
-        ...(formData.phoneAvailability[key] ?? { enabled: false, countInStock: '0' }),
-        ...cell,
+    setFormData((current) => ({
+      ...current,
+      phoneAvailability: {
+        ...current.phoneAvailability,
+        [key]: {
+          ...(current.phoneAvailability[key] ?? { enabled: false, countInStock: '0' }),
+          ...cell,
+        },
       },
-    });
+    }));
   };
 
   const addMemoryConfiguration = () => {
@@ -421,31 +425,44 @@ export const ProductModal = ({
   };
 
   const removeMemoryConfiguration = (memory: PhoneMemoryConfiguration) => {
-    const affected = formData.variants.filter((variant) => (
-      normalizePhoneValue(variant.options.RAM ?? '') === normalizePhoneValue(memory.ram)
-      && normalizePhoneValue(variant.storage) === normalizePhoneValue(memory.storage)
-    )).length;
-    if (affected > 0 && !window.confirm(`Removing this memory option will deactivate ${affected} product combinations. Continue?`)) return;
+    const affected = new Set(
+      formData.colors
+        .map((color) => formData.phoneAvailability[phoneCellKey(memory.clientId, color.clientId)]?.variantId)
+        .filter((variantId): variantId is string => Boolean(variantId)),
+    ).size;
+    if (affected > 0 && !window.confirm(`Removing this storage configuration will deactivate ${affected} product combinations. Continue?`)) return;
     updateField('memoryConfigurations', formData.memoryConfigurations.filter((item) => item.clientId !== memory.clientId));
   };
 
-  const addPhoneColor = () => {
-    const value = normalizePhoneValue(phoneColorDraft);
-    if (!value) return;
-    if (formData.colors.some((color) => normalizePhoneValue(color.value).toLocaleLowerCase() === value.toLocaleLowerCase())) {
-      showToast('Colors must be unique.', 'error');
-      return;
-    }
-    updateField('colors', [...formData.colors, { clientId: crypto.randomUUID(), value }]);
-    setPhoneColorDraft('');
+  const addKnownPhoneColor = (memoryClientId: string, colorClientId: string) => {
+    updatePhoneAvailability(memoryClientId, colorClientId, { enabled: true });
   };
 
-  const removePhoneColor = (color: ProductFormState['colors'][number]) => {
-    const affected = formData.variants.filter((variant) => (
-      normalizePhoneValue(variant.color).toLocaleLowerCase() === normalizePhoneValue(color.value).toLocaleLowerCase()
-    )).length;
-    if (affected > 0 && !window.confirm(`Removing this color will deactivate ${affected} product combinations. Continue?`)) return;
-    updateField('colors', formData.colors.filter((item) => item.clientId !== color.clientId));
+  const addNewPhoneColor = (memoryClientId: string) => {
+    const value = normalizePhoneValue(phoneColorDrafts[memoryClientId] ?? '');
+    if (!value) return;
+    const normalizedValue = value.toLocaleLowerCase();
+    setFormData((current) => {
+      const existingColor = current.colors.find((color) => normalizePhoneValue(color.value).toLocaleLowerCase() === normalizedValue);
+      const color = existingColor ?? { clientId: crypto.randomUUID(), value };
+      const key = phoneCellKey(memoryClientId, color.clientId);
+      return {
+        ...current,
+        colors: existingColor ? current.colors : [...current.colors, color],
+        phoneAvailability: {
+          ...current.phoneAvailability,
+          [key]: {
+            ...(current.phoneAvailability[key] ?? { countInStock: '0' }),
+            enabled: true,
+          },
+        },
+      };
+    });
+    setPhoneColorDrafts((current) => ({ ...current, [memoryClientId]: '' }));
+  };
+
+  const removePhoneColorFromMemory = (memoryClientId: string, colorClientId: string) => {
+    updatePhoneAvailability(memoryClientId, colorClientId, { enabled: false });
   };
 
   const imagePreviews = useMemo(
@@ -681,93 +698,86 @@ export const ProductModal = ({
             )}
 
             {isPhoneProduct && (
-              <div className="space-y-6">
-                <section className="space-y-4 rounded-2xl border border-blue-100 bg-blue-50/30 p-5" aria-labelledby="memory-price-heading">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <h4 id="memory-price-heading" className="text-base font-semibold text-gray-900">Memory &amp; Price</h4>
-                      <p className="mt-1 text-sm text-gray-500">Add each RAM and Storage / ROM price once. Colors inherit this price.</p>
-                    </div>
-                    <button type="button" onClick={addMemoryConfiguration} className="rounded-xl border border-blue-200 bg-white px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50">
-                      + Add memory option
-                    </button>
-                  </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full min-w-[680px] text-left text-sm">
-                      <thead className="text-xs uppercase tracking-wide text-gray-500">
-                        <tr><th className="pb-2 pr-3">RAM</th><th className="pb-2 pr-3">Storage / ROM</th><th className="pb-2 pr-3">Sale price (PKR)</th><th className="pb-2 pr-3">Regular price (optional)</th><th className="pb-2" /></tr>
-                      </thead>
-                      <tbody>
-                        {formData.memoryConfigurations.map((memory, index) => (
-                          <tr key={memory.clientId} className="border-t border-blue-100">
-                            <td className="py-2 pr-3"><input aria-label={`RAM option ${index + 1}`} value={memory.ram} onChange={(event) => updateMemoryConfiguration(memory.clientId, 'ram', event.target.value)} placeholder="e.g. 8GB" className="w-28 rounded-xl border border-gray-200 bg-white px-3 py-2" /></td>
-                            <td className="py-2 pr-3"><input aria-label={`Storage option ${index + 1}`} value={memory.storage} onChange={(event) => updateMemoryConfiguration(memory.clientId, 'storage', event.target.value)} placeholder="e.g. 128GB" className="w-32 rounded-xl border border-gray-200 bg-white px-3 py-2" /></td>
-                            <td className="py-2 pr-3"><input aria-label={`Sale price for memory option ${index + 1}`} type="number" min="0" step="1" value={memory.price} onChange={(event) => updateMemoryConfiguration(memory.clientId, 'price', event.target.value)} className="w-32 rounded-xl border border-gray-200 bg-white px-3 py-2" /></td>
-                            <td className="py-2 pr-3"><input aria-label={`Regular price for memory option ${index + 1}`} type="number" min="0" step="1" value={memory.originalPrice} onChange={(event) => updateMemoryConfiguration(memory.clientId, 'originalPrice', event.target.value)} placeholder="Optional" className="w-36 rounded-xl border border-gray-200 bg-white px-3 py-2" /></td>
-                            <td className="py-2 text-right"><button type="button" onClick={() => removeMemoryConfiguration(memory)} className="rounded-lg p-2 text-gray-500 hover:bg-red-50 hover:text-red-600" aria-label={`Remove memory option ${index + 1}`}><Trash2 className="h-4 w-4" /></button></td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </section>
-
-                <section className="space-y-4 rounded-2xl border border-gray-200 p-5" aria-labelledby="phone-colors-heading">
+              <section className="space-y-5 rounded-2xl border border-blue-100 bg-blue-50/30 p-5" aria-labelledby="storage-configurations-heading">
+                <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <h4 id="phone-colors-heading" className="text-base font-semibold text-gray-900">Colors</h4>
-                    <p className="mt-1 text-sm text-gray-500">Enter each color once, then choose where it is available below.</p>
+                    <h4 id="storage-configurations-heading" className="text-base font-semibold text-gray-900">Storage configurations</h4>
+                    <p className="mt-1 text-sm text-gray-500">Set one price for each RAM / ROM combination, then manage its available colors and stock.</p>
                   </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    {formData.colors.map((color) => (
-                      <button key={color.clientId} type="button" onClick={() => removePhoneColor(color)} className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-800 hover:border-red-300 hover:text-red-700" aria-label={`Remove color ${color.value}`}>
-                        {color.value} <span aria-hidden="true">×</span>
-                      </button>
-                    ))}
-                    <div className="flex gap-2">
-                      <input aria-label="New phone color" value={phoneColorDraft} onChange={(event) => setPhoneColorDraft(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); addPhoneColor(); } }} placeholder="e.g. Awesome Black" className="w-44 rounded-xl border border-gray-200 px-3 py-2" />
-                      <button type="button" onClick={addPhoneColor} className="rounded-xl border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">+ Add color</button>
-                    </div>
-                  </div>
-                </section>
+                  <button type="button" onClick={addMemoryConfiguration} className="rounded-xl border border-blue-200 bg-white px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50">
+                    + Add configuration
+                  </button>
+                </div>
 
-                <section className="space-y-4 rounded-2xl border border-gray-200 p-5" aria-labelledby="phone-availability-heading">
-                  <div>
-                    <h4 id="phone-availability-heading" className="text-base font-semibold text-gray-900">Availability &amp; Stock</h4>
-                    <p className="mt-1 text-sm text-gray-500">Enable a cell to create that exact RAM + Storage / ROM + Color combination. Enabled stock 0 means sold out; disabled means unavailable.</p>
-                  </div>
-                  {formData.colors.length === 0 ? (
-                    <p className="rounded-xl bg-gray-50 px-4 py-3 text-sm text-gray-500">Add at least one color to build the availability matrix.</p>
-                  ) : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full min-w-[640px] text-left text-sm">
-                        <thead className="text-xs uppercase tracking-wide text-gray-500">
-                          <tr><th className="pb-3 pr-3">RAM / Storage</th>{formData.colors.map((color) => <th key={color.clientId} className="pb-3 pr-3">{color.value}</th>)}</tr>
-                        </thead>
-                        <tbody>
-                          {formData.memoryConfigurations.map((memory) => (
-                            <tr key={memory.clientId} className="border-t border-gray-100 align-top">
-                              <th className="py-3 pr-3 font-semibold text-gray-700">{memory.ram || 'RAM'} / {memory.storage || 'Storage'}</th>
-                              {formData.colors.map((color) => {
-                                const cell = formData.phoneAvailability[phoneCellKey(memory.clientId, color.clientId)] ?? { enabled: false, countInStock: '0' };
-                                return (
-                                  <td key={color.clientId} className="py-3 pr-3">
-                                    <label className="flex items-center gap-2 text-xs font-medium text-gray-600">
-                                      <input type="checkbox" checked={cell.enabled} onChange={(event) => updatePhoneAvailability(memory.clientId, color.clientId, { enabled: event.target.checked })} className="h-4 w-4 rounded text-blue-600" />
-                                      {cell.enabled ? 'Available' : 'Unavailable'}
-                                    </label>
-                                    {cell.enabled && <input aria-label={`Stock for ${memory.ram} ${memory.storage} ${color.value}`} type="number" min="0" step="1" value={cell.countInStock} onChange={(event) => updatePhoneAvailability(memory.clientId, color.clientId, { countInStock: event.target.value })} className="mt-2 w-24 rounded-xl border border-gray-200 px-3 py-2" />}
-                                    {cell.enabled && cell.countInStock === '0' && <span className="mt-1 block text-xs text-amber-700">Sold out</span>}
-                                  </td>
-                                );
-                              })}
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </section>
-              </div>
+                <div className="space-y-4">
+                  {formData.memoryConfigurations.map((memory, index) => {
+                    const configuredColors = formData.colors.filter((color) => formData.phoneAvailability[phoneCellKey(memory.clientId, color.clientId)]?.enabled);
+                    const availableColors = formData.colors.filter((color) => !formData.phoneAvailability[phoneCellKey(memory.clientId, color.clientId)]?.enabled);
+                    const draft = phoneColorDrafts[memory.clientId] ?? '';
+                    const totalStock = phoneConfigurationTotalStock(formData, memory.clientId);
+                    return (
+                      <article key={memory.clientId} className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm" data-testid={`storage-configuration-${index + 1}`}>
+                        <div className="grid gap-3 md:grid-cols-[1fr_1fr_1.15fr_1.25fr_auto] md:items-end">
+                          <label className="block text-sm font-medium text-gray-700">
+                            RAM
+                            <input aria-label={`RAM option ${index + 1}`} value={memory.ram} onChange={(event) => updateMemoryConfiguration(memory.clientId, 'ram', event.target.value)} placeholder="e.g. 8GB" className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2" />
+                          </label>
+                          <label className="block text-sm font-medium text-gray-700">
+                            ROM / Storage
+                            <input aria-label={`Storage option ${index + 1}`} value={memory.storage} onChange={(event) => updateMemoryConfiguration(memory.clientId, 'storage', event.target.value)} placeholder="e.g. 128GB" className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2" />
+                          </label>
+                          <label className="block text-sm font-medium text-gray-700">
+                            Sale price (PKR)
+                            <input aria-label={`Sale price for memory option ${index + 1}`} type="number" min="0" step="1" value={memory.price} onChange={(event) => updateMemoryConfiguration(memory.clientId, 'price', event.target.value)} className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2" />
+                          </label>
+                          <label className="block text-sm font-medium text-gray-700">
+                            Regular price (optional)
+                            <input aria-label={`Regular price for memory option ${index + 1}`} type="number" min="0" step="1" value={memory.originalPrice} onChange={(event) => updateMemoryConfiguration(memory.clientId, 'originalPrice', event.target.value)} placeholder="Optional" className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2" />
+                          </label>
+                          <button type="button" onClick={() => removeMemoryConfiguration(memory)} className="rounded-lg p-2 text-gray-500 hover:bg-red-50 hover:text-red-600 md:mb-1" aria-label={`Remove storage configuration ${index + 1}`}><Trash2 className="h-4 w-4" /></button>
+                        </div>
+
+                        <div className="mt-5 border-t border-gray-100 pt-4">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div>
+                              <h5 className="text-sm font-semibold text-gray-900">Colors and stock</h5>
+                              <p className="mt-1 text-xs text-gray-500">Each color is a separate purchasable combination. Stock 0 means sold out.</p>
+                            </div>
+                            <p className="text-sm font-semibold text-gray-700">Total stock: {totalStock}</p>
+                          </div>
+
+                          <div className="mt-3 space-y-2">
+                            {configuredColors.length === 0 && <p className="rounded-xl bg-gray-50 px-3 py-2 text-sm text-gray-500">No colors added to this configuration yet.</p>}
+                            {configuredColors.map((color) => {
+                              const cell = formData.phoneAvailability[phoneCellKey(memory.clientId, color.clientId)] ?? { enabled: true, countInStock: '0' };
+                              return (
+                                <div key={color.clientId} className="flex flex-wrap items-center gap-3 rounded-xl border border-gray-100 bg-gray-50 px-3 py-2">
+                                  <span className="min-w-28 flex-1 text-sm font-medium text-gray-800">{color.value}</span>
+                                  <label className="flex items-center gap-2 text-xs font-medium text-gray-600">
+                                    Stock
+                                    <input aria-label={`Stock for ${memory.ram} ${memory.storage} ${color.value}`} type="number" min="0" step="1" value={cell.countInStock} onChange={(event) => updatePhoneAvailability(memory.clientId, color.clientId, { countInStock: event.target.value })} className="w-24 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm" />
+                                  </label>
+                                  {cell.countInStock === '0' && <span className="text-xs text-amber-700">Sold out</span>}
+                                  <button type="button" onClick={() => removePhoneColorFromMemory(memory.clientId, color.clientId)} className="rounded-lg px-2 py-1 text-xs font-medium text-gray-500 hover:bg-red-50 hover:text-red-600" aria-label={`Remove ${color.value} from ${memory.ram} ${memory.storage}`}>Remove</button>
+                                </div>
+                              );
+                            })}
+                          </div>
+
+                          <div className="mt-3 flex flex-wrap items-center gap-2">
+                            <select aria-label={`Add color to ${memory.ram} ${memory.storage}`} value="" onChange={(event) => { if (event.target.value) addKnownPhoneColor(memory.clientId, event.target.value); }} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm">
+                              <option value="">+ Add color</option>
+                              {availableColors.map((color) => <option key={color.clientId} value={color.clientId}>{color.value}</option>)}
+                            </select>
+                            <input aria-label={`New color for ${memory.ram} ${memory.storage}`} value={draft} onChange={(event) => setPhoneColorDrafts((current) => ({ ...current, [memory.clientId]: event.target.value }))} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); addNewPhoneColor(memory.clientId); } }} placeholder="New color" className="w-32 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm" />
+                            <button type="button" onClick={() => addNewPhoneColor(memory.clientId)} className="rounded-xl border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">+ New color</button>
+                          </div>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              </section>
             )}
 
             {!isPhoneProduct && !formData.hasVariants && <div className="grid sm:grid-cols-3 gap-6">

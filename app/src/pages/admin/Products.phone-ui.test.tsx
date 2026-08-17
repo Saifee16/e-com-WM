@@ -26,7 +26,11 @@ const renderModal = (category: string) => render(
 describe('phone product configuration UI', () => {
   it('automatically shows the simple phone workflow for legacy phone categories', () => {
     renderModal('android');
-    expect(screen.getByText('Memory & Price')).toBeInTheDocument();
+    expect(screen.getByText('Storage configurations')).toBeInTheDocument();
+    expect(screen.getByText('Colors and stock')).toBeInTheDocument();
+    expect(screen.queryByText('Memory & Price')).not.toBeInTheDocument();
+    expect(screen.queryByText('Availability & Stock')).not.toBeInTheDocument();
+    expect(screen.getByText('Total stock: 2')).toBeInTheDocument();
     expect(screen.getByText('Phone specifications')).toBeInTheDocument();
     expect(screen.queryByText('Does this product have variants?')).not.toBeInTheDocument();
     expect(screen.queryByText('Variant builder')).not.toBeInTheDocument();
@@ -37,22 +41,26 @@ describe('phone product configuration UI', () => {
   it('keeps the color input focused while typing and uses one input per color', async () => {
     const user = userEvent.setup();
     renderModal('phones');
-    const input = screen.getByLabelText('New phone color');
+    const input = screen.getByLabelText('New color for 4GB 64GB');
     await user.type(input, 'Awesome Blue');
     expect(input).toHaveValue('Awesome Blue');
     expect(input).toHaveFocus();
-    await user.click(screen.getByRole('button', { name: '+ Add color' }));
-    expect(screen.getByRole('button', { name: 'Remove color Awesome Blue' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '+ New color' }));
+    expect(screen.getByRole('button', { name: 'Remove Awesome Blue from 4GB 64GB' })).toBeInTheDocument();
   });
 
-  it('renders additional memory rows and matrix columns with stable editor controls', async () => {
+  it('renders additional configurations and lets each one choose a shared color', async () => {
     const user = userEvent.setup();
     renderModal('phones');
-    await user.click(screen.getByRole('button', { name: '+ Add memory option' }));
+    await user.click(screen.getByRole('button', { name: '+ Add configuration' }));
     expect(screen.getAllByLabelText(/RAM option/)).toHaveLength(2);
-    expect(screen.getByText('4GB / 64GB')).toBeInTheDocument();
-    expect(screen.getByRole('columnheader', { name: 'Black' })).toBeInTheDocument();
+    const addColorSelect = screen.getAllByRole('combobox', { name: /Add color to/ })[1];
+    const blackOption = Array.from(addColorSelect.querySelectorAll('option')).find((option) => option.textContent === 'Black');
+    expect(blackOption).toBeDefined();
+    await user.selectOptions(addColorSelect, blackOption!.value);
+    expect(screen.getAllByText('Black')).toHaveLength(2);
     expect(screen.getByLabelText('Stock for 4GB 64GB Black')).toHaveValue(2);
+    expect(screen.getByText('Total stock: 2')).toBeInTheDocument();
   });
 
   it('preserves the generic variant choice for non-phone categories', async () => {
