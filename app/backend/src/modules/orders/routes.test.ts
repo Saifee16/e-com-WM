@@ -108,6 +108,18 @@ const registerOrderRoute = async () => {
   return route!;
 };
 
+const registerCancelRoute = async () => {
+  let route: ((request: Record<string, unknown>, reply: Record<string, unknown>) => Promise<unknown>) | undefined;
+  const app = {
+    post: vi.fn((path, _options, handler) => {
+      if (path === '/:id/cancel') route = handler;
+    }),
+    get: vi.fn(),
+  };
+  await orderRoutes(app as never, {});
+  return route!;
+};
+
 const registerStatusRoute = async () => {
   let route: ((request: Record<string, unknown>, reply: Record<string, unknown>) => Promise<unknown>) | undefined;
   const app = {
@@ -172,7 +184,7 @@ describe('order notification route behavior', () => {
 
     expect(result).toMatchObject({ success: true, data: { id: baseOrder.id } });
     expect(logError).toHaveBeenCalledWith(
-      expect.objectContaining({ err: expect.any(Error), orderId: baseOrder.id }),
+      expect.objectContaining({ orderId: baseOrder.id }),
       'order placed notification email failed',
     );
   });
@@ -220,6 +232,31 @@ describe('order notification route behavior', () => {
     expect(mocks.sendOrderStatusEmail).toHaveBeenCalledTimes(1);
   });
 
+  it('sends a cancellation email only after a customer cancellation commits', async () => {
+    const route = await registerCancelRoute();
+    const cancelledOrder = {
+      ...baseOrder,
+      status: 'CANCELLED',
+      cancellationReason: 'Changed my mind',
+    };
+    mocks.transaction.mockResolvedValue(cancelledOrder);
+
+    await route({
+      params: { id: baseOrder.id },
+      body: { reason: 'Changed my mind' },
+      authUser: { id: baseOrder.userId },
+      log: { error: vi.fn() },
+    }, makeReply());
+
+    expect(mocks.transaction.mock.invocationCallOrder[0]!).toBeLessThan(
+      mocks.sendOrderStatusEmail.mock.invocationCallOrder[0]!,
+    );
+    expect(mocks.sendOrderStatusEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ id: baseOrder.id, cancellationReason: 'Changed my mind' }),
+      'CANCELLED',
+    );
+  });
+
   it('returns the committed status update when status email delivery fails', async () => {
     const route = await registerStatusRoute();
     const confirmedOrder = { ...baseOrder, status: 'CONFIRMED' };
@@ -236,7 +273,7 @@ describe('order notification route behavior', () => {
 
     expect(result).toMatchObject({ success: true, data: { id: baseOrder.id, status: 'confirmed' } });
     expect(logError).toHaveBeenCalledWith(
-      expect.objectContaining({ err: expect.any(Error), orderId: baseOrder.id, status: 'CONFIRMED' }),
+      expect.objectContaining({ orderId: baseOrder.id, status: 'CONFIRMED' }),
       'order status notification email failed',
     );
   });

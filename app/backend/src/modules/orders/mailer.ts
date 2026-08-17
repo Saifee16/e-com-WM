@@ -1,6 +1,8 @@
 import { env } from '../../config/env.js';
+import { z } from 'zod';
 
 const resendEmailsUrl = 'https://api.resend.com/emails';
+const recipientSchema = z.string().email();
 
 type OrderEmailItem = {
   name: string;
@@ -109,6 +111,9 @@ const sendEmail = async ({
     throw new Error('Order notification email is not configured');
   }
 
+  const recipients = to.map((recipient) => recipientSchema.parse(recipient));
+  const validatedReplyTo = replyTo ? recipientSchema.parse(replyTo) : undefined;
+
   const response = await fetch(resendEmailsUrl, {
     method: 'POST',
     headers: {
@@ -118,8 +123,8 @@ const sendEmail = async ({
     },
     body: JSON.stringify({
       from: env.EMAIL_FROM,
-      to,
-      ...(replyTo ? { reply_to: replyTo } : {}),
+      to: recipients,
+      ...(validatedReplyTo ? { reply_to: validatedReplyTo } : {}),
       subject,
       text,
       html,
@@ -195,6 +200,8 @@ const statusMessage: Record<CustomerOrderStatus, string> = {
 
 export const sendOrderStatusEmail = async (order: OrderEmailDetails, status: CustomerOrderStatus) => {
   const message = statusMessage[status];
+  const summaryText = orderSummaryText(order);
+  const summaryHtml = orderSummaryHtml(order);
   const tracking = status === 'SHIPPED' && order.trackingNumber
     ? `Tracking number: ${order.trackingNumber}`
     : undefined;
@@ -208,14 +215,14 @@ export const sendOrderStatusEmail = async (order: OrderEmailDetails, status: Cus
     ...(tracking ? ['', tracking] : []),
     ...(cancellation ? ['', cancellation] : []),
     '',
-    'Payment: Cash on delivery (COD)',
+    summaryText,
   ].join('\n');
   const html = `
     <p><strong>Order update:</strong> ${escapeHtml(order.orderNumber)}</p>
     <p>${escapeHtml(message)}</p>
     ${tracking ? `<p>${escapeHtml(tracking)}</p>` : ''}
     ${cancellation ? `<p>${escapeHtml(cancellation)}</p>` : ''}
-    <p><strong>Payment:</strong> Cash on delivery (COD)</p>
+    ${summaryHtml}
   `.trim();
 
   await sendEmail({

@@ -47,6 +47,18 @@ type ShippingAddressSnapshot = {
 
 const getString = (value: unknown) => typeof value === 'string' ? value : '';
 
+const variantSnapshot = (variant: {
+  title: string;
+  storage: string | null;
+  color: string | null;
+  options: Prisma.JsonValue | null;
+}) => {
+  const optionValues = variant.options && typeof variant.options === 'object' && !Array.isArray(variant.options)
+    ? Object.values(variant.options).filter((value): value is string => typeof value === 'string')
+    : [];
+  return [variant.storage, variant.color, ...optionValues].filter(Boolean).join(' / ') || variant.title;
+};
+
 const toOrderEmailDetails = (order: OrderWithRelations): OrderEmailDetails => {
   const address = order.shippingAddressSnapshot as ShippingAddressSnapshot;
   const trackingNumber = order.shipments[0]?.trackingNumber;
@@ -322,7 +334,7 @@ export const orderRoutes: FastifyPluginAsync = async (app) => {
               variant: { connect: { id: variant.id } },
               skuSnapshot: variant.sku,
               productNameSnapshot: variant.product.name,
-              variantTitleSnapshot: variant.title,
+              variantTitleSnapshot: variantSnapshot(variant),
               ...(imageUrl ? { imageUrlSnapshot: imageUrl } : {}),
               unitPriceAmount: variant.priceAmount,
               quantity: cartItem.quantity,
@@ -407,8 +419,8 @@ export const orderRoutes: FastifyPluginAsync = async (app) => {
     if (!isReplay) {
       try {
         await sendOrderPlacedEmails(toOrderEmailDetails(order));
-      } catch (error) {
-        request.log.error({ err: error, orderId: order.id }, 'order placed notification email failed');
+      } catch {
+        request.log.error({ orderId: order.id }, 'order placed notification email failed');
       }
     }
 
@@ -524,6 +536,11 @@ export const orderRoutes: FastifyPluginAsync = async (app) => {
     if (result === 'NOT_FOUND') return fail(reply, 404, { code: 'ORDER_NOT_FOUND', message: 'Order not found' });
     if (result === 'FORBIDDEN') return fail(reply, 403, { code: 'ORDER_FORBIDDEN', message: 'You cannot cancel this order' });
     if (result === 'NOT_CANCELLABLE') return fail(reply, 409, { code: 'ORDER_NOT_CANCELLABLE', message: 'Orders cannot be cancelled once processing begins' });
+    try {
+      await sendOrderStatusEmail(toOrderEmailDetails(result), 'CANCELLED');
+    } catch {
+      request.log.error({ orderId: result.id, status: 'CANCELLED' }, 'order status notification email failed');
+    }
     return ok(reply, mapOrder(result));
   });
 
@@ -767,8 +784,8 @@ export const adminOrderRoutes: FastifyPluginAsync = async (app) => {
     if (result.type === 'UPDATED') {
       try {
         await sendOrderStatusEmail(toOrderEmailDetails(order), order.status as 'CONFIRMED' | 'PROCESSING' | 'SHIPPED' | 'DELIVERED' | 'CANCELLED');
-      } catch (error) {
-        request.log.error({ err: error, orderId: order.id, status: order.status }, 'order status notification email failed');
+      } catch {
+        request.log.error({ orderId: order.id, status: order.status }, 'order status notification email failed');
       }
     }
 

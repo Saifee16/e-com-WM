@@ -27,7 +27,7 @@ const order: OrderEmailDetails = {
   items: [
     {
       name: '<strong>Phone</strong>',
-      variant: '256GB Blue',
+      variant: '256GB / Blue / Matte',
       sku: 'SKU-256-BLUE',
       quantity: 2,
       unitPrice: 50_000,
@@ -76,6 +76,7 @@ describe('order mailer', () => {
     });
     expect(customer.payload.html).toContain('&lt;strong&gt;Phone&lt;/strong&gt;');
     expect(customer.payload.html).not.toContain('<script>');
+    expect(customer.payload.text).toContain('256GB / Blue / Matte');
 
     expect(store.options.headers).toMatchObject({
       'Idempotency-Key': `order-${order.id}-placed-store`,
@@ -90,23 +91,39 @@ describe('order mailer', () => {
     expect(store.payload.text).toContain('Admin Portal: https://wahabmobiles.com/admin/orders');
   });
 
-  it('sends a status update only with genuinely available tracking and cancellation details', async () => {
+  it('sends each customer status update with the order summary and appropriate tracking or cancellation details', async () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200 });
     vi.stubGlobal('fetch', fetchMock);
     const { sendOrderStatusEmail } = await importMailer();
 
+    await sendOrderStatusEmail(order, 'CONFIRMED');
+    await sendOrderStatusEmail(order, 'PROCESSING');
     await sendOrderStatusEmail(order, 'SHIPPED');
+    await sendOrderStatusEmail(order, 'DELIVERED');
     await sendOrderStatusEmail(order, 'CANCELLED');
 
-    const shipped = JSON.parse(String((fetchMock.mock.calls[0]![1] as RequestInit).body));
-    const cancelled = JSON.parse(String((fetchMock.mock.calls[1]![1] as RequestInit).body));
+    const shipped = JSON.parse(String((fetchMock.mock.calls[2]![1] as RequestInit).body));
+    const cancelled = JSON.parse(String((fetchMock.mock.calls[4]![1] as RequestInit).body));
     expect(shipped.text).toContain('Tracking number: TRACK-123');
     expect(shipped.text).not.toContain('Cancellation reason:');
+    expect(shipped.text).toContain('256GB / Blue / Matte');
     expect(cancelled.text).toContain('Cancellation reason: Requested by customer');
     expect(cancelled.text).not.toContain('Tracking number:');
-    expect((fetchMock.mock.calls[0]![1] as RequestInit).headers).toMatchObject({
+    expect((fetchMock.mock.calls[2]![1] as RequestInit).headers).toMatchObject({
       'Idempotency-Key': `order-${order.id}-status-shipped`,
     });
+  });
+
+  it('rejects malformed email recipients before calling Resend', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const { sendOrderPlacedEmails } = await importMailer();
+
+    await expect(sendOrderPlacedEmails({
+      ...order,
+      customer: { ...order.customer, email: 'customer@example.com\r\nBcc: attacker@example.com' },
+    })).rejects.toThrow();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('returns a safe error without calling Resend when mail settings are incomplete', async () => {
