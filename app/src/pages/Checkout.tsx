@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   CreditCard,
@@ -18,7 +18,6 @@ import { getApiErrorMessage } from '../utils/api-error';
 
 const Checkout = () => {
   const navigate = useNavigate();
-  const location = useLocation();
   const { items, totals, clearCart } = useCart();
   const { user } = useAuth();
   const { showToast } = useToast();
@@ -55,10 +54,6 @@ const Checkout = () => {
     ? 0
     : shippingCosts[shippingMethod];
   const finalTotal = totals.subtotal + totals.tax + selectedShipping - (totals.discount ?? 0);
-
-  if (!user) {
-    return <Navigate to="/login" replace state={{ from: { pathname: location.pathname } }} />;
-  }
 
   const handleShippingSubmit = (e: React.FormEvent) => {
     e.preventDefault();

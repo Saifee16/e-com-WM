@@ -6,7 +6,9 @@ import { fail } from '../utils/responses.js';
 export const CSRF_COOKIE = 'csrfToken';
 export const CSRF_HEADER = 'x-csrf-token';
 
-const authenticatedCookieNames = ['accessToken', 'adminAccessToken', 'refreshToken', 'adminRefreshToken'];
+// A guest cart is also an authenticated, server-issued principal. Protect
+// unsafe requests made with it just as we protect customer/admin cookies.
+const authenticatedCookieNames = ['accessToken', 'adminAccessToken', 'refreshToken', 'adminRefreshToken', 'guestCartId'];
 const unsafeMethods = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
 const cookieOptions = {

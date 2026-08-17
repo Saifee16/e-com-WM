@@ -354,6 +354,7 @@ model Order {
   id                      String          @id @default(uuid()) @db.Uuid
   orderNumber             String          @unique @map("order_number")
   userId                  String?         @map("user_id") @db.Uuid
+  guestId                 String?         @map("guest_id")
   guestEmail              String?         @map("guest_email")
   status                  OrderStatus     @default(PENDING)
   paymentStatus           PaymentStatus   @default(UNPAID) @map("payment_status")
@@ -370,7 +371,7 @@ model Order {
   cancelledAt             DateTime?       @map("cancelled_at")
   cancellationReason      String?          @map("cancellation_reason")
   cancelledBy             String?          @map("cancelled_by")
-  idempotencyKey          String?         @unique @map("idempotency_key")
+  idempotencyKey          String?         @map("idempotency_key")
   createdAt               DateTime        @default(now()) @map("created_at")
   updatedAt               DateTime        @updatedAt @map("updated_at")
   user                    User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
@@ -382,9 +383,12 @@ model Order {
   returnRequests          ReturnRequest[]
 
   @@index([userId])
+  @@index([guestId])
   @@index([status])
   @@index([paymentStatus])
   @@index([createdAt])
+  @@unique([userId, idempotencyKey])
+  @@unique([guestId, idempotencyKey])
   @@map("orders")
 }
 

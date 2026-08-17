@@ -7,6 +7,7 @@ import { prisma } from '../../db/prisma.js';
 import { fail, ok } from '../../utils/responses.js';
 import { authenticateCustomer, GUEST_CART_COOKIE, getAuthenticatedUser, getGuestId, getSignedGuestId } from '../auth/session.js';
 import { mapProduct, productInclude } from '../products/routes.js';
+import { CSRF_COOKIE, issueCsrfToken } from '../../plugins/csrf.js';
 
 const cartItemInclude = {
   variant: {
@@ -79,16 +80,24 @@ const mapCart = (items: CartItemWithRelations[], promo?: CartPromo | null) => ({
   totals: calculateTotals(items, promo),
 });
 
+const guestCartCookieOptions = {
+  httpOnly: true,
+  secure: env.COOKIE_SECURE,
+  sameSite: env.COOKIE_SAME_SITE,
+  path: '/',
+  ...(env.COOKIE_DOMAIN ? { domain: env.COOKIE_DOMAIN } : {}),
+} as const;
+
 const setGuestCartCookie = (reply: FastifyReply, guestId: string) => {
   reply.setCookie(GUEST_CART_COOKIE, guestId, {
-    httpOnly: true,
-    secure: env.COOKIE_SECURE,
-    sameSite: env.COOKIE_SAME_SITE,
-    path: '/',
+    ...guestCartCookieOptions,
     signed: true,
     maxAge: env.REFRESH_TOKEN_TTL_DAYS * 24 * 60 * 60,
-    ...(env.COOKIE_DOMAIN ? { domain: env.COOKIE_DOMAIN } : {}),
   });
+};
+
+const clearGuestCartCookie = (reply: FastifyReply) => {
+  reply.clearCookie(GUEST_CART_COOKIE, guestCartCookieOptions);
 };
 
 const resolveCartOwner = async (request: FastifyRequest, reply?: FastifyReply, createGuest = false) => {
@@ -101,6 +110,7 @@ const resolveCartOwner = async (request: FastifyRequest, reply?: FastifyReply, c
 
   if (!user && guestId && reply) {
     setGuestCartCookie(reply, guestId);
+    if (!request.cookies[CSRF_COOKIE]) issueCsrfToken(reply);
   }
 
   return { user, guestId };
@@ -445,6 +455,7 @@ export const cartRoutes: FastifyPluginAsync = async (app) => {
       return true;
     });
 
+    clearGuestCartCookie(reply);
     return ok(reply, { merged: result });
   });
 };

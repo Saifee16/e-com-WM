@@ -139,15 +139,15 @@ const mapOrder = (order: OrderWithRelations) => ({
 
 const checkoutSchema = z.object({
   shippingInfo: z.object({
-    firstName: z.string().trim().min(1),
-    lastName: z.string().trim().min(1),
+    firstName: z.string().trim().min(1).max(80),
+    lastName: z.string().trim().min(1).max(80),
     email: z.string().email().transform((value) => value.toLowerCase()),
-    phone: z.string().trim().min(1),
-    address: z.string().trim().min(1),
-    city: z.string().trim().min(1),
-    state: z.string().trim().min(1),
-    zipCode: z.string().trim().min(1),
-    country: z.string().trim().default('Pakistan'),
+    phone: z.string().trim().min(1).max(40),
+    address: z.string().trim().min(1).max(300),
+    city: z.string().trim().min(1).max(100),
+    state: z.string().trim().min(1).max(100),
+    zipCode: z.string().trim().min(1).max(30),
+    country: z.string().trim().min(1).max(100).default('Pakistan'),
   }),
   paymentMethod: z.literal('cod').default('cod'),
   shippingMethod: z.enum(['standard', 'express', 'pickup']).default('standard'),
@@ -180,15 +180,30 @@ const getCartForRequest = async (request: FastifyRequest) => {
 const makeOrderNumber = () => `WAH-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${randomUUID().slice(0, 8).toUpperCase()}`;
 
 export const orderRoutes: FastifyPluginAsync = async (app) => {
-  app.post('/', { preHandler: authenticateCustomer }, async (request, reply) => {
+  app.post('/', {
+    config: {
+      rateLimit: {
+        max: env.PUBLIC_FORM_RATE_LIMIT_MAX,
+        timeWindow: `${env.PUBLIC_FORM_RATE_LIMIT_WINDOW_SECONDS} seconds`,
+      },
+    },
+  }, async (request, reply) => {
     const body = checkoutSchema.parse(request.body);
     const idempotencyKey = z.string().uuid().parse(request.headers['idempotency-key']);
+    const { user, guestId, cart } = await getCartForRequest(request);
+    const principalWhere = user ? { userId: user.id } : guestId ? { guestId } : null;
+
+    if (!principalWhere) {
+      return fail(reply, 400, {
+        code: 'CART_EMPTY',
+        message: 'Cart is empty',
+      });
+    }
     const existingOrder = await prisma.order.findFirst({
-      where: { idempotencyKey, userId: request.authUser!.id },
+      where: { idempotencyKey, ...principalWhere },
       include: orderInclude,
     });
     if (existingOrder) return ok(reply, mapOrder(existingOrder));
-    const { user, cart } = await getCartForRequest(request);
 
     if (!cart) {
       return fail(reply, 400, {
@@ -218,9 +233,8 @@ export const orderRoutes: FastifyPluginAsync = async (app) => {
     let isReplay = false;
     const order = await prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT id FROM cart_items WHERE cart_id = ${cart.id}::uuid FOR UPDATE`;
-      const replay = await tx.order.findUnique({ where: { idempotencyKey }, include: orderInclude });
+      const replay = await tx.order.findFirst({ where: { idempotencyKey, ...principalWhere }, include: orderInclude });
       if (replay) {
-        if (replay.userId !== request.authUser!.id) throw new Error('IDEMPOTENCY_KEY_CONFLICT');
         isReplay = true;
         return replay;
       }
@@ -279,10 +293,10 @@ export const orderRoutes: FastifyPluginAsync = async (app) => {
         await tx.$queryRaw`SELECT id FROM promo_codes WHERE id = ${lockedCart.promoCodeId}::uuid FOR UPDATE`;
         const promo = await tx.promoCode.findUnique({ where: { id: lockedCart.promoCodeId } });
         const now = new Date();
-        const userUsage = promo?.perUserLimit
+        const userUsage = user && promo?.perUserLimit
           ? await tx.order.count({
               where: {
-                userId: request.authUser!.id,
+                userId: user.id,
                 promoCodeId: lockedCart.promoCodeId,
                 status: { notIn: ['CANCELLED', 'REFUNDED'] },
               },
@@ -315,7 +329,9 @@ export const orderRoutes: FastifyPluginAsync = async (app) => {
       const created = await tx.order.create({
         data: {
           orderNumber: makeOrderNumber(),
-          ...(user ? { user: { connect: { id: user.id } } } : { guestEmail: body.shippingInfo.email }),
+          ...(user
+            ? { user: { connect: { id: user.id } } }
+            : { guestId: guestId!, guestEmail: body.shippingInfo.email }),
           status: 'PENDING',
           paymentStatus: 'UNPAID',
           subtotalAmount: subtotal,

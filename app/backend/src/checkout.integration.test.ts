@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { randomUUID } from 'node:crypto';
+import type { OutgoingHttpHeaders } from 'node:http';
 import type { FastifyInstance } from 'fastify';
 import { buildApp } from './app.js';
 import { prisma } from './db/prisma.js';
@@ -21,6 +22,18 @@ const checkoutPayload = (email = 'guest@example.com') => ({
   paymentMethod: 'cod',
   shippingMethod: 'standard',
 });
+
+const cookieHeader = (response: { headers: OutgoingHttpHeaders }) => {
+  const setCookie = response.headers['set-cookie'];
+  const values = Array.isArray(setCookie) ? setCookie : setCookie ? [setCookie] : [];
+  return values.map((value) => String(value).split(';', 1)[0]).join('; ');
+};
+
+const csrfTokenFromCookies = (cookies: string) => {
+  const token = cookies.split('; ').find((value) => value.startsWith('csrfToken='))?.slice('csrfToken='.length);
+  if (!token) throw new Error('Test guest session did not receive a CSRF token');
+  return decodeURIComponent(token);
+};
 
 const makeCatalogItem = async (scope: string, stockQuantity = 10) => {
   const brand = await prisma.brand.create({
@@ -156,82 +169,134 @@ describe('checkout transaction routes', () => {
     expect(cartItem.quantity).toBe(3);
   }, 30000);
 
-  it('requires customer authentication before checkout', async () => {
+  it('places a secure guest COD order with server-calculated totals and the exact variant', async () => {
     const scope = testRunId();
     scopes.push(scope);
-    const guestId = `guest-${scope}`;
     const { variant } = await makeCatalogItem(scope, 5);
-    const cart = await prisma.cart.create({
-      data: {
-        guestId,
-        items: {
-          create: {
-            variantId: variant.id,
-            quantity: 1,
-          },
-        },
-      },
-    });
-
-    const response = await app.inject({
+    const addResponse = await app.inject({
       method: 'POST',
-      url: '/api/orders',
-      headers: { 'x-guest-id': guestId },
-      payload: checkoutPayload(`guest-${scope}@example.com`),
+      url: '/api/cart/add',
+      payload: { variantId: variant.id, quantity: 2 },
     });
-
-    expect(response.statusCode).toBe(401);
-    expect(response.json()).toMatchObject({
-      success: false,
-      error: {
-        code: 'UNAUTHENTICATED',
-      },
-    });
-
-    await expect(prisma.order.count({ where: { guestEmail: `guest-${scope}@example.com` } })).resolves.toBe(0);
-    await expect(prisma.cartItem.count({ where: { cartId: cart.id } })).resolves.toBe(1);
-    await expect(prisma.productVariant.findUniqueOrThrow({ where: { id: variant.id } })).resolves.toMatchObject({
-      stockQuantity: 5,
-    });
-  }, 30000);
-
-  it('does not allow the guest-cart cookie to bypass checkout authentication', async () => {
-    const scope = testRunId();
-    scopes.push(scope);
-    const guestId = `guest-${scope}`;
-    const { variant } = await makeCatalogItem(scope, 4);
-    await prisma.cart.create({
-      data: {
-        guestId,
-        items: {
-          create: {
-            variantId: variant.id,
-            quantity: 2,
-          },
-        },
-      },
-    });
+    expect(addResponse.statusCode).toBe(200);
+    const cookies = cookieHeader(addResponse);
 
     const response = await app.inject({
       method: 'POST',
       url: '/api/orders',
       headers: {
-        cookie: `guestCartId=${guestId}`,
+        cookie: cookies,
+        'x-csrf-token': csrfTokenFromCookies(cookies),
+        'idempotency-key': randomUUID(),
       },
+      payload: {
+        ...checkoutPayload(`guest-${scope}@example.com`),
+        subtotal: 1,
+        total: 1,
+        items: [{ variantId: randomUUID(), price: 1, quantity: 99 }],
+      },
+    });
+
+    expect(response.statusCode).toBe(201);
+    expect(response.json()).toMatchObject({
+      success: true,
+      data: {
+        guestEmail: `guest-${scope}@example.com`,
+        subtotal: 100_000,
+        tax: 2_000,
+        shippingCost: 500,
+        total: 102_500,
+        items: [{ variantId: variant.id, quantity: 2, price: 50_000 }],
+      },
+    });
+
+    const order = await prisma.order.findFirstOrThrow({ where: { guestEmail: `guest-${scope}@example.com` } });
+    expect(order.userId).toBeNull();
+    expect(order.guestId).toBeTruthy();
+    await expect(prisma.cartItem.count({ where: { cart: { guestId: order.guestId! } } })).resolves.toBe(0);
+    await expect(prisma.productVariant.findUniqueOrThrow({ where: { id: variant.id } })).resolves.toMatchObject({
+      stockQuantity: 3,
+    });
+  }, 30000);
+
+  it('replays a guest idempotency key without a second order or stock decrement', async () => {
+    const scope = testRunId();
+    scopes.push(scope);
+    const { variant } = await makeCatalogItem(scope, 2);
+    const addResponse = await app.inject({
+      method: 'POST',
+      url: '/api/cart/add',
+      payload: { variantId: variant.id, quantity: 1 },
+    });
+    const cookies = cookieHeader(addResponse);
+    const idempotencyKey = randomUUID();
+    const headers = {
+      cookie: cookies,
+      'x-csrf-token': csrfTokenFromCookies(cookies),
+      'idempotency-key': idempotencyKey,
+    };
+
+    const first = await app.inject({
+      method: 'POST',
+      url: '/api/orders',
+      headers,
+      payload: checkoutPayload(`guest-${scope}@example.com`),
+    });
+    const replay = await app.inject({
+      method: 'POST',
+      url: '/api/orders',
+      headers,
       payload: checkoutPayload(`guest-${scope}@example.com`),
     });
 
-    expect(response.statusCode).toBe(401);
-    expect(response.json()).toMatchObject({
-      success: false,
-      error: {
-        code: 'UNAUTHENTICATED',
-      },
-    });
+    expect(first.statusCode).toBe(201);
+    expect(replay.statusCode).toBe(200);
+    expect(replay.json().data.id).toBe(first.json().data.id);
+    await expect(prisma.order.count({ where: { guestEmail: `guest-${scope}@example.com` } })).resolves.toBe(1);
+    await expect(prisma.productVariant.findUniqueOrThrow({ where: { id: variant.id } })).resolves.toMatchObject({ stockQuantity: 1 });
+  }, 30000);
 
-    await expect(prisma.cartItem.count({ where: { cart: { guestId } } })).resolves.toBe(1);
-    await expect(prisma.productVariant.findUniqueOrThrow({ where: { id: variant.id } })).resolves.toMatchObject({
-      stockQuantity: 4,
+  it('requires CSRF for a guest checkout and does not let a supplied guest ID select another cart', async () => {
+    const scope = testRunId();
+    scopes.push(scope);
+    const first = await makeCatalogItem(`${scope}-first`, 2);
+    const second = await makeCatalogItem(`${scope}-second`, 2);
+    const firstSession = await app.inject({
+      method: 'POST', url: '/api/cart/add', payload: { variantId: first.variant.id, quantity: 1 },
     });
+    const secondSession = await app.inject({
+      method: 'POST', url: '/api/cart/add', payload: { variantId: second.variant.id, quantity: 1 },
+    });
+    const firstCookies = cookieHeader(firstSession);
+    const secondCookies = cookieHeader(secondSession);
+
+    const csrfRejected = await app.inject({
+      method: 'POST',
+      url: '/api/orders',
+      headers: { cookie: firstCookies, 'idempotency-key': randomUUID() },
+      payload: checkoutPayload(`csrf-${scope}@example.com`),
+    });
+    expect(csrfRejected.statusCode).toBe(403);
+    expect(csrfRejected.json()).toMatchObject({ error: { code: 'CSRF_TOKEN_INVALID' } });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/orders',
+      headers: {
+        cookie: secondCookies,
+        'x-csrf-token': csrfTokenFromCookies(secondCookies),
+        'x-guest-id': 'attacker-controlled-guest-id',
+        'idempotency-key': randomUUID(),
+      },
+      payload: checkoutPayload(`second-${scope}@example.com`),
+    });
+    expect(response.statusCode).toBe(201);
+    expect(response.json().data.items).toMatchObject([{ variantId: second.variant.id }]);
+    await expect(prisma.cartItem.count({ where: { variantId: first.variant.id } })).resolves.toBe(1);
+  }, 30000);
+
+  it('keeps customer and admin order APIs protected for guests', async () => {
+    await expect(app.inject({ method: 'GET', url: '/api/orders/my-orders' })).resolves.toMatchObject({ statusCode: 401 });
+    await expect(app.inject({ method: 'GET', url: '/api/admin/orders' })).resolves.toMatchObject({ statusCode: 401 });
   }, 30000);
 });

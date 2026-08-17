@@ -189,6 +189,34 @@ describe('order notification route behavior', () => {
     );
   });
 
+  it('uses the server-resolved guest principal for checkout idempotency and email delivery', async () => {
+    const route = await registerOrderRoute();
+    const guestId = 'guest-server-principal';
+    const guestOrder = {
+      ...baseOrder,
+      userId: null,
+      guestId,
+      guestEmail: 'guest@example.com',
+      shippingAddressSnapshot: { ...baseOrder.shippingAddressSnapshot, email: 'guest@example.com' },
+    };
+    mocks.getAuthenticatedUser.mockResolvedValue(null);
+    mocks.getGuestId.mockReturnValue(guestId);
+    mocks.transaction.mockResolvedValue(guestOrder);
+
+    await route({
+      body: checkoutPayload,
+      headers: { 'idempotency-key': '0f7f6b35-b5a2-4d87-9372-ea2df213b524' },
+      log: { error: vi.fn() },
+    }, makeReply());
+
+    expect(mocks.orderFindFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ guestId, idempotencyKey: '0f7f6b35-b5a2-4d87-9372-ea2df213b524' }),
+    }));
+    expect(mocks.sendOrderPlacedEmails).toHaveBeenCalledWith(expect.objectContaining({
+      customer: expect.objectContaining({ email: 'guest@example.com' }),
+    }));
+  });
+
   it('does not resend an order-placed email for an idempotent replay', async () => {
     const route = await registerOrderRoute();
     mocks.orderFindFirst.mockResolvedValue(baseOrder);
