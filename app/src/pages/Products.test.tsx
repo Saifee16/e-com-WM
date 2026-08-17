@@ -149,7 +149,9 @@ describe('Products category routes', () => {
 
     await user.click(await screen.findByRole('button', { name: 'Buy Catalogue Phone now' }));
 
-    await waitFor(() => expect(addToCart).toHaveBeenCalledWith(catalogueProduct, 1));
-    expect(screen.getByTestId('location')).toHaveTextContent('/checkout');
+    await waitFor(() => {
+      expect(addToCart).toHaveBeenCalledWith(catalogueProduct, 1);
+      expect(screen.getByTestId('location')).toHaveTextContent('/checkout');
+    });
   });
 });

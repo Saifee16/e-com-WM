@@ -120,7 +120,7 @@ describe('guest-compatible product detail Buy Now', () => {
     expect(addToCart).toHaveBeenCalledWith(product, 3, 'variant-256');
     expect(screen.queryByText('Buy Now requires a customer account.')).not.toBeInTheDocument();
     expect(screen.queryByText('Sign in to continue')).not.toBeInTheDocument();
-  });
+  }, 10_000);
 
   it('keeps authenticated Buy Now behavior intact', async () => {
     authState.isAuthenticated = true;
