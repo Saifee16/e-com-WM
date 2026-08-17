@@ -661,18 +661,20 @@ describe('endpoint smoke suite', () => {
       }),
       201,
     );
-    parseSuccess<{ deleted: boolean }>(
+    expectError(
       await app.inject({
         method: 'DELETE',
         url: '/api/admin/products/images',
         headers: csrfHeaders(adminCookie),
-        payload: { urls: disposableImages.urls },
+        payload: { productId: randomUUID(), urls: disposableImages.urls },
       }),
+      404,
+      'PRODUCT_IMAGE_NOT_FOUND',
     );
     expect((await app.inject({
       method: 'GET',
       url: new URL(disposableImages.urls[0]!).pathname,
-    })).statusCode).toBe(404);
+    })).statusCode).toBe(200);
 
     const disguisedImage = multipartImages([
       { filename: 'not-really-an-image.jpg', mimeType: 'image/jpeg', contents: Buffer.from('not an image') },
@@ -790,6 +792,7 @@ describe('endpoint smoke suite', () => {
       { ...adminProductPayload, name: '   ' },
       { ...adminProductPayload, unexpectedField: true },
       { ...adminProductPayload, price: String(adminProductPayload.price) },
+      { ...adminProductPayload, brand: 'Other' },
     ]) {
       expectError(
         await app.inject({
@@ -826,6 +829,16 @@ describe('endpoint smoke suite', () => {
     expect(createdProduct.name).toBe(adminProductPayload.name);
     expect(createdProduct.images).toEqual(adminProductPayload.images);
     expect(createdProduct.specifications).toMatchObject(adminProductPayload.specifications);
+
+    parseSuccess<{ deleted: boolean }>(await app.inject({
+      method: 'DELETE', url: '/api/admin/products/images', headers: csrfHeaders(adminCookie),
+      payload: { productId: createdProduct.id, urls: [uploadedImages.urls[1]] },
+    }));
+    expect((await app.inject({ method: 'GET', url: new URL(uploadedImages.urls[1]!).pathname })).statusCode).toBe(404);
+    expectError(await app.inject({
+      method: 'DELETE', url: '/api/admin/products/images', headers: csrfHeaders(adminCookie),
+      payload: { productId: createdProduct.id, urls: [disposableImages.urls[0]] },
+    }), 404, 'PRODUCT_IMAGE_NOT_FOUND');
 
     const draftPayload = {
       name: `Draft Phone ${scope}`,
@@ -878,6 +891,10 @@ describe('endpoint smoke suite', () => {
     parseSuccess<ProductResponse>(
       await app.inject({ method: 'GET', url: `/api/products/${minimalProduct.id}` }),
     );
+    expectError(await app.inject({
+      method: 'DELETE', url: '/api/admin/products/images', headers: csrfHeaders(adminCookie),
+      payload: { productId: minimalProduct.id, urls: [uploadedImages.urls[0]] },
+    }), 404, 'PRODUCT_IMAGE_NOT_FOUND');
 
     const corsResponse = await app.inject({
       method: 'OPTIONS',

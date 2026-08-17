@@ -152,6 +152,12 @@ describe('admin product form contract', () => {
     expect(request.brand).toBe('Nothing');
   });
 
+  it('does not persist the Other placeholder as a custom brand', () => {
+    expect(() => toProductCreateRequest(createPhoneForm({ brand: 'Other', customBrand: ' Other ' }))).toThrow(
+      'Enter the actual custom brand name instead of Other.',
+    );
+  });
+
   it('retains complete phone specifications through category changes', () => {
     const form = createProductFormState(null);
     form.category = 'phones';

@@ -486,9 +486,14 @@ export const toProductCreateRequest = (form: ProductFormState): ProductCreateReq
   if (!variants.length) throw new ProductFormValidationError('Add at least one variant.');
   const lowestVariant = variants.reduce((lowest, variant) => variant.price < lowest.price ? variant : lowest);
 
+  const brand = requiredText('Brand', form.brand === 'Other' ? form.customBrand : form.brand);
+  if (brand.toLowerCase() === 'other') {
+    throw new ProductFormValidationError('Enter the actual custom brand name instead of Other.');
+  }
+
   return {
     name: requiredText('Product name', form.name),
-    brand: requiredText('Brand', form.brand === 'Other' ? form.customBrand : form.brand),
+    brand,
     category: requiredText('Category', form.category),
     description: requiredText('Description', form.description),
     price: lowestVariant.price,

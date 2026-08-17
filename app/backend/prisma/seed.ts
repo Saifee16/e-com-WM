@@ -48,38 +48,45 @@ async function main() {
     },
   });
 
-  const categoryRecords = await Promise.all([
-    prisma.category.upsert({
-      where: { slug: 'iphone' },
-      update: {},
-      create: { name: 'iPhone', slug: 'iphone', sortOrder: 1 },
-    }),
-    prisma.category.upsert({
-      where: { slug: 'android' },
-      update: {},
-      create: { name: 'Android Phones', slug: 'android', sortOrder: 2 },
-    }),
-    prisma.category.upsert({
-      where: { slug: 'smart-watches' },
-      update: {},
-      create: { name: 'Smart Watches', slug: 'smart-watches', sortOrder: 3 },
-    }),
-    prisma.category.upsert({
-      where: { slug: 'gadgets' },
-      update: {},
-      create: { name: 'Gadgets', slug: 'gadgets', sortOrder: 4 },
-    }),
-    prisma.category.upsert({
-      where: { slug: 'headphones' },
-      update: {},
-      create: { name: 'Headphones', slug: 'headphones', sortOrder: 5 },
-    }),
-    prisma.category.upsert({
-      where: { slug: 'speakers' },
-      update: {},
-      create: { name: 'Speakers', slug: 'speakers', sortOrder: 6 },
-    }),
+  const upsertCategory = async ({
+    name,
+    slug,
+    parentId,
+    sortOrder,
+  }: { name: string; slug: string; parentId?: string | null; sortOrder: number }) => prisma.category.upsert({
+    where: { slug },
+    // Keep existing IDs and product assignments. Parent links are completed here so
+    // rerunning the seed converges on the same hierarchy without creating duplicates.
+    update: { parentId: parentId ?? null, sortOrder },
+    create: { name, slug, parentId: parentId ?? null, sortOrder },
+  });
+
+  const phones = await upsertCategory({ name: 'Phones', slug: 'phones', sortOrder: 1 });
+  const iphone = await upsertCategory({ name: 'iPhone', slug: 'iphone', parentId: phones.id, sortOrder: 1 });
+  const android = await upsertCategory({ name: 'Android Phones', slug: 'android', parentId: phones.id, sortOrder: 2 });
+  const smartWatches = await upsertCategory({ name: 'Smart Watches', slug: 'smart-watches', sortOrder: 2 });
+  const gadgets = await upsertCategory({ name: 'Gadgets', slug: 'gadgets', sortOrder: 3 });
+  const audio = await upsertCategory({ name: 'Audio', slug: 'audio', parentId: gadgets.id, sortOrder: 1 });
+  const powerCharging = await upsertCategory({ name: 'Power & Charging', slug: 'power-charging', parentId: gadgets.id, sortOrder: 2 });
+  const mobileAccessories = await upsertCategory({ name: 'Mobile Accessories', slug: 'mobile-accessories', parentId: gadgets.id, sortOrder: 3 });
+
+  await Promise.all([
+    upsertCategory({ name: 'Wireless Earbuds/TWS', slug: 'wireless-earbuds', parentId: audio.id, sortOrder: 1 }),
+    upsertCategory({ name: 'Headphones', slug: 'headphones', parentId: audio.id, sortOrder: 2 }),
+    upsertCategory({ name: 'Wired Earphones/Handsfree', slug: 'wired-earphones', parentId: audio.id, sortOrder: 3 }),
+    upsertCategory({ name: 'Neckbands', slug: 'neckbands', parentId: audio.id, sortOrder: 4 }),
+    upsertCategory({ name: 'Speakers', slug: 'speakers', parentId: audio.id, sortOrder: 5 }),
+    upsertCategory({ name: 'Chargers', slug: 'chargers', parentId: powerCharging.id, sortOrder: 1 }),
+    upsertCategory({ name: 'Wireless Chargers', slug: 'wireless-chargers', parentId: powerCharging.id, sortOrder: 2 }),
+    upsertCategory({ name: 'Power Banks', slug: 'power-banks', parentId: powerCharging.id, sortOrder: 3 }),
+    upsertCategory({ name: 'Charging Cables', slug: 'charging-cables', parentId: powerCharging.id, sortOrder: 4 }),
+    upsertCategory({ name: 'Cases & Covers', slug: 'cases-covers', parentId: mobileAccessories.id, sortOrder: 1 }),
+    upsertCategory({ name: 'Screen Protectors', slug: 'screen-protectors', parentId: mobileAccessories.id, sortOrder: 2 }),
+    upsertCategory({ name: 'Phone Holders & Stands', slug: 'phone-holders-stands', parentId: mobileAccessories.id, sortOrder: 3 }),
+    upsertCategory({ name: 'Car Accessories', slug: 'car-accessories', parentId: mobileAccessories.id, sortOrder: 4 }),
   ]);
+
+  const categoryRecords = [iphone, android, smartWatches, gadgets];
 
   const brandSlugs = ['apple', 'samsung', 'google', 'oneplus', 'xiaomi', 'vivo', 'oppo', 'realme', 'infinix', 'tecno'];
   const brandRecords = await Promise.all(

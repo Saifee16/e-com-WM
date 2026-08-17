@@ -1,1 +1,1 @@
-{"rewrites": [{"source": "/sitemap.xml", "destination": "https://api.wahabmobiles.com/api/seo/sitemap.xml"}, {"source": "/(.*)", "destination": "/index.html"}]}
+{"rewrites": [{"source": "/sitemap.xml", "destination": "https://api.wahabmobiles.com/api/seo/sitemap.xml"}, {"source": "/products/:slug", "destination": "/api/product-page?slug=:slug"}, {"source": "/(.*)", "destination": "/index.html"}]}

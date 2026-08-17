@@ -423,7 +423,7 @@ export const productsAPI = {
     });
     return response.data.data.urls;
   },
-  deleteProductImages: (urls: string[]) => adminApi.delete('/products/images', { data: { urls } }),
+  deleteProductImages: (productId: string, urls: string[]) => adminApi.delete('/products/images', { data: { productId, urls } }),
   createProduct: (data: ProductCreateRequest) => adminApi.post('/products', data),
   updateProduct: (id: string, data: ProductUpdateRequest) => adminApi.put(`/products/${id}`, data),
   deleteProduct: (id: string) => adminApi.delete(`/products/${id}`),

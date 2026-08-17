@@ -98,7 +98,12 @@ export const getCloudinaryPublicIdFromUrl = (imageUrl: string) => {
   const markerIndex = parsed.pathname.indexOf(marker);
   if (markerIndex === -1) return null;
 
-  const afterUpload = decodeURIComponent(parsed.pathname.slice(markerIndex + marker.length));
+  let afterUpload: string;
+  try {
+    afterUpload = decodeURIComponent(parsed.pathname.slice(markerIndex + marker.length));
+  } catch {
+    return null;
+  }
   const parts = afterUpload.split('/').filter(Boolean);
   const versionlessParts = parts[0] && /^v\d+$/.test(parts[0]) ? parts.slice(1) : parts;
   if (!versionlessParts.length) return null;
@@ -134,7 +139,7 @@ const getLocalProductImagePath = (
   return path.join(uploadDirectory, filename);
 };
 
-export const deleteProductImageUrls = async (
+const deleteImageUrls = async (
   urls: string[],
   localOptions: LocalProductImageStorageOptions,
 ) => {
@@ -153,6 +158,9 @@ export const deleteProductImageUrls = async (
     }
   }));
 };
+
+// Callers must establish application ownership before invoking this helper.
+export const deleteOwnedProductImageUrls = deleteImageUrls;
 
 export const detectProductImageExtension = (buffer: Buffer) => {
   const isPng =
@@ -228,7 +236,7 @@ export const saveProductImages = async (
     return urls;
   } catch (error) {
     await Promise.all(savedPaths.map((filePath) => unlink(filePath).catch(() => undefined)));
-    await deleteProductImageUrls(uploadedCloudinaryUrls, localOptions).catch(() => undefined);
+    await deleteImageUrls(uploadedCloudinaryUrls, localOptions).catch(() => undefined);
     throw error;
   }
 };

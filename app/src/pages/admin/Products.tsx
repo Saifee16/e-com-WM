@@ -550,9 +550,6 @@ export const ProductModal = ({
                 await onSaved();
                 onClose();
               } catch (saveError) {
-                if (uploadedImageUrls.length) {
-                  void productsAPI.deleteProductImages(uploadedImageUrls);
-                }
                 const fallback = isEditing ? 'Failed to update product' : 'Failed to add product';
                 showToast(
                   saveError instanceof ProductFormValidationError

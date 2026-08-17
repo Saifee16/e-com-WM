@@ -7,7 +7,7 @@ import { prisma } from '../../db/prisma.js';
 import { env } from '../../config/env.js';
 import { fail, ok } from '../../utils/responses.js';
 import { authenticateAdmin, authenticateCustomer } from '../auth/session.js';
-import { MAX_PRODUCT_IMAGES, deleteProductImageUrls, saveProductImages } from './image-upload.js';
+import { MAX_PRODUCT_IMAGES, deleteOwnedProductImageUrls, saveProductImages } from './image-upload.js';
 
 const slugify = (value: string) =>
   value
@@ -260,7 +260,12 @@ const isAllowedProductImageUrl = (value: string) => {
   if (productImageStorageProvider !== 'cloudinary') return true;
   if (!cloudinaryImageUrlPrefix || !value.startsWith(cloudinaryImageUrlPrefix)) return false;
 
-  const afterUpload = decodeURIComponent(url.pathname.split('/image/upload/')[1] ?? '');
+  let afterUpload: string;
+  try {
+    afterUpload = decodeURIComponent(url.pathname.split('/image/upload/')[1] ?? '');
+  } catch {
+    return false;
+  }
   const parts = afterUpload.split('/').filter(Boolean);
   const versionlessParts = parts[0] && /^v\d+$/.test(parts[0]) ? parts.slice(1) : parts;
   return versionlessParts.join('/').startsWith(`${cloudinaryFolder}/`);
@@ -335,7 +340,10 @@ const validateVariantPayloads = (variants: ProductVariantPayload[] | undefined, 
 
 const productPayloadSchema = z.object({
   name: z.string().trim().min(1).max(200),
-  brand: z.string().trim().min(1).max(80),
+  brand: z.string().trim().min(1).max(80).refine(
+    (brand) => brand.toLowerCase() !== 'other',
+    'Choose a specific brand name instead of the Other placeholder',
+  ),
   category: z.string().trim().min(1).max(120),
   description: z.string().trim().min(1).max(5000),
   price: z.number().int().nonnegative(),
@@ -791,9 +799,23 @@ export const adminProductRoutes: FastifyPluginAsync<AdminProductRoutesOptions> =
 
   app.delete('/images', async (request, reply) => {
     const body = z.object({
+      productId: z.string().uuid(),
       urls: z.array(imageUrlSchema).min(1).max(MAX_PRODUCT_IMAGES),
     }).parse(request.body);
-    await deleteProductImageUrls(body.urls, localImageStorageOptions);
+    const urls = [...new Set(body.urls)];
+    const ownedImages = await prisma.productImage.findMany({
+      where: { productId: body.productId, url: { in: urls } },
+      select: { url: true },
+    });
+    if (ownedImages.length !== urls.length) {
+      return fail(reply, 404, {
+        code: 'PRODUCT_IMAGE_NOT_FOUND',
+        message: 'Every image must belong to the selected product',
+      });
+    }
+
+    await deleteOwnedProductImageUrls(urls, localImageStorageOptions);
+    await prisma.productImage.deleteMany({ where: { productId: body.productId, url: { in: urls } } });
     return ok(reply, { deleted: true });
   });
 
@@ -1046,7 +1068,7 @@ export const adminProductRoutes: FastifyPluginAsync<AdminProductRoutesOptions> =
       },
     });
     if (removedImageUrls.length) {
-      await deleteProductImageUrls(removedImageUrls, localImageStorageOptions);
+      await deleteOwnedProductImageUrls(removedImageUrls, localImageStorageOptions);
     }
 
     return ok(reply, mapProduct(updated, true));
