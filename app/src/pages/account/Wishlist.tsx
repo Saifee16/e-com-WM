@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import type { Product } from '../../types';
 import { formatPrice } from '../../utils/format';
+import { getProductPath } from '../../utils/product-url';
 import { useCart } from '../../contexts/CartContext';
 import { useToast } from '../../contexts/ToastContext';
 import { wishlistAPI } from '../../services/api';
@@ -86,7 +87,7 @@ const Wishlist = () => {
           >
             {/* Image */}
             <div className="relative aspect-square bg-gray-100 overflow-hidden">
-              <Link to={`/products/${item._id}`}>
+              <Link to={getProductPath(item)}>
                 <img
                   src={item.images[0]}
                   alt={item.name}
@@ -109,7 +110,7 @@ const Wishlist = () => {
 
             {/* Content */}
             <div className="p-5">
-              <Link to={`/products/${item._id}`}>
+              <Link to={getProductPath(item)}>
                 <p className="text-sm text-blue-600 font-medium mb-1">{item.brand}</p>
                 <h3 className="font-semibold text-gray-900 mb-2 group-hover:text-blue-600 transition-colors line-clamp-2">
                   {item.name}

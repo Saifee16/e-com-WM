@@ -22,6 +22,8 @@ import {
   SHOP_MAPS_URL,
   SHOP_WHATSAPP_URL,
 } from '../config/contact';
+import Seo, { buildLocalBusinessJsonLd, buildStaticMetadata } from '../seo/seo';
+import { getProductPath } from '../utils/product-url';
 
 type Brand = {
   name: string;
@@ -126,6 +128,14 @@ const Home = () => {
 
   return (
     <div className="min-h-[100dvh] overflow-x-hidden bg-[#f5f8fc] text-slate-950">
+      <Seo
+        metadata={buildStaticMetadata(
+          'Wahab Mobiles - New and Used Phones in Hyderabad',
+          'Browse new, used and refurbished phones from Wahab Mobiles in Hyderabad.',
+          '/',
+        )}
+        structuredData={buildLocalBusinessJsonLd()}
+      />
       <section className="bg-[#082f63] text-white">
         <div className="mx-auto grid max-w-[1400px] items-center gap-6 px-4 py-8 sm:gap-8 sm:px-6 sm:py-9 md:py-11 lg:grid-cols-[1.02fr_.98fr] lg:px-8">
           <div className="max-w-2xl">
@@ -459,7 +469,7 @@ const FeaturedHeroProduct = ({
             <span className="text-xs font-bold text-emerald-700">Save {discount}%</span>
           )}
         </div>
-        <Link to={`/products/${product._id}`} className="mt-6 inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-blue-700 px-5 text-sm font-bold text-white hover:bg-blue-800">
+        <Link to={getProductPath(product)} className="mt-6 inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-blue-700 px-5 text-sm font-bold text-white hover:bg-blue-800">
           View phone
           <ArrowRight className="h-4 w-4" aria-hidden="true" />
         </Link>

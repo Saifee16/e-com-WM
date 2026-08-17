@@ -1,7 +1,7 @@
 import React, { forwardRef } from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Product } from './types';
 
@@ -82,6 +82,16 @@ beforeEach(() => {
 });
 
 describe('Phase 4 customer flows', () => {
+  it('normalizes a legacy product ID URL to the canonical slug', async () => {
+    const canonicalProduct = { ...product, slug: 'phone-canonical' };
+    apiMocks.getProduct.mockResolvedValue({ data: { data: canonicalProduct } });
+    const LocationProbe = () => <span data-testid="location">{useLocation().pathname}</span>;
+
+    render(<MemoryRouter initialEntries={[`/products/${product._id}`]}><Routes><Route path="/products/:id" element={<><ProductDetail /><LocationProbe /></>} /></Routes></MemoryRouter>);
+
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/products/phone-canonical'));
+  });
+
   it('requests and consumes a password reset', async () => {
     const user = userEvent.setup();
     const { unmount } = render(<MemoryRouter><ForgotPassword /></MemoryRouter>);

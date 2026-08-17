@@ -21,6 +21,8 @@ import { getApiErrorMessage } from '../utils/api-error';
 import StorefrontProductCard from '../components/product/StorefrontProductCard';
 import { CONTACT_PHONE_NUMBERS } from '../config/contact';
 import { flattenCategories } from '../config/category-catalog';
+import { getCategoryBySlug } from '../components/layout/navigation-data';
+import Seo, { buildCategoryMetadata } from '../seo/seo';
 
 const PAGE_SIZE = 20;
 
@@ -95,6 +97,7 @@ const Products = () => {
   const [brands, setBrands] = useState<string[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const categoryOptions = flattenCategories(categories);
+  const routeCategoryData = getCategoryBySlug(categories, routeCategory);
 
   const [isLoadingProducts, setIsLoadingProducts] = useState(true);
   const [productsError, setProductsError] = useState<string | null>(null);
@@ -650,6 +653,12 @@ const Products = () => {
 
   return (
     <div className="min-h-[100dvh] bg-[#f5f8fc] py-8 sm:py-10">
+      <Seo
+        metadata={{
+          ...buildCategoryMetadata(routeCategoryData, location.pathname),
+          robots: searchParams.toString() ? 'noindex,follow' : undefined,
+        }}
+      />
       <div className="mx-auto max-w-[1400px] px-3 sm:px-6 lg:px-8">
         <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
           <div>

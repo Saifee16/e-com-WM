@@ -14,6 +14,7 @@ import { Separator } from '../ui/separator';
 import { useCart } from '../../contexts/CartContext';
 import type { CartItem } from '../../types';
 import { formatPrice } from '../../utils/format';
+import { getProductPath as getProductUrl } from '../../utils/product-url';
 
 interface CartDrawerProps {
   open: boolean;
@@ -21,6 +22,8 @@ interface CartDrawerProps {
 }
 
 const getProductId = (item: CartItem) => (typeof item.product === 'string' ? item.product : item.product._id);
+const getProductPath = (item: CartItem) =>
+  typeof item.product === 'string' ? `/products/${getProductId(item)}` : getProductUrl(item.product);
 
 const CartDrawer = ({ open, onOpenChange }: CartDrawerProps) => {
   const { items, totals, isLoading, updateQuantity, removeFromCart, refreshCart } = useCart();
@@ -76,11 +79,10 @@ const CartDrawer = ({ open, onOpenChange }: CartDrawerProps) => {
             <ScrollArea className="flex-1 overflow-hidden">
               <div className="divide-y px-5">
                 {items.map((item) => {
-                  const productId = getProductId(item);
                   return (
                     <div key={item.variantId} className="flex gap-4 py-5">
                       <Link
-                        to={`/products/${productId}`}
+                        to={getProductPath(item)}
                         onClick={() => onOpenChange(false)}
                         className="h-20 w-20 flex-shrink-0 overflow-hidden rounded-lg border bg-gray-50"
                       >
@@ -91,7 +93,7 @@ const CartDrawer = ({ open, onOpenChange }: CartDrawerProps) => {
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
                             <Link
-                              to={`/products/${productId}`}
+                              to={getProductPath(item)}
                               onClick={() => onOpenChange(false)}
                               className="line-clamp-2 text-sm font-semibold leading-5 text-gray-950 hover:text-blue-600"
                             >

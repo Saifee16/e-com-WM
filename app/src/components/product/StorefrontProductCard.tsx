@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { ShoppingCart, Smartphone, Zap } from 'lucide-react';
 import type { Product } from '../../types';
 import { formatPrice } from '../../utils/format';
+import { getProductPath } from '../../utils/product-url';
 import ProductRating from './ProductRating';
 
 type ProductActionHandler = (
@@ -51,7 +52,7 @@ const StorefrontProductCard = ({
   if (view === 'list') {
     return (
       <Link
-        to={`/products/${product._id}`}
+        to={getProductPath(product)}
         className="group grid overflow-hidden rounded-xl border border-slate-200 bg-white transition hover:border-blue-300 hover:shadow-[0_16px_40px_rgba(15,46,82,0.09)] sm:grid-cols-[180px_1fr]"
       >
         <ProductImage
@@ -115,7 +116,7 @@ const StorefrontProductCard = ({
 
   return (
     <Link
-      to={`/products/${product._id}`}
+      to={getProductPath(product)}
       className="group flex h-fit min-w-0 self-start flex-col overflow-hidden rounded-xl border border-slate-200 bg-white transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-[0_16px_40px_rgba(15,46,82,0.09)]"
     >
       <div className="relative">

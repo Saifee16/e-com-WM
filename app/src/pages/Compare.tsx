@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowRight, Plus, Search, Smartphone, X } from 'lucide-react';
 import type { Product } from '../types';
+import { getProductPath } from '../utils/product-url';
 import { productsAPI } from '../services/api';
 import { formatPrice } from '../utils/format';
 
@@ -141,7 +142,7 @@ const Compare = () => {
                       <button onClick={() => setCompareList((current) => current.filter((item) => item._id !== product._id))} aria-label={`Remove ${product.name} from comparison`} className="absolute -right-2 -top-2 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-red-100 text-red-500 transition-colors hover:bg-red-200">
                         <X className="h-4 w-4" aria-hidden="true" />
                       </button>
-                      <Link to={`/products/${product._id}`}>
+                      <Link to={getProductPath(product)}>
                         <div className="mb-4 aspect-square overflow-hidden rounded-xl bg-gray-100">
                           <img src={product.images[0]} alt={product.name} className="h-full w-full object-cover" />
                         </div>
@@ -171,7 +172,7 @@ const Compare = () => {
                 <td className="sticky left-0 z-10 bg-gray-50 p-5 font-medium text-gray-700">Action</td>
                 {compareList.map((product) => (
                   <td key={product._id} className="p-5">
-                    <Link to={`/products/${product._id}`} className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 py-3 font-medium text-white transition-colors hover:bg-blue-700">
+                    <Link to={getProductPath(product)} className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 py-3 font-medium text-white transition-colors hover:bg-blue-700">
                       View details <ArrowRight className="h-4 w-4" aria-hidden="true" />
                     </Link>
                   </td>

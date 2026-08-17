@@ -18,6 +18,7 @@ import { adminRoutes } from './modules/admin/routes.js';
 import { cartRoutes } from './modules/cart/routes.js';
 import { contactRoutes } from './modules/contact/routes.js';
 import { addressRoutes, wishlistRoutes } from './modules/customer-routes.js';
+import { seoRoutes } from './modules/seo/routes.js';
 import { googleReviewsRoutes } from './modules/business/google-reviews.js';
 import { adminOrderRoutes, orderRoutes } from './modules/orders/routes.js';
 import { adminProductRoutes, productRoutes } from './modules/products/routes.js';
@@ -147,6 +148,7 @@ export const buildApp = async (options: { trustProxy?: number; uploadDirectory?:
   await app.register(contactRoutes, { prefix: '/api/contact' });
   await app.register(wishlistRoutes, { prefix: '/api/wishlist' });
   await app.register(addressRoutes, { prefix: '/api/addresses' });
+  await app.register(seoRoutes, { prefix: '/api/seo' });
 
   app.setNotFoundHandler((_request, reply) => {
     return fail(reply, 404, {

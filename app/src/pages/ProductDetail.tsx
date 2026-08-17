@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   Star,
@@ -23,10 +23,13 @@ import { useAuth } from '../contexts/AuthContext';
 import { productsAPI, wishlistAPI } from '../services/api';
 import AuthModal from '../components/auth/AuthModal';
 import ProductRating from '../components/product/ProductRating';
+import Seo, { buildProductJsonLd, buildProductMetadata } from '../seo/seo';
+import { getProductPath } from '../utils/product-url';
 
 const ProductDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const [product, setProduct] = useState<Product | null>(null);
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
   const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
@@ -54,6 +57,9 @@ const ProductDetail = () => {
         const response = await productsAPI.getProductById(id);
         const loadedProduct = response.data.data as Product;
         setProduct(loadedProduct);
+        if (loadedProduct.slug && id !== loadedProduct.slug) {
+          navigate(`${getProductPath(loadedProduct)}${location.search}`, { replace: true });
+        }
         const activeVariants = (loadedProduct.variants ?? []).filter((variant) => variant.isActive);
         setSelectedVariantId(activeVariants.length === 1 ? activeVariants[0]!.id : null);
         setSelectedOptions({});
@@ -70,7 +76,7 @@ const ProductDetail = () => {
     };
 
     loadProduct();
-  }, [id]);
+  }, [id, location.search, navigate]);
 
   const handleAddToCart = async () => {
     if (product) {
@@ -184,9 +190,14 @@ const ProductDetail = () => {
   const discount = currentOriginalPrice
     ? Math.round(((currentOriginalPrice - currentPrice) / currentOriginalPrice) * 100)
     : 0;
+  const productMetadata = buildProductMetadata(product);
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
+      <Seo
+        metadata={productMetadata}
+        structuredData={buildProductJsonLd(product, productMetadata.canonical)}
+      />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Breadcrumb */}
         <nav className="flex items-center gap-2 text-sm text-gray-500 mb-6">
@@ -522,7 +533,7 @@ const ProductDetail = () => {
               {relatedProducts.map((relatedProduct) => (
                 <Link
                   key={relatedProduct._id}
-                  to={`/products/${relatedProduct._id}`}
+                  to={getProductPath(relatedProduct)}
                   className="group"
                 >
                   <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-lg transition-shadow">
