@@ -915,17 +915,18 @@ describe('endpoint smoke suite', () => {
     expect(updatedProduct.category).toBe(category.slug);
     expect(updatedProduct.specifications).toMatchObject({ ram: '16GB', network: '5G, eSIM' });
 
-    parseSuccess<{ deleted: boolean }>(
+    const discardedProduct = parseSuccess<{ discarded: boolean; product: ProductResponse }>(
       await app.inject({
         method: 'DELETE',
         url: `/api/admin/products/${createdProduct.id}`,
         headers: csrfHeaders(adminCookie),
       }),
     );
+    expect(discardedProduct).toMatchObject({ discarded: true, product: { status: 'DISCARDED' } });
     expect((await app.inject({
       method: 'GET',
       url: new URL(uploadedImages.urls[0]!).pathname,
-    })).statusCode).toBe(404);
+    })).statusCode).toBe(200);
     for (const productId of [draftProduct.id, minimalProduct.id]) {
       parseSuccess<{ deleted: boolean }>(
         await app.inject({

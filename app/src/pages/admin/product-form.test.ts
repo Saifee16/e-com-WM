@@ -109,6 +109,29 @@ describe('admin product form contract', () => {
     });
   });
 
+  it('serializes a trimmed custom brand instead of the Other placeholder', () => {
+    const request = toProductCreateRequest({
+      ...createProductFormState(null),
+      brand: 'Other',
+      customBrand: '  Nothing  ',
+      category: 'phones',
+      name: 'Custom Brand Phone',
+      price: '100000',
+      countInStock: '1',
+      description: 'A product using an administrator supplied brand name.',
+    });
+    expect(request.brand).toBe('Nothing');
+  });
+
+  it('keeps specifications in form state when a category is changed before saving', () => {
+    const form = createProductFormState(null);
+    form.category = 'phones';
+    form.specifications = { display: '6.7-inch', processor: 'Test chip', battery: '5000mAh' };
+    form.category = 'wireless-earbuds';
+    form.category = 'phones';
+    expect(form.specifications).toEqual({ display: '6.7-inch', processor: 'Test chip', battery: '5000mAh' });
+  });
+
   it('serializes multiple variants without turning their combinations into products', () => {
     const request = toProductCreateRequest({
       ...createProductFormState(null),

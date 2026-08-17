@@ -65,7 +65,7 @@ export interface Product {
   reviews: Review[];
   isFeatured: boolean;
   tags: string[];
-  status?: 'DRAFT' | 'ACTIVE' | 'ARCHIVED';
+  status?: 'DRAFT' | 'ACTIVE' | 'ARCHIVED' | 'DISCARDED';
   createdAt?: string;
   variants?: ProductVariant[];
 }

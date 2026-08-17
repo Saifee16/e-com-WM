@@ -22,7 +22,7 @@ export interface ProductCreateRequest {
   countInStock: number;
   ptaApproved: boolean;
   isFeatured: boolean;
-  status: 'DRAFT' | 'ACTIVE' | 'ARCHIVED';
+  status: 'DRAFT' | 'ACTIVE' | 'ARCHIVED' | 'DISCARDED';
   variants?: ProductVariantRequest[];
 }
 
@@ -93,6 +93,7 @@ export interface ProductQueryParams {
   maxPrice?: number;
   storage?: string;
   condition?: 'new' | 'used' | 'refurbished';
+  status?: 'DRAFT' | 'ACTIVE' | 'ARCHIVED' | 'DISCARDED';
 }
 
 export interface Pagination {
@@ -107,6 +108,7 @@ export interface Pagination {
 export interface ProductPage {
   items: Product[];
   pagination: Pagination;
+  statusCounts?: Record<'ALL' | 'ACTIVE' | 'DRAFT' | 'ARCHIVED' | 'DISCARDED', number>;
 }
 
 export interface CategoryWriteRequest {
@@ -405,6 +407,7 @@ export const productsAPI = {
   getBrands: () => api.get('/products/brands'),
   getCategories: () => api.get<{ success: true; data: Category[] }>('/products/categories'),
   getAdminProducts: (params?: ProductQueryParams) => adminApi.get<ApiSuccess<ProductPage>>('/products', { params }),
+  getAdminBrands: () => adminApi.get<ApiSuccess<{ id: string; name: string; slug: string }[]>>('/products/brands'),
   getAdminCategories: () => adminApi.get<ApiSuccess<Category[]>>('/products/categories'),
   createCategory: (data: CategoryWriteRequest) => adminApi.post<ApiSuccess<Category>>('/products/categories', data),
   updateCategory: (id: string, data: Partial<CategoryWriteRequest>) => adminApi.put<ApiSuccess<Category>>(`/products/categories/${id}`, data),

@@ -212,4 +212,47 @@ describe('product variants', () => {
     expect(listing.statusCode).toBe(200);
     expect(listing.json().data.items.some((item: { id: string }) => item.id === single.id)).toBe(true);
   });
+
+  it('edits one submitted variant without changing omitted variants or their images', async () => {
+    await prisma.productImage.create({
+      data: { productId, variantId: goldVariantId, url: `https://example.com/gold-${scope}.jpg` },
+    });
+    const blackBefore = await prisma.productVariant.findUniqueOrThrow({ where: { id: blackVariantId } });
+    const goldBefore = await prisma.productVariant.findUniqueOrThrow({ where: { id: goldVariantId }, include: { images: true } });
+    const login = await app.inject({ method: 'POST', url: '/api/admin/auth/login', payload: { email: adminEmail, password: adminPassword } });
+    const cookies = (Array.isArray(login.headers['set-cookie']) ? login.headers['set-cookie'] : [login.headers['set-cookie']])
+      .map((cookie) => String(cookie ?? '').split(';')[0]).filter((cookie): cookie is string => Boolean(cookie));
+    const csrfCookie = cookies.find((cookie) => cookie.startsWith('csrfToken='));
+    const response = await app.inject({
+      method: 'PUT', url: `/api/admin/products/${productId}`,
+      headers: { cookie: cookies.join('; '), 'x-csrf-token': csrfCookie!.slice('csrfToken='.length) },
+      payload: { variants: [{ id: blackVariantId, sku: blackBefore.sku, title: blackBefore.title, storage: blackBefore.storage!, color: blackBefore.color!, condition: 'new', price: 101_000, originalPrice: 110_000, countInStock: 2, isActive: true }] },
+    });
+    expect(response.statusCode).toBe(200);
+    const goldAfter = await prisma.productVariant.findUniqueOrThrow({ where: { id: goldVariantId }, include: { images: true } });
+    expect(goldAfter).toMatchObject({ sku: goldBefore.sku, priceAmount: goldBefore.priceAmount, stockQuantity: goldBefore.stockQuantity, isActive: goldBefore.isActive, options: goldBefore.options });
+    expect(goldAfter.images.map((image) => image.url)).toEqual(goldBefore.images.map((image) => image.url));
+  });
+
+  it('discards and restores a product without deleting its images', async () => {
+    const source = await prisma.product.findUniqueOrThrow({ where: { id: productId } });
+    const discardable = await prisma.product.create({
+      data: {
+        name: `Discardable ${scope}`, slug: `discardable-${scope}`, description: 'Keep every related record on discard.', status: 'ACTIVE', brandId: source.brandId, categoryId: source.categoryId,
+        variants: { create: { sku: `DISCARD-${scope}`, title: 'Default', priceAmount: 1, stockQuantity: 1 } },
+        images: { create: { url: `https://example.com/common-${scope}.jpg` } },
+      },
+      include: { variants: true },
+    });
+    await prisma.productImage.create({ data: { productId: discardable.id, variantId: discardable.variants[0]!.id, url: `https://example.com/variant-${scope}.jpg` } });
+    const login = await app.inject({ method: 'POST', url: '/api/admin/auth/login', payload: { email: adminEmail, password: adminPassword } });
+    const cookies = (Array.isArray(login.headers['set-cookie']) ? login.headers['set-cookie'] : [login.headers['set-cookie']]).map((cookie) => String(cookie ?? '').split(';')[0]).filter((cookie): cookie is string => Boolean(cookie));
+    const csrfCookie = cookies.find((cookie) => cookie.startsWith('csrfToken='));
+    const discarded = await app.inject({ method: 'DELETE', url: `/api/admin/products/${discardable.id}`, headers: { cookie: cookies.join('; '), 'x-csrf-token': csrfCookie!.slice('csrfToken='.length) } });
+    expect(discarded.statusCode).toBe(200);
+    expect(await prisma.product.findUniqueOrThrow({ where: { id: discardable.id }, include: { images: true, variants: true } })).toMatchObject({ status: 'DISCARDED', images: expect.arrayContaining([expect.objectContaining({ url: `https://example.com/common-${scope}.jpg` })]), variants: [expect.objectContaining({ sku: `DISCARD-${scope}` })] });
+    const restored = await app.inject({ method: 'PUT', url: `/api/admin/products/${discardable.id}`, headers: { cookie: cookies.join('; '), 'x-csrf-token': csrfCookie!.slice('csrfToken='.length) }, payload: { status: 'DRAFT' } });
+    expect(restored.statusCode).toBe(200);
+    await prisma.product.delete({ where: { id: discardable.id } });
+  });
 });

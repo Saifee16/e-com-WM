@@ -3,6 +3,8 @@ import type { ProductCreateRequest, ProductVariantRequest } from '../../services
 import { getCategorySpecificationFields } from '../../config/category-catalog';
 
 export interface VariantFormState {
+  /** Stable React identity for rows that have not yet been persisted. */
+  clientId?: string;
   id?: string;
   sku: string;
   title: string;
@@ -19,6 +21,7 @@ export interface VariantFormState {
 export interface ProductFormState {
   name: string;
   brand: string;
+  customBrand: string;
   category: string;
   price: string;
   originalPrice: string;
@@ -36,6 +39,7 @@ export interface ProductFormState {
   network: string;
   existingImageUrls: string[];
   imageFiles: File[];
+  imagesChanged: boolean;
   condition: ProductCreateRequest['condition'];
   ptaApproved: boolean;
   isFeatured: boolean;
@@ -57,7 +61,10 @@ export class ProductFormValidationError extends Error {
   }
 }
 
+const newClientId = () => globalThis.crypto?.randomUUID?.() ?? `variant-${Math.random().toString(36).slice(2)}`;
+
 const toVariantFormState = (variant: ProductVariant): VariantFormState => ({
+  clientId: variant.id,
   id: variant.id,
   sku: variant.sku,
   title: variant.title,
@@ -72,6 +79,7 @@ const toVariantFormState = (variant: ProductVariant): VariantFormState => ({
 });
 
 const createDefaultVariant = (product: Product | null): VariantFormState => ({
+  clientId: newClientId(),
   sku: '',
   title: product?.specifications.storage ?? 'Default',
   storage: product?.specifications.storage ?? '',
@@ -92,6 +100,7 @@ export const createProductFormState = (product: Product | null): ProductFormStat
   return {
   name: product?.name ?? '',
   brand: product?.brand ?? 'Apple',
+  customBrand: '',
   category: product?.category ?? '',
   price: product ? String(product.price) : '',
   originalPrice: product?.originalPrice !== undefined ? String(product.originalPrice) : '',
@@ -109,6 +118,7 @@ export const createProductFormState = (product: Product | null): ProductFormStat
   network: product?.specifications.network ?? '',
   existingImageUrls: product?.images.slice(0, MAX_PRODUCT_IMAGES) ?? [],
   imageFiles: [],
+  imagesChanged: false,
   condition: product?.condition ?? 'new',
   ptaApproved: product?.ptaApproved ?? true,
   isFeatured: product?.isFeatured ?? false,
@@ -229,12 +239,12 @@ export const toProductCreateRequest = (form: ProductFormState): ProductCreateReq
 
   return {
     name: requiredText('Product name', form.name),
-    brand: requiredText('Brand', form.brand),
+    brand: requiredText('Brand', form.brand === 'Other' ? form.customBrand : form.brand),
     category: requiredText('Category', form.category),
     description: requiredText('Description', form.description),
     price: lowestVariant.price,
     ...(lowestVariant.originalPrice !== undefined ? { originalPrice: lowestVariant.originalPrice } : {}),
-    ...(form.existingImageUrls.length ? { images: form.existingImageUrls } : {}),
+    ...(form.imagesChanged ? { images: form.existingImageUrls } : {}),
     ...(storage ? { storage } : {}),
     ...(color ? { color } : {}),
     specifications,

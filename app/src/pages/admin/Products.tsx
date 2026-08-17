@@ -24,21 +24,59 @@ import {
   type VariantFormState,
 } from './product-form';
 
+const PAGE_SIZE = 25;
+const productStatuses = ['ALL', 'ACTIVE', 'DRAFT', 'ARCHIVED', 'DISCARDED'] as const;
+type ProductStatusFilter = (typeof productStatuses)[number];
+type ProductStatusCounts = Record<ProductStatusFilter, number>;
+const emptyStatusCounts: ProductStatusCounts = { ALL: 0, ACTIVE: 0, DRAFT: 0, ARCHIVED: 0, DISCARDED: 0 };
+
 const AdminProducts = () => {
   const { showToast } = useToast();
   const [productList, setProductList] = useState<Product[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<ProductStatusFilter>('ALL');
+  const [brandFilter, setBrandFilter] = useState('');
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const [statusCounts, setStatusCounts] = useState<ProductStatusCounts>(emptyStatusCounts);
+  const [brands, setBrands] = useState<{ id: string; name: string; slug: string }[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const [isAddingProduct, setIsAddingProduct] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [isManagingCategories, setIsManagingCategories] = useState(false);
 
   const loadProducts = async () => {
+    setIsLoading(true);
+    setLoadError(false);
     try {
-      const response = await productsAPI.getAdminProducts({ limit: 100 });
+      const response = await productsAPI.getAdminProducts({
+        page,
+        limit: PAGE_SIZE,
+        ...(searchQuery.trim() ? { search: searchQuery.trim() } : {}),
+        ...(brandFilter ? { brand: brandFilter } : {}),
+        ...(statusFilter === 'ALL' ? {} : { status: statusFilter }),
+      });
       setProductList(response.data.data.items);
+      setTotal(response.data.data.pagination.total);
+      setTotalPages(response.data.data.pagination.totalPages);
+      setStatusCounts(response.data.data.statusCounts ?? emptyStatusCounts);
     } catch {
+      setLoadError(true);
       showToast('Failed to load products', 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const loadBrands = async () => {
+    try {
+      const response = await productsAPI.getAdminBrands();
+      setBrands(response.data.data);
+    } catch {
+      showToast('Failed to load brands', 'error');
     }
   };
 
@@ -52,25 +90,34 @@ const AdminProducts = () => {
   };
 
   useEffect(() => {
-    void loadProducts();
     void loadCategories();
+    void loadBrands();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const filteredProducts = productList.filter(
-    (p) =>
-      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.brand.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  useEffect(() => {
+    void loadProducts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, searchQuery, statusFilter, brandFilter]);
 
   const handleDelete = (id: string) => {
     productsAPI
       .deleteProduct(id)
       .then(() => {
-        showToast('Product deleted', 'success');
+        showToast('Product discarded. It can be restored from the Discarded tab.', 'success');
         loadProducts();
       })
       .catch(() => showToast('Failed to delete product', 'error'));
+  };
+
+  const restoreProduct = (id: string) => {
+    productsAPI
+      .updateProduct(id, { status: 'DRAFT' })
+      .then(() => {
+        showToast('Product restored as a draft.', 'success');
+        void loadProducts();
+      })
+      .catch(() => showToast('Failed to restore product', 'error'));
   };
 
   const getStatusColor = (count: number) => {
@@ -82,6 +129,7 @@ const AdminProducts = () => {
   const getPublicationStatusColor = (status: Product['status']) => {
     if (status === 'DRAFT') return 'bg-amber-100 text-amber-700';
     if (status === 'ARCHIVED') return 'bg-gray-200 text-gray-700';
+    if (status === 'DISCARDED') return 'bg-red-100 text-red-700';
     return 'bg-green-100 text-green-700';
   };
 
@@ -111,17 +159,40 @@ const AdminProducts = () => {
         <CategoryManager categories={categories} onChanged={loadCategories} />
       )}
 
+      <div className="mb-4 flex flex-wrap gap-2" aria-label="Product status tabs">
+        {productStatuses.map((status) => (
+          <button
+            key={status}
+            type="button"
+            onClick={() => { setStatusFilter(status); setPage(1); }}
+            className={`rounded-full px-4 py-2 text-sm font-semibold ${statusFilter === status ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 ring-1 ring-gray-200 hover:bg-gray-50'}`}
+          >
+            {status[0] + status.slice(1).toLowerCase()} ({statusCounts[status]})
+          </button>
+        ))}
+      </div>
+
+      <p className="mb-4 text-sm font-medium text-gray-600">Total products: {statusCounts.ALL}</p>
+
       {/* Search */}
       <div className="relative mb-6">
         <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
         <input
           type="text"
           value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
+          onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
           placeholder="Search products..."
           className="w-full pl-12 pr-4 py-3 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
       </div>
+
+      <label className="mb-6 block max-w-sm text-sm font-medium text-gray-700">
+        Brand
+        <select value={brandFilter} onChange={(event) => { setBrandFilter(event.target.value); setPage(1); }} className="mt-2 w-full rounded-xl border border-gray-200 bg-white px-4 py-3">
+          <option value="">All Brands</option>
+          {brands.map((brand) => <option key={brand.id} value={brand.slug}>{brand.name}</option>)}
+        </select>
+      </label>
 
       {/* Products Table */}
       <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden overflow-x-auto">
@@ -137,7 +208,7 @@ const AdminProducts = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {filteredProducts.map((product) => (
+            {productList.map((product) => (
               <tr key={product._id} className="hover:bg-gray-50">
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-4">
@@ -200,18 +271,32 @@ const AdminProducts = () => {
                       type="button"
                       onClick={() => handleDelete(product._id)}
                       className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                      aria-label={`Delete ${product.name}`}
-                      title={`Delete ${product.name}`}
+                      aria-label={`Discard ${product.name}`}
+                      title={`Discard ${product.name}`}
                     >
                       <Trash2 className="w-5 h-5" />
                     </button>
+                    {(product.status === 'ARCHIVED' || product.status === 'DISCARDED') && (
+                      <button type="button" onClick={() => restoreProduct(product._id)} className="rounded-lg px-2 py-1 text-xs font-medium text-blue-700 hover:bg-blue-50">Restore</button>
+                    )}
                   </div>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
+        {!isLoading && !loadError && productList.length === 0 && <p className="p-6 text-center text-sm text-gray-500">No products match these filters.</p>}
+        {loadError && <p className="p-6 text-center text-sm text-red-600">Products could not be loaded. Try again.</p>}
+        {isLoading && <p className="p-6 text-center text-sm text-gray-500">Loading products…</p>}
       </div>
+
+      {totalPages > 1 && (
+        <div className="mt-4 flex items-center justify-end gap-3 text-sm">
+          <span>{total} results · Page {page} of {totalPages}</span>
+          <button type="button" disabled={page <= 1} onClick={() => setPage((current) => current - 1)} className="rounded-lg border px-3 py-2 disabled:opacity-40">Previous</button>
+          <button type="button" disabled={page >= totalPages} onClick={() => setPage((current) => current + 1)} className="rounded-lg border px-3 py-2 disabled:opacity-40">Next</button>
+        </div>
+      )}
 
       {/* Add/Edit Product Modal */}
       <ProductModal
@@ -223,6 +308,7 @@ const AdminProducts = () => {
         }}
         product={editingProduct}
         categories={flattenCategories(categories)}
+        brands={brands.map((brand) => brand.name)}
         onSaved={loadProducts}
       />
     </div>
@@ -235,12 +321,14 @@ const ProductModal = ({
   onClose,
   product,
   categories,
+  brands,
   onSaved,
 }: {
   isOpen: boolean;
   onClose: () => void;
   product: Product | null;
   categories: Category[];
+  brands: string[];
   onSaved: () => Promise<void>;
 }) => {
   const { showToast } = useToast();
@@ -272,6 +360,7 @@ const ProductModal = ({
     const generated: VariantFormState[] = storages.flatMap((storage) => colors.map((color) => {
       const existing = currentVariants.get(`${storage}\u0000${color}`);
       return existing ?? {
+        clientId: crypto.randomUUID(),
         sku: '',
         title: [storage, color].filter(Boolean).join(' / ') || 'Default',
         storage,
@@ -288,6 +377,7 @@ const ProductModal = ({
   };
   const addGenericVariant = () => {
     updateField('variants', [...formData.variants, {
+      clientId: crypto.randomUUID(),
       sku: '', title: '', storage: '', color: '', condition: formData.condition, options: {},
       price: formData.price, originalPrice: formData.originalPrice, countInStock: formData.countInStock, isActive: true,
     }]);
@@ -306,7 +396,7 @@ const ProductModal = ({
   const selectImageFiles = (files: File[]) => {
     try {
       validateProductImageSelection(formData.existingImageUrls, [...formData.imageFiles, ...files]);
-      updateField('imageFiles', [...formData.imageFiles, ...files]);
+      setFormData((current) => ({ ...current, imageFiles: [...current.imageFiles, ...files], imagesChanged: true }));
     } catch (imageError) {
       showToast(
         imageError instanceof ProductFormValidationError ? imageError.message : 'Unable to select images',
@@ -316,11 +406,11 @@ const ProductModal = ({
   };
 
   const removeExistingImage = (index: number) => {
-    updateField('existingImageUrls', formData.existingImageUrls.filter((_, imageIndex) => imageIndex !== index));
+    setFormData((current) => ({ ...current, existingImageUrls: current.existingImageUrls.filter((_, imageIndex) => imageIndex !== index), imagesChanged: true }));
   };
 
   const removeImageFile = (index: number) => {
-    updateField('imageFiles', formData.imageFiles.filter((_, imageIndex) => imageIndex !== index));
+    setFormData((current) => ({ ...current, imageFiles: current.imageFiles.filter((_, imageIndex) => imageIndex !== index), imagesChanged: true }));
   };
 
   if (!isOpen) return null;
@@ -365,7 +455,9 @@ const ProductModal = ({
                   : [];
                 const payload = {
                   ...basePayload,
-                  images: [...formData.existingImageUrls, ...uploadedImageUrls],
+                  ...(formData.imagesChanged || uploadedImageUrls.length
+                    ? { images: [...formData.existingImageUrls, ...uploadedImageUrls] }
+                    : {}),
                 };
                 if (isEditing) {
                   await productsAPI.updateProduct(product._id, payload);
@@ -416,14 +508,10 @@ const ProductModal = ({
                   onChange={(event) => updateField('brand', event.target.value)}
                   className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  <option>Apple</option>
-                  <option>Samsung</option>
-                  <option>Google</option>
-                  <option>OnePlus</option>
-                  <option>Xiaomi</option>
-                  <option>OPPO</option>
-                  <option>Other</option>
+                  {[...new Set([...brands, formData.brand].filter((brand) => brand && brand !== 'Other'))].map((brand) => <option key={brand} value={brand}>{brand}</option>)}
+                  <option value="Other">Other</option>
                 </select>
+                {formData.brand === 'Other' && <input aria-label="Custom brand name" value={formData.customBrand} onChange={(event) => updateField('customBrand', event.target.value)} placeholder="Custom brand name" maxLength={80} className="mt-2 w-full rounded-xl border border-gray-200 px-4 py-3" required />}
               </div>
             </div>
 
@@ -436,20 +524,9 @@ const ProductModal = ({
                 value={formData.category}
                 onChange={(event) => {
                   const category = event.target.value;
-                  const allowedKeys = new Set(getCategorySpecificationFields(category).map((field) => field.key));
                   setFormData((current) => ({
                     ...current,
                     category,
-                    specifications: Object.fromEntries(
-                      Object.entries(current.specifications).filter(([key]) => allowedKeys.has(key)),
-                    ),
-                    display: '',
-                    processor: '',
-                    ram: '',
-                    battery: '',
-                    camera: '',
-                    os: '',
-                    network: '',
                   }));
                 }}
                 className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -469,7 +546,10 @@ const ProductModal = ({
               <input
                 type="checkbox"
                 checked={formData.hasVariants}
-                onChange={(event) => updateField('hasVariants', event.target.checked)}
+                onChange={(event) => {
+                  if (!event.target.checked && formData.variants.length > 1 && !window.confirm('Keep all variants active? Single-variant conversion is not automatic; remove or deactivate variants explicitly.')) return;
+                  updateField('hasVariants', event.target.checked);
+                }}
                 className="h-5 w-5 rounded text-blue-600"
               />
               <span>
@@ -516,7 +596,7 @@ const ProductModal = ({
                     <thead className="text-xs text-gray-500"><tr><th className="pb-2">Storage</th><th className="pb-2">Color / options</th><th className="pb-2">Condition</th><th className="pb-2">Price</th><th className="pb-2">Regular price</th><th className="pb-2">Stock</th><th className="pb-2">SKU</th><th className="pb-2">Active</th><th className="pb-2"></th></tr></thead>
                     <tbody>
                       {formData.variants.map((variant, index) => (
-                        <tr key={variant.id ?? `${variant.storage}-${variant.color}-${index}`} className="border-t border-gray-100">
+                        <tr key={variant.id ?? variant.clientId ?? `variant-${index}`} className="border-t border-gray-100">
                           <td className="py-2 pr-2"><input value={variant.storage} onChange={(event) => updateVariant(index, 'storage', event.target.value)} className="w-24 rounded border border-gray-300 px-2 py-1.5" /></td>
                           <td className="py-2 pr-2"><input value={variant.color} onChange={(event) => updateVariant(index, 'color', event.target.value)} placeholder="Color" className="w-28 rounded border border-gray-300 px-2 py-1.5" /><input value={Object.entries(variant.options).map(([key, value]) => `${key}: ${value}`).join(', ')} onChange={(event) => updateVariant(index, 'options', Object.fromEntries(event.target.value.split(',').map((item) => item.split(':').map((part) => part.trim())).filter((parts) => parts.length === 2 && parts[0] && parts[1]) as [string, string][]))} placeholder="Size: 44mm" className="mt-1 w-36 rounded border border-gray-300 px-2 py-1.5 text-xs" /></td>
                           <td className="py-2 pr-2"><select value={variant.condition} onChange={(event) => updateVariant(index, 'condition', event.target.value as VariantFormState['condition'])} className="rounded border border-gray-300 px-2 py-1.5"><option value="new">New</option><option value="used">Used</option><option value="refurbished">Refurbished</option></select></td>
@@ -776,6 +856,7 @@ const ProductModal = ({
                   <option value="ACTIVE">Published</option>
                   <option value="DRAFT">Draft</option>
                   <option value="ARCHIVED">Archived</option>
+                  <option value="DISCARDED">Discarded</option>
                 </select>
               </div>
               <div>

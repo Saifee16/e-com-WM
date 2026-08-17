@@ -67,4 +67,11 @@ export const flattenCategories = (categories: Category[]): Category[] =>
   categories.flatMap((category) => [category, ...flattenCategories(category.children ?? [])]);
 
 export const getCategorySpecificationFields = (categorySlug: string) =>
-  categorySpecificationFields[categorySlug] ?? [];
+  categorySpecificationFields[phoneCategoryAliases[categorySlug] ?? categorySlug] ?? [];
+
+// Older catalogue rows use these phone slugs. Keep their established product data editable.
+const phoneCategoryAliases: Record<string, string> = {
+  smartphones: 'phones',
+  iphone: 'phones',
+  android: 'phones',
+};

@@ -349,7 +349,7 @@ const productPayloadSchema = z.object({
   countInStock: z.number().int().nonnegative().default(0),
   ptaApproved: z.boolean().default(true),
   isFeatured: z.boolean().default(false),
-  status: z.enum(['DRAFT', 'ACTIVE', 'ARCHIVED']).default('ACTIVE'),
+  status: z.enum(['DRAFT', 'ACTIVE', 'ARCHIVED', 'DISCARDED']).default('ACTIVE'),
   variants: z.array(productVariantPayloadSchema).min(1).max(100).optional(),
 }).strict();
 
@@ -699,6 +699,17 @@ export const adminProductRoutes: FastifyPluginAsync<AdminProductRoutesOptions> =
     return ok(reply, await getCategoryTree(false));
   });
 
+  // Independent from page data: a brand can be selected even when it has no
+  // product in the currently loaded page.
+  app.get('/brands', async (_request, reply) => {
+    const brands = await prisma.brand.findMany({
+      where: { isActive: true },
+      orderBy: { name: 'asc' },
+      select: { id: true, name: true, slug: true },
+    });
+    return ok(reply, brands);
+  });
+
   app.post('/categories', async (request, reply) => {
     const body = categoryCreateSchema.parse(request.body);
     const slug = slugify(body.slug ?? body.name);
@@ -789,12 +800,14 @@ export const adminProductRoutes: FastifyPluginAsync<AdminProductRoutesOptions> =
   app.get('/', async (request, reply) => {
     const query = z.object({
       search: z.string().trim().max(200).optional(),
-      status: z.enum(['DRAFT', 'ACTIVE', 'ARCHIVED']).optional(),
+      status: z.enum(['DRAFT', 'ACTIVE', 'ARCHIVED', 'DISCARDED']).optional(),
+      brand: z.string().trim().min(1).max(120).optional(),
       page: z.coerce.number().int().positive().default(1),
       limit: z.coerce.number().int().positive().max(100).default(50),
     }).parse(request.query);
     const where: Prisma.ProductWhereInput = {
       ...(query.status ? { status: query.status } : {}),
+      ...(query.brand ? { brand: { slug: slugify(query.brand) } } : {}),
       ...(query.search
         ? {
             OR: [
@@ -805,7 +818,7 @@ export const adminProductRoutes: FastifyPluginAsync<AdminProductRoutesOptions> =
           }
         : {}),
     };
-    const [total, products] = await Promise.all([
+    const [total, products, statusCounts] = await Promise.all([
       prisma.product.count({ where }),
       prisma.product.findMany({
         where,
@@ -814,6 +827,7 @@ export const adminProductRoutes: FastifyPluginAsync<AdminProductRoutesOptions> =
         skip: (query.page - 1) * query.limit,
         take: query.limit,
       }),
+      prisma.product.groupBy({ by: ['status'], _count: { _all: true } }),
     ]);
     return ok(reply, {
       items: products.map((product) => mapProduct(product, true)),
@@ -823,6 +837,12 @@ export const adminProductRoutes: FastifyPluginAsync<AdminProductRoutesOptions> =
         total,
         totalPages: Math.ceil(total / query.limit),
       },
+      statusCounts: (() => {
+        const counts = { ALL: 0, ACTIVE: 0, DRAFT: 0, ARCHIVED: 0, DISCARDED: 0 };
+        for (const item of statusCounts) counts[item.status] = item._count._all;
+        counts.ALL = counts.ACTIVE + counts.DRAFT + counts.ARCHIVED + counts.DISCARDED;
+        return counts;
+      })(),
     });
   });
 
@@ -935,10 +955,6 @@ export const adminProductRoutes: FastifyPluginAsync<AdminProductRoutesOptions> =
       }
 
       await prisma.$transaction(async (tx) => {
-        await tx.productVariant.updateMany({
-          where: { productId: params.id, id: { notIn: [...requestedIds] } },
-          data: { isActive: false },
-        });
         for (const [index, requested] of body.variants!.entries()) {
           const data = createVariantData(requested, slug, index);
           const { sku, ...variantData } = data;
@@ -982,11 +998,12 @@ export const adminProductRoutes: FastifyPluginAsync<AdminProductRoutesOptions> =
     }
 
     const imageUrls = body.images !== undefined ? body.images : body.imageUrl ? [body.imageUrl] : null;
+    const existingCommonImages = existing.images.filter((image) => !image.variantId);
     const removedImageUrls = imageUrls === null
       ? []
-      : existing.images.map((image) => image.url).filter((url) => !imageUrls.includes(url));
+      : existingCommonImages.map((image) => image.url).filter((url) => !imageUrls.includes(url));
     if (imageUrls !== null) {
-      await prisma.productImage.deleteMany({ where: { productId: params.id } });
+      await prisma.productImage.deleteMany({ where: { productId: params.id, variantId: null } });
       if (imageUrls.length) {
         await prisma.productImage.createMany({
           data: imageUrls.map((url, index) => ({
@@ -1051,7 +1068,7 @@ export const adminProductRoutes: FastifyPluginAsync<AdminProductRoutesOptions> =
 
     const updated = await prisma.product.update({
       where: { id: params.id },
-      data: { status: 'ARCHIVED' },
+      data: { status: 'DISCARDED' },
       include: productInclude,
     });
 
@@ -1065,12 +1082,6 @@ export const adminProductRoutes: FastifyPluginAsync<AdminProductRoutesOptions> =
         after: mapProduct(updated, true),
       },
     });
-    const archivedImageUrls = existing.images.map((image) => image.url);
-    if (archivedImageUrls.length) {
-      await prisma.productImage.deleteMany({ where: { productId: params.id } });
-      await deleteProductImageUrls(archivedImageUrls, localImageStorageOptions);
-    }
-
-    return ok(reply, { deleted: true });
+    return ok(reply, { discarded: true, product: mapProduct(updated, true) });
   });
 };
