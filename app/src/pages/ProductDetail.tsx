@@ -98,10 +98,6 @@ const ProductDetail = () => {
         showToast('Select a valid variant before buying this product', 'error');
         return;
       }
-      if (!isAuthenticated) {
-        setIsAuthModalOpen(true);
-        return;
-      }
       try {
         await addToCart(product, quantity, selectedVariant?.id);
         navigate('/checkout');
@@ -109,13 +105,6 @@ const ProductDetail = () => {
         // CartContext shows the backend error toast.
       }
     }
-  };
-
-  const completeBuyNowAfterAuth = async () => {
-    if (!product) return;
-    if (requiresVariantSelection && !selectedVariant) return;
-    await addToCart(product, quantity, selectedVariant?.id);
-    navigate('/checkout');
   };
 
   const handleWishlist = async () => {
@@ -562,7 +551,7 @@ const ProductDetail = () => {
       <AuthModal
         isOpen={isAuthModalOpen}
         onClose={() => setIsAuthModalOpen(false)}
-        onSuccess={completeBuyNowAfterAuth}
+        onSuccess={() => setIsAuthModalOpen(false)}
       />
     </div>
   );

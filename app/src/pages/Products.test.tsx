@@ -9,6 +9,7 @@ const apiMocks = vi.hoisted(() => ({
   getCategories: vi.fn(),
   getProducts: vi.fn(),
 }));
+const addToCart = vi.hoisted(() => vi.fn());
 const showToast = vi.hoisted(() => vi.fn());
 
 vi.mock('framer-motion', () => {
@@ -25,7 +26,7 @@ vi.mock('framer-motion', () => {
 });
 
 vi.mock('../contexts/CartContext', () => ({
-  useCart: () => ({ addToCart: vi.fn() }),
+  useCart: () => ({ addToCart }),
 }));
 vi.mock('../contexts/ToastContext', () => ({
   useToast: () => ({ showToast }),
@@ -69,8 +70,28 @@ const renderProducts = (entry: string) => render(
   </MemoryRouter>,
 );
 
+const catalogueProduct = {
+  _id: '22222222-2222-4222-8222-222222222222',
+  name: 'Catalogue Phone',
+  brand: 'Wahab',
+  description: 'A catalogue phone',
+  price: 1000,
+  images: ['phone.jpg'],
+  category: 'phones',
+  specifications: {},
+  condition: 'new' as const,
+  ptaApproved: true,
+  countInStock: 2,
+  rating: 5,
+  numReviews: 0,
+  reviews: [],
+  isFeatured: false,
+  tags: [],
+};
+
 beforeEach(() => {
   vi.clearAllMocks();
+  addToCart.mockResolvedValue(undefined);
   apiMocks.getBrands.mockResolvedValue({ data: { data: [] } });
   apiMocks.getCategories.mockResolvedValue({ data: { data: [] } });
   apiMocks.getProducts.mockResolvedValue(page());
@@ -119,5 +140,16 @@ describe('Products category routes', () => {
 
     expect(await screen.findByText('Products could not be loaded')).toBeInTheDocument();
     expect(screen.queryByText('No products are available in this category yet.')).not.toBeInTheDocument();
+  });
+
+  it('keeps catalogue Buy Now guest-compatible', async () => {
+    apiMocks.getProducts.mockResolvedValue(page([catalogueProduct]));
+    const user = userEvent.setup();
+    renderProducts('/products');
+
+    await user.click(await screen.findByRole('button', { name: 'Buy Catalogue Phone now' }));
+
+    await waitFor(() => expect(addToCart).toHaveBeenCalledWith(catalogueProduct, 1));
+    expect(screen.getByTestId('location')).toHaveTextContent('/checkout');
   });
 });

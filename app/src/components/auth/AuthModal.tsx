@@ -64,7 +64,7 @@ const AuthModal = ({ isOpen, onClose, onSuccess }: AuthModalProps) => {
                 <h2 className="text-xl font-bold text-gray-900">
                   {mode === 'login' ? 'Sign in to continue' : 'Create your account'}
                 </h2>
-                <p className="text-sm text-gray-500 mt-1">Buy Now requires a customer account.</p>
+                <p className="text-sm text-gray-500 mt-1">Sign in to continue with account-only features.</p>
               </div>
               <button onClick={onClose} className="p-2 rounded-lg hover:bg-gray-100">
                 <X className="w-5 h-5" />
