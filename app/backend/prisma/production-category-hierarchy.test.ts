@@ -1,6 +1,7 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { PrismaClient } from '@prisma/client';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { CATEGORY_HIERARCHY, seedCategories } from './seed-categories.js';
@@ -56,9 +57,39 @@ const categoryIdentity = async (slugs: string[]) => prisma.category.findMany({
 });
 
 const runExactSqlFile = () => {
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl) throw new Error('DATABASE_URL is required to run the category SQL fixture');
+
+  const database = new URL(databaseUrl);
+  const postgresUser = process.env.POSTGRES_USER ?? decodeURIComponent(database.username);
+  const postgresDatabase = process.env.POSTGRES_DB ?? database.pathname.replace(/^\/+/, '');
+  const composeFile = fileURLToPath(new URL('../../docker-compose.yml', import.meta.url));
+  const composeEnvFile = fileURLToPath(new URL('../../.env', import.meta.url));
+  const postgresService = process.env.TEST_POSTGRES_SERVICE ?? 'postgres';
+
+  if (!postgresUser || !postgresDatabase) {
+    throw new Error('POSTGRES_USER/POSTGRES_DB or DATABASE_URL must identify the disposable PostgreSQL database');
+  }
+
+  const composeArgs = [
+    'compose',
+    ...(existsSync(composeEnvFile) ? ['--env-file', composeEnvFile] : []),
+    '-f',
+    composeFile,
+    'exec',
+    '-T',
+    postgresService,
+    'psql',
+    '-v',
+    'ON_ERROR_STOP=1',
+    '-U',
+    postgresUser,
+    '-d',
+    postgresDatabase,
+  ];
   const result = spawnSync(
     'docker',
-    ['exec', '-i', 'codex-phase8-test-postgres-1', 'psql', '-v', 'ON_ERROR_STOP=1', '-U', 'ecommerce_test', '-d', 'ecommerce_test'],
+    composeArgs,
     { input: sql, encoding: 'utf8' },
   );
   if (result.status !== 0) {
