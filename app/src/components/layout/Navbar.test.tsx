@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Category, Product } from '../../types';
 import Navbar from './Navbar';
@@ -57,6 +57,11 @@ const page = (items: Product[]) => ({
   },
 });
 
+const LocationProbe = () => {
+  const location = useLocation();
+  return <output data-testid="location">{location.pathname}{location.search}</output>;
+};
+
 const categories: Category[] = [
   category({ slug: 'phones', name: 'Phones', productCount: 0 }),
   category({ slug: 'smart-watches', name: 'Smart Watches', productCount: 0, children: [category({ slug: 'fitness-bands', name: 'Fitness Bands', productCount: 1 })] }),
@@ -67,14 +72,15 @@ const categories: Category[] = [
   ] }),
 ];
 
-const renderNavbar = () => render(<MemoryRouter><Navbar /></MemoryRouter>);
+const renderNavbar = () => render(<MemoryRouter><Routes><Route path="*" element={<><Navbar /><LocationProbe /></>} /></Routes></MemoryRouter>);
 
 describe('Navbar data-driven navigation', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.getCategories.mockResolvedValue({ data: { data: categories } });
-    mocks.getProducts.mockImplementation((params: { category?: string; featured?: boolean }) => {
+    mocks.getProducts.mockImplementation((params: { category?: string; featured?: boolean; q?: string }) => {
       if (params.featured) return Promise.resolve(page([]));
+      if (params.q) return Promise.resolve(page([product({ _id: 'suggestion', name: 'Samsung Galaxy S25', brand: 'Samsung', slug: 'samsung-galaxy-s25' })]));
       if (params.category === 'smart-watches') return Promise.resolve(page([product({ brand: 'Garmin', category: 'fitness-bands' })]));
       if (params.category === 'gadgets') return Promise.resolve(page([product({ brand: 'Anker', category: 'wireless-earbuds' })]));
       return Promise.resolve(page([product({ brand: 'Apple' }), product({ brand: 'Samsung' })]));
@@ -138,6 +144,33 @@ describe('Navbar data-driven navigation', () => {
     await user.click(phonesButton);
     fireEvent.mouseDown(document.body);
     expect(phonesButton).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('submits a shareable search URL and renders server suggestions', async () => {
+    const user = userEvent.setup();
+    renderNavbar();
+    const searchbox = screen.getAllByRole('searchbox')[0]!;
+
+    await user.type(searchbox, 'Samsung');
+    await waitFor(() => expect(mocks.getProducts).toHaveBeenCalledWith(expect.objectContaining({ q: 'Samsung', limit: 6 })));
+    expect(screen.getAllByRole('option', { name: /Samsung Galaxy S25/ })).toHaveLength(2);
+
+    await user.keyboard('{ArrowDown}{Enter}');
+    expect(screen.getByTestId('location')).toHaveTextContent('/products/samsung-galaxy-s25');
+  });
+
+  it('clears search input and closes suggestions with Escape', async () => {
+    const user = userEvent.setup();
+    renderNavbar();
+    const searchbox = screen.getAllByRole('searchbox')[0]!;
+
+    await user.type(searchbox, 'Honor');
+    await waitFor(() => expect(screen.getAllByRole('option')).not.toHaveLength(0));
+    await user.keyboard('{Escape}');
+    expect(screen.queryAllByRole('option')).toHaveLength(0);
+
+    await user.click(screen.getAllByRole('button', { name: 'Clear search' })[0]!);
+    expect(screen.getAllByRole('searchbox').every((input) => (input as HTMLInputElement).value === '')).toBe(true);
   });
 
   it('omits empty or inactive category links while keeping live groups', async () => {

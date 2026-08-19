@@ -22,7 +22,7 @@ import StorefrontProductCard from '../components/product/StorefrontProductCard';
 import { CONTACT_PHONE_NUMBERS } from '../config/contact';
 import { flattenCategories } from '../config/category-catalog';
 import { getCategoryBySlug } from '../components/layout/navigation-data';
-import Seo, { buildCategoryMetadata } from '../seo/seo';
+import Seo, { buildCategoryMetadata, buildSearchMetadata } from '../seo/seo';
 
 const PAGE_SIZE = 20;
 
@@ -76,6 +76,10 @@ const Products = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const routeCategory = getRouteCategory(location.pathname);
+  const isSearchRoute = location.pathname === '/search';
+  const requestedSearchQuery = isSearchRoute
+    ? searchParams.get('q') ?? searchParams.get('search') ?? ''
+    : searchParams.get('search') ?? '';
 
   const pendingUrlSyncRef = useRef<string | null>(
     searchParams.toString(),
@@ -139,7 +143,7 @@ const Products = () => {
   });
 
   const [searchQuery, setSearchQuery] = useState(
-    () => searchParams.get('search') ?? '',
+    () => requestedSearchQuery,
   );
 
   const [debouncedSearch, setDebouncedSearch] =
@@ -168,7 +172,11 @@ const Products = () => {
   useEffect(() => {
     pendingUrlSyncRef.current = searchParams.toString();
 
-    setSearchQuery(searchParams.get('search') ?? '');
+    setSearchQuery(
+      isSearchRoute
+        ? searchParams.get('q') ?? searchParams.get('search') ?? ''
+        : searchParams.get('search') ?? '',
+    );
 
     setSelectedBrands(
       searchParams.get('brand')?.split(',').filter(Boolean) ?? [],
@@ -215,7 +223,7 @@ const Products = () => {
         ? requestedPage
         : 1,
     );
-  }, [routeCategory, searchParams]);
+  }, [isSearchRoute, routeCategory, searchParams]);
 
   useEffect(() => {
     let isActive = true;
@@ -274,7 +282,8 @@ const Products = () => {
           page: currentPage,
           limit: PAGE_SIZE,
           sort: sortOption,
-          search: debouncedSearch || undefined,
+          q: isSearchRoute ? debouncedSearch || undefined : undefined,
+          search: isSearchRoute ? undefined : debouncedSearch || undefined,
           brand:
             selectedBrands.length > 0
               ? selectedBrands.join(',')
@@ -325,6 +334,7 @@ const Products = () => {
     debouncedSearch,
     discountedOnly,
     featuredOnly,
+    isSearchRoute,
     ptaApprovedOnly,
     reloadVersion,
     selectedBrands,
@@ -339,7 +349,7 @@ const Products = () => {
     const nextParams = new URLSearchParams();
 
     if (debouncedSearch) {
-      nextParams.set('search', debouncedSearch);
+      nextParams.set(isSearchRoute ? 'q' : 'search', debouncedSearch);
     }
 
     if (selectedBrands.length > 0) {
@@ -405,6 +415,7 @@ const Products = () => {
     debouncedSearch,
     discountedOnly,
     featuredOnly,
+    isSearchRoute,
     ptaApprovedOnly,
     selectedBrands,
     selectedCategory,
@@ -654,16 +665,22 @@ const Products = () => {
   return (
     <div className="min-h-[100dvh] bg-[#f5f8fc] py-8 sm:py-10">
       <Seo
-        metadata={{
-          ...buildCategoryMetadata(routeCategoryData, location.pathname),
-          robots: searchParams.toString() ? 'noindex,follow' : undefined,
-        }}
+        metadata={isSearchRoute
+          ? buildSearchMetadata(debouncedSearch)
+          : {
+              ...buildCategoryMetadata(routeCategoryData, location.pathname),
+              robots: searchParams.toString() ? 'noindex,follow' : undefined,
+            }}
       />
       <div className="mx-auto max-w-[1400px] px-3 sm:px-6 lg:px-8">
         <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
           <div>
             <h1 className="text-3xl font-extrabold tracking-tight text-slate-950 sm:text-4xl">
-              Shop products
+              {isSearchRoute && debouncedSearch
+                ? `Search results for "${debouncedSearch}"`
+                : isSearchRoute
+                  ? 'Search products'
+                  : 'Shop products'}
             </h1>
 
             <p className="mt-2 text-sm text-slate-600">
@@ -993,8 +1010,10 @@ const Products = () => {
                   <h2 className="mt-5 text-xl font-extrabold text-slate-950">
                     {isEmptyRouteCategory
                       ? 'No products are available in this category yet.'
-                      : hasActiveSearch
-                        ? 'No products match these filters'
+                      : isSearchRoute && debouncedSearch
+                        ? `No products found for "${debouncedSearch}".`
+                        : hasActiveSearch
+                          ? 'No products match these filters'
                         : 'The catalogue is currently empty'}
                   </h2>
 

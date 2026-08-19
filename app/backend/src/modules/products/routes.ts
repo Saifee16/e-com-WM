@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
-import type { Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import path from 'node:path';
@@ -222,12 +222,13 @@ export const mapProduct = (
 };
 
 const productQuerySchema = z.object({
-  search: z.string().trim().optional(),
+  q: z.string().trim().max(200).optional(),
+  search: z.string().trim().max(200).optional(),
   brand: z.string().trim().optional(),
   category: z.string().trim().optional(),
   featured: z.coerce.boolean().optional(),
   sort: z.enum(['newest', 'price-low', 'price-high', 'rating']).default('newest'),
-  page: z.coerce.number().int().positive().default(1),
+  page: z.coerce.number().int().positive().max(10_000).default(1),
   limit: z.coerce.number().int().positive().max(100).default(20),
   minPrice: z.coerce.number().int().nonnegative().optional(),
   maxPrice: z.coerce.number().int().nonnegative().optional(),
@@ -242,6 +243,48 @@ const productQuerySchema = z.object({
     path: ['minPrice'],
   },
 );
+
+const normalizeSearch = (value: string | undefined) => value
+  ?.replace(/[\\%_*]+/g, ' ')
+  .replace(/\s+/g, ' ')
+  .trim()
+  .slice(0, 200);
+
+const getJsonSearchMatchIds = async (term: string) => {
+  const pattern = `%${term}%`;
+  const rows = await prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+    SELECT DISTINCT p.id
+    FROM "products" AS p
+    LEFT JOIN "product_variants" AS pv ON pv.product_id = p.id
+    WHERE p.specifications::text ILIKE ${pattern}
+       OR pv.options::text ILIKE ${pattern}
+  `);
+  return rows.map((row) => row.id);
+};
+
+const searchTermFilters = (term: string, jsonMatchIds: string[]): Prisma.ProductWhereInput[] => [
+  { name: { contains: term, mode: 'insensitive' } },
+  { slug: { contains: term, mode: 'insensitive' } },
+  { description: { contains: term, mode: 'insensitive' } },
+  { shortDescription: { contains: term, mode: 'insensitive' } },
+  { brand: { name: { contains: term, mode: 'insensitive' } } },
+  { brand: { slug: { contains: term, mode: 'insensitive' } } },
+  { category: { name: { contains: term, mode: 'insensitive' } } },
+  { category: { slug: { contains: term, mode: 'insensitive' } } },
+  ...(jsonMatchIds.length > 0 ? [{ id: { in: jsonMatchIds } }] : []),
+  {
+    variants: {
+      some: {
+        OR: [
+          { title: { contains: term, mode: 'insensitive' } },
+          { storage: { contains: term, mode: 'insensitive' } },
+          { color: { contains: term, mode: 'insensitive' } },
+          { condition: { contains: term, mode: 'insensitive' } },
+        ],
+      },
+    },
+  },
+];
 
 const productUploadUrlPrefix = `${env.API_BASE_URL.replace(/\/+$/, '')}/api/uploads/products/`;
 const cloudinaryImageUrlPrefix = env.CLOUDINARY_CLOUD_NAME
@@ -492,6 +535,12 @@ export const productRoutes: FastifyPluginAsync = async (app) => {
   app.get('/', async (request, reply) => {
     const query = productQuerySchema.parse(request.query);
     const categoryIds = query.category ? await getCategoryDescendantIds(query.category) : undefined;
+    const searchValue = normalizeSearch(query.q ?? query.search);
+    const searchTerms = searchValue?.split(' ').filter(Boolean) ?? [];
+    const jsonMatchIdsByTerm = new Map<string, string[]>();
+    await Promise.all(searchTerms.map(async (term) => {
+      jsonMatchIdsByTerm.set(term, await getJsonSearchMatchIds(term));
+    }));
     const brandSlugs = query.brand
       ?.split(',')
       .map((brand) => slugify(brand))
@@ -528,14 +577,9 @@ export const productRoutes: FastifyPluginAsync = async (app) => {
             }
           : {}
       ),
-      ...(query.search
+      ...(searchTerms.length > 0
         ? {
-            OR: [
-              { name: { contains: query.search, mode: 'insensitive' } },
-              { description: { contains: query.search, mode: 'insensitive' } },
-              { brand: { name: { contains: query.search, mode: 'insensitive' } } },
-              { category: { name: { contains: query.search, mode: 'insensitive' } } },
-            ],
+            AND: searchTerms.map((term) => ({ OR: searchTermFilters(term, jsonMatchIdsByTerm.get(term) ?? []) })),
           }
         : {}),
     };
@@ -545,7 +589,7 @@ export const productRoutes: FastifyPluginAsync = async (app) => {
     const products = await prisma.product.findMany({
       where,
       include: productInclude,
-      orderBy: { createdAt: 'desc' },
+      orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
       ...(databasePaginated
         ? { skip: (query.page - 1) * query.limit, take: query.limit }
         : {}),
@@ -824,22 +868,25 @@ export const adminProductRoutes: FastifyPluginAsync<AdminProductRoutesOptions> =
 
   app.get('/', async (request, reply) => {
     const query = z.object({
+      q: z.string().trim().max(200).optional(),
       search: z.string().trim().max(200).optional(),
       status: z.enum(['DRAFT', 'ACTIVE', 'ARCHIVED', 'DISCARDED']).optional(),
       brand: z.string().trim().min(1).max(120).optional(),
-      page: z.coerce.number().int().positive().default(1),
+      page: z.coerce.number().int().positive().max(10_000).default(1),
       limit: z.coerce.number().int().positive().max(100).default(50),
     }).parse(request.query);
+    const searchValue = normalizeSearch(query.q ?? query.search);
+    const searchTerms = searchValue?.split(' ').filter(Boolean) ?? [];
+    const jsonMatchIdsByTerm = new Map<string, string[]>();
+    await Promise.all(searchTerms.map(async (term) => {
+      jsonMatchIdsByTerm.set(term, await getJsonSearchMatchIds(term));
+    }));
     const where: Prisma.ProductWhereInput = {
       ...(query.status ? { status: query.status } : {}),
       ...(query.brand ? { brand: { slug: slugify(query.brand) } } : {}),
-      ...(query.search
+      ...(searchTerms.length > 0
         ? {
-            OR: [
-              { name: { contains: query.search, mode: 'insensitive' } },
-              { brand: { name: { contains: query.search, mode: 'insensitive' } } },
-              { category: { name: { contains: query.search, mode: 'insensitive' } } },
-            ],
+            AND: searchTerms.map((term) => ({ OR: searchTermFilters(term, jsonMatchIdsByTerm.get(term) ?? []) })),
           }
         : {}),
     };
@@ -848,7 +895,7 @@ export const adminProductRoutes: FastifyPluginAsync<AdminProductRoutesOptions> =
       prisma.product.findMany({
         where,
         include: productInclude,
-        orderBy: { createdAt: 'desc' },
+        orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
         skip: (query.page - 1) * query.limit,
         take: query.limit,
       }),

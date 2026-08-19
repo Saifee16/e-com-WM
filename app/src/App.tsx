@@ -122,6 +122,7 @@ function App() {
               <Route path="/" element={<MainLayout />}>
                 <Route index element={<Home />} />
                 <Route path="products" element={<Products />} />
+                <Route path="search" element={<Products />} />
                 <Route path="phones" element={<Products />} />
                 <Route path="phones/:categorySlug" element={<Products />} />
                 <Route path="smartphones" element={<Navigate to="/phones" replace />} />

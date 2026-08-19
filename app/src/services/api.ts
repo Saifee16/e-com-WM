@@ -80,6 +80,7 @@ interface ApiSuccess<T> {
 }
 
 export interface ProductQueryParams {
+  q?: string;
   search?: string;
   brand?: string;
   category?: string;

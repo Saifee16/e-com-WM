@@ -73,6 +73,19 @@ export const buildCategoryMetadata = (category: Category | undefined, pathname: 
   };
 };
 
+export const buildSearchMetadata = (query: string, pathname = '/search'): SeoMetadata => {
+  const cleanQuery = query.trim();
+  return {
+    title: cleanQuery ? `Search results for "${cleanQuery}" | Wahab Mobiles` : 'Search products | Wahab Mobiles',
+    description: cleanQuery
+      ? `Search the live Wahab Mobiles catalogue for ${cleanQuery}.`
+      : 'Search the live Wahab Mobiles catalogue for phones, brands, storage and more.',
+    canonical: buildCanonicalUrl(pathname),
+    ogImage: DEFAULT_OG_IMAGE,
+    robots: 'noindex,follow',
+  };
+};
+
 const productConditionUrl = (condition: ProductVariant['condition']) => {
   if (condition === 'new') return 'https://schema.org/NewCondition';
   if (condition === 'used') return 'https://schema.org/UsedCondition';

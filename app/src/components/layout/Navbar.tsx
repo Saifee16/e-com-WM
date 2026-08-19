@@ -33,6 +33,7 @@ import {
   hasProductDiscount,
   type NavigationMenuId,
 } from './navigation-data';
+import { getProductPath } from '../../utils/product-url';
 
 type NavigationData = {
   categories: Category[];
@@ -91,6 +92,8 @@ const Navbar = () => {
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [navigationData, setNavigationData] = useState<NavigationData>(emptyNavigationData);
+  const [searchSuggestions, setSearchSuggestions] = useState<Product[]>([]);
+  const [isSearchSuggestionsLoading, setIsSearchSuggestionsLoading] = useState(false);
   const { isAuthenticated, user, logout } = useAuth();
   const { totals } = useCart();
   const navigate = useNavigate();
@@ -117,6 +120,33 @@ const Navbar = () => {
     void loadNavigationData();
     return () => { isActive = false; };
   }, []);
+
+  useEffect(() => {
+    const normalizedQuery = searchQuery.trim();
+    if (normalizedQuery.length < 2) {
+      setSearchSuggestions([]);
+      setIsSearchSuggestionsLoading(false);
+      return;
+    }
+
+    let isActive = true;
+    const timeout = window.setTimeout(async () => {
+      setIsSearchSuggestionsLoading(true);
+      try {
+        const response = await productsAPI.getProducts({ q: normalizedQuery, limit: 6, sort: 'newest' });
+        if (isActive) setSearchSuggestions(response.data.data.items.slice(0, 6));
+      } catch {
+        if (isActive) setSearchSuggestions([]);
+      } finally {
+        if (isActive) setIsSearchSuggestionsLoading(false);
+      }
+    }, 250);
+
+    return () => {
+      isActive = false;
+      window.clearTimeout(timeout);
+    };
+  }, [searchQuery]);
 
   useEffect(() => {
     const closeOnOutsideClick = (event: MouseEvent) => {
@@ -153,8 +183,15 @@ const Navbar = () => {
     event.preventDefault();
     const query = searchQuery.trim();
     if (!query) return;
-    navigate(`/products?search=${encodeURIComponent(query)}`);
+    navigate(`/search?q=${encodeURIComponent(query)}`);
     setSearchQuery('');
+    closeMenus();
+  };
+
+  const handleSuggestionSelect = (product: Product) => {
+    navigate(getProductPath(product));
+    setSearchQuery('');
+    setSearchSuggestions([]);
     closeMenus();
   };
 
@@ -210,14 +247,14 @@ const Navbar = () => {
       <header ref={navigationRef} className="relative sticky top-0 z-50 border-b border-slate-200 bg-white/95 shadow-[0_4px_20px_rgba(15,46,82,0.06)] backdrop-blur-xl">
         <div className="mx-auto max-w-[1400px] px-4 sm:px-6 lg:px-8"><div className="flex h-16 items-center gap-3 md:h-[74px] md:gap-5">
           <Link to="/" onClick={closeMenus} className="flex shrink-0 items-center gap-2.5" aria-label="Wahab Mobiles home"><img src="/assets/wahab-logo.jpg" alt="Wahab Mobiles logo" className="h-10 w-10 rounded-xl border border-blue-100 object-cover sm:h-11 sm:w-11" /><div className="hidden min-[360px]:block"><p className="text-[17px] font-extrabold leading-5 tracking-tight text-[#0b3f82] sm:text-lg">Wahab <span className="text-slate-950">Mobiles</span></p><p className="hidden text-[10px] font-semibold text-slate-500 sm:block">Cell phones in Hyderabad</p></div></Link>
-          <SearchForm query={searchQuery} onChange={setSearchQuery} onSubmit={handleSearch} className="hidden min-w-0 flex-1 md:block" />
+          <SearchForm id="desktop-search-suggestions" query={searchQuery} onChange={setSearchQuery} onSubmit={handleSearch} suggestions={searchSuggestions} isLoadingSuggestions={isSearchSuggestionsLoading} onCloseSuggestions={() => setSearchSuggestions([])} onSuggestionSelect={handleSuggestionSelect} className="hidden min-w-0 flex-1 md:block" />
           <div className="ml-auto flex shrink-0 items-center gap-1 md:gap-2">
             <Link to={isAuthenticated ? '/account/dashboard' : '/login'} aria-label={isAuthenticated ? 'My account' : 'Sign in'} className="flex h-11 w-11 items-center justify-center rounded-lg text-slate-700 transition hover:bg-blue-50 hover:text-blue-700 md:hidden"><User className="h-5 w-5" aria-hidden="true" /></Link>
             <Link to={isAuthenticated ? '/account/wishlist' : '/login'} aria-label="Wishlist" className="hidden h-11 items-center gap-2 rounded-lg px-3 text-sm font-semibold text-slate-700 transition hover:bg-blue-50 hover:text-blue-700 lg:flex"><Heart className="h-5 w-5" aria-hidden="true" /><span className="hidden xl:inline">Wishlist</span></Link>
             {isAuthenticated ? <div className="relative hidden md:block"><button type="button" onClick={() => setIsUserMenuOpen((open) => !open)} aria-label="Open account menu" aria-expanded={isUserMenuOpen} className="flex h-11 items-center gap-2 rounded-lg px-3 text-sm font-semibold text-slate-700 transition hover:bg-blue-50 hover:text-blue-700"><span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-700 text-xs font-bold text-white">{user?.firstName?.[0]}{user?.lastName?.[0]}</span><span className="hidden xl:inline">Account</span><ChevronDown className="hidden h-4 w-4 xl:block" aria-hidden="true" /></button><AnimatePresence>{isUserMenuOpen && <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }} className="absolute right-0 top-[calc(100%+8px)] w-60 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_20px_60px_rgba(15,46,82,0.16)]"><div className="border-b border-slate-100 px-4 py-3"><p className="truncate text-sm font-bold text-slate-950">{user?.firstName} {user?.lastName}</p><p className="truncate text-xs text-slate-500">{user?.email}</p></div><div className="p-2 text-sm"><AccountLink to="/account/dashboard" label="Dashboard" onClick={closeMenus} /><AccountLink to="/account/orders" label="My orders" onClick={closeMenus} /><AccountLink to="/account/wishlist" label="Wishlist" onClick={closeMenus} /><button type="button" onClick={() => { logout(); closeMenus(); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left font-semibold text-red-600 hover:bg-red-50"><LogOut className="h-4 w-4" aria-hidden="true" />Log out</button></div></motion.div>}</AnimatePresence></div> : <Link to="/login" className="hidden h-11 items-center gap-2 rounded-lg px-3 text-sm font-semibold text-slate-700 transition hover:bg-blue-50 hover:text-blue-700 md:flex"><User className="h-5 w-5" aria-hidden="true" /><span className="hidden xl:inline">Sign in</span></Link>}
             <button type="button" onClick={() => setIsCartOpen(true)} aria-label={`Open cart with ${totals.itemCount} items`} className="relative flex h-11 items-center gap-2 rounded-lg px-2.5 text-sm font-semibold text-slate-700 transition hover:bg-blue-50 hover:text-blue-700 md:px-3"><ShoppingCart className="h-5 w-5" aria-hidden="true" /><span className="hidden xl:inline">Cart</span>{totals.itemCount > 0 && <span className="absolute right-0.5 top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-blue-700 px-1 text-[10px] font-bold text-white">{totals.itemCount}</span>}</button>
             <button type="button" aria-label={isMobileMenuOpen ? 'Close navigation menu' : 'Open navigation menu'} aria-expanded={isMobileMenuOpen} onClick={() => setIsMobileMenuOpen((open) => !open)} className="flex h-11 w-11 items-center justify-center rounded-lg text-slate-700 transition hover:bg-blue-50 hover:text-blue-700 lg:hidden">{isMobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}</button>
-          </div></div><SearchForm query={searchQuery} onChange={setSearchQuery} onSubmit={handleSearch} className="pb-3 md:hidden" /></div>
+          </div></div><SearchForm id="mobile-search-suggestions" query={searchQuery} onChange={setSearchQuery} onSubmit={handleSearch} suggestions={searchSuggestions} isLoadingSuggestions={isSearchSuggestionsLoading} onCloseSuggestions={() => setSearchSuggestions([])} onSuggestionSelect={handleSuggestionSelect} className="pb-3 md:hidden" /></div>
         <nav className="hidden border-t border-slate-100 lg:block" aria-label="Store categories"><div className="mx-auto flex h-11 max-w-[1400px] items-center gap-0 px-6 lg:px-8">{(['phones', 'smart-watches', 'gadgets'] as NavigationMenuId[]).map((menu) => <button key={menu} type="button" onMouseEnter={() => setOpenDesktopMenu(menu)} onClick={() => setOpenDesktopMenu(menu)} aria-expanded={openDesktopMenu === menu} aria-controls={`desktop-menu-${menu}`} className="flex h-full items-center gap-1 whitespace-nowrap border-b-2 border-transparent px-2.5 text-[13px] font-bold text-slate-600 transition hover:text-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-inset">{menuLabels[menu]}<ChevronDown className={`h-3.5 w-3.5 transition-transform ${openDesktopMenu === menu ? 'rotate-180' : ''}`} aria-hidden="true" /></button>)}{primaryLinks.map((link) => <Link key={link.path} to={link.path} onClick={closeMenus} className={`flex h-full items-center whitespace-nowrap border-b-2 px-2.5 text-[13px] font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-inset ${isLinkActive(link.path) ? 'border-blue-700 text-blue-700' : 'border-transparent text-slate-600 hover:text-blue-700'}`}>{link.name}</Link>)}</div></nav>
         <AnimatePresence>{openDesktopMenu && <motion.div id={`desktop-menu-${openDesktopMenu}`} initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} className="absolute left-0 right-0 top-full hidden border-t border-slate-200 bg-white shadow-[0_20px_40px_rgba(15,46,82,0.12)] lg:block"><MegaMenu menu={openDesktopMenu} categories={navigationData.categories} phoneProducts={navigationData.phoneProducts} watchProducts={navigationData.watchProducts} gadgetProducts={navigationData.gadgetProducts} featuredPhone={navigationData.featuredPhone} onNavigate={closeMenus} /></motion.div>}</AnimatePresence>
         <AnimatePresence>{isMobileMenuOpen && <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden border-t border-slate-100 bg-white lg:hidden"><nav className="mx-auto max-w-[1400px] space-y-2 px-4 py-4 sm:px-6" aria-label="Mobile navigation">{(['phones', 'smart-watches', 'gadgets'] as NavigationMenuId[]).map((menu) => <div key={menu} className="border-b border-slate-100 pb-2"><button type="button" onClick={() => toggleMobileSection(menu)} aria-expanded={openMobileSection === menu} aria-controls={`mobile-menu-${menu}`} className="flex min-h-12 w-full items-center justify-between rounded-lg px-3 text-left text-base font-extrabold text-slate-900 hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600">{menuLabels[menu]}<ChevronRight className={`h-5 w-5 transition-transform ${openMobileSection === menu ? 'rotate-90 text-blue-700' : ''}`} aria-hidden="true" /></button>{openMobileSection === menu && <div id={`mobile-menu-${menu}`} className="mt-2">{renderMobileCategory(menu)}</div>}</div>)}<div className="grid grid-cols-2 gap-2 pt-2 sm:grid-cols-3">{primaryLinks.map((link) => <Link key={link.path} to={link.path} onClick={closeMenus} className="rounded-lg bg-slate-50 px-3 py-3 text-sm font-bold text-slate-700">{link.name}</Link>)}</div><div className="flex items-center gap-2 border-t border-slate-100 pt-4"><Link to={isAuthenticated ? '/account/dashboard' : '/login'} onClick={closeMenus} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg bg-blue-700 px-4 text-sm font-bold text-white"><User className="h-4 w-4" aria-hidden="true" />{isAuthenticated ? 'My account' : 'Sign in'}</Link><Link to={isAuthenticated ? '/account/wishlist' : '/login'} onClick={closeMenus} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 text-sm font-bold text-slate-700"><Heart className="h-4 w-4" aria-hidden="true" />Wishlist</Link></div></nav></motion.div>}</AnimatePresence>
@@ -244,7 +281,78 @@ const MegaMenu = ({ menu, categories, phoneProducts, watchProducts, gadgetProduc
   </div>;
 };
 
-const SearchForm = ({ query, onChange, onSubmit, className = '' }: { query: string; onChange: (value: string) => void; onSubmit: (event: React.FormEvent) => void; className?: string }) => <form onSubmit={onSubmit} role="search" className={className}><label className="relative block"><span className="sr-only">Search phones</span><Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" aria-hidden="true" /><input type="search" value={query} onChange={(event) => onChange(event.target.value)} placeholder="Search phones, brands or storage" className="h-11 w-full rounded-lg border border-slate-300 bg-slate-50 pl-11 pr-24 text-sm text-slate-950 placeholder:text-slate-500 focus:border-blue-600 focus:bg-white focus:ring-blue-600" /><button type="submit" className="absolute right-1.5 top-1.5 h-8 rounded-md bg-blue-700 px-4 text-xs font-bold text-white transition hover:bg-blue-800">Search</button></label></form>;
+const SearchForm = ({ id, query, onChange, onSubmit, suggestions, isLoadingSuggestions, onCloseSuggestions, onSuggestionSelect, className = '' }: { id: string; query: string; onChange: (value: string) => void; onSubmit: (event: React.FormEvent) => void; suggestions: Product[]; isLoadingSuggestions: boolean; onCloseSuggestions: () => void; onSuggestionSelect?: (product: Product) => void; className?: string }) => {
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
+  const formRef = useRef<HTMLFormElement>(null);
+
+  useEffect(() => {
+    const closeOnOutsideClick = (event: MouseEvent) => {
+      if (!formRef.current?.contains(event.target as Node)) onCloseSuggestions();
+    };
+    document.addEventListener('mousedown', closeOnOutsideClick);
+    return () => document.removeEventListener('mousedown', closeOnOutsideClick);
+  }, [onCloseSuggestions]);
+
+  const selectSuggestion = (product: Product) => {
+    onCloseSuggestions();
+    onSuggestionSelect?.(product);
+  };
+
+  const handleSubmit = (event: React.FormEvent) => {
+    if (highlightedIndex >= 0 && suggestions[highlightedIndex]) {
+      event.preventDefault();
+      selectSuggestion(suggestions[highlightedIndex]);
+      return;
+    }
+    onCloseSuggestions();
+    onSubmit(event);
+  };
+
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Escape') {
+      onCloseSuggestions();
+      setHighlightedIndex(-1);
+      return;
+    }
+    if (event.key === 'ArrowDown' && suggestions.length > 0) {
+      event.preventDefault();
+      setHighlightedIndex((current) => (current + 1) % suggestions.length);
+    } else if (event.key === 'ArrowUp' && suggestions.length > 0) {
+      event.preventDefault();
+      setHighlightedIndex((current) => (current <= 0 ? suggestions.length - 1 : current - 1));
+    }
+  };
+
+  const showSuggestions = query.trim().length >= 2 && (isLoadingSuggestions || suggestions.length > 0);
+
+  return (
+    <form ref={formRef} onSubmit={handleSubmit} role="search" className={`relative ${className}`}>
+      <label className="relative block">
+        <span className="sr-only">Search phones, brands or storage</span>
+        <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+        <input
+          type="search"
+          value={query}
+          onChange={(event) => onChange(event.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder="Search phones, brands or storage"
+          aria-autocomplete="list"
+          aria-controls={id}
+          aria-expanded={showSuggestions}
+          className="h-11 w-full rounded-lg border border-slate-300 bg-slate-50 pl-11 pr-24 text-sm text-slate-950 placeholder:text-slate-500 focus:border-blue-600 focus:bg-white focus:ring-blue-600"
+        />
+        {query && <button type="button" onClick={() => { onChange(''); onCloseSuggestions(); }} aria-label="Clear search" className="absolute right-[4.75rem] top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md text-slate-500 hover:bg-slate-200 hover:text-slate-800"><X className="h-4 w-4" aria-hidden="true" /></button>}
+        <button type="submit" className="absolute right-1.5 top-1.5 h-8 rounded-md bg-blue-700 px-4 text-xs font-bold text-white transition hover:bg-blue-800">Search</button>
+      </label>
+      {showSuggestions && <div id={id} role="listbox" aria-label="Search suggestions" className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-[80] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_20px_50px_rgba(15,46,82,0.16)]">
+        {isLoadingSuggestions ? <div className="px-4 py-3 text-sm text-slate-500" role="status">Searching…</div> : suggestions.map((product, index) => <Link key={product._id} to={getProductPath(product)} role="option" aria-selected={index === highlightedIndex} onClick={() => selectSuggestion(product)} className={`flex items-center gap-3 px-4 py-3 text-left transition ${index === highlightedIndex ? 'bg-blue-50' : 'hover:bg-slate-50'}`}>
+          <img src={product.images[0]} alt="" className="h-10 w-10 shrink-0 rounded-lg border border-slate-100 bg-slate-50 object-contain" />
+          <span className="min-w-0"><span className="block truncate text-sm font-bold text-slate-900">{product.name}</span><span className="block truncate text-xs text-slate-500">{product.brand}{product.categoryName ? ` · ${product.categoryName}` : ''}</span></span>
+        </Link>)}
+      </div>}
+    </form>
+  );
+};
 
 const AccountLink = ({ to, label, onClick }: { to: string; label: string; onClick: () => void }) => <Link to={to} onClick={onClick} className="block rounded-lg px-3 py-2.5 font-semibold text-slate-700 hover:bg-blue-50 hover:text-blue-700">{label}</Link>;
 

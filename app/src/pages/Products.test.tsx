@@ -136,6 +136,24 @@ describe('Products category routes', () => {
     expect(apiMocks.getProducts).toHaveBeenCalledWith(expect.objectContaining({ category: 'smart-watches' }));
   });
 
+  it('loads search results from q and preserves the shareable URL state', async () => {
+    apiMocks.getProducts.mockResolvedValue(page([catalogueProduct]));
+    renderProducts('/search?q=iPhone');
+
+    await waitFor(() => expect(apiMocks.getProducts).toHaveBeenCalledWith(expect.objectContaining({
+      q: 'iPhone',
+      search: undefined,
+    })));
+    expect(screen.getByRole('heading', { name: 'Search results for "iPhone"' })).toBeInTheDocument();
+    expect(screen.getByTestId('location')).toHaveTextContent('/search?q=iPhone');
+  });
+
+  it('shows a truthful query-specific empty state', async () => {
+    renderProducts('/search?q=xyz');
+
+    expect(await screen.findByText('No products found for "xyz".')).toBeInTheDocument();
+  });
+
   it('distinguishes an API failure from a valid empty category', async () => {
     apiMocks.getProducts.mockRejectedValue(new Error('backend unavailable'));
     renderProducts('/gadgets');
