@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import path from 'node:path';
 import { prisma } from '../../db/prisma.js';
+import { aggregateCategoryProductCounts } from './category-tree.js';
 import { env } from '../../config/env.js';
 import { fail, ok } from '../../utils/responses.js';
 import { authenticateCustomer, requireChangedAdminPassword } from '../auth/session.js';
@@ -77,6 +78,7 @@ const getCategoryTree = async (activeOnly: boolean) => {
     else if (!activeOnly || !category.parentId) roots.push(node);
   }
 
+  aggregateCategoryProductCounts(roots);
   return roots;
 };
 

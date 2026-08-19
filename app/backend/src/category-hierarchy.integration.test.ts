@@ -13,6 +13,7 @@ interface ApiSuccess<T> {
 interface CategoryNode {
   slug: string;
   parentSlug: string | null;
+  productCount: number;
   children: CategoryNode[];
 }
 
@@ -30,6 +31,8 @@ describe('hierarchical product catalogue', () => {
   const earbudsSlug = `wireless-earbuds-${scope}`;
   const deepEarbudsSlug = `earbuds-cases-${scope}`;
   const inactiveSlug = `inactive-gadgets-${scope}`;
+  const androidChildSlug = `android-child-${scope}`;
+  let legacyProductId: string;
 
   beforeAll(async () => {
     app = await buildApp();
@@ -38,13 +41,14 @@ describe('hierarchical product catalogue', () => {
     const legacySmartphones = await prisma.category.create({ data: { name: 'Smartphones', slug: 'smartphones' } });
     const phoneChild = await prisma.category.create({ data: { name: `Phone Child ${scope}`, slug: `phone-child-${scope}`, parentId: canonicalPhones.id } });
     await prisma.category.create({ data: { name: `Phone Grandchild ${scope}`, slug: `phone-grandchild-${scope}`, parentId: phoneChild.id } });
+    const androidChild = await prisma.category.create({ data: { name: `Android Child ${scope}`, slug: androidChildSlug, parentId: canonicalPhones.id } });
     const phones = await prisma.category.create({ data: { name: `Phones ${scope}`, slug: phoneSlug } });
     const gadgets = await prisma.category.create({ data: { name: `Gadgets ${scope}`, slug: gadgetSlug } });
     const earbuds = await prisma.category.create({ data: { name: `Wireless Earbuds ${scope}`, slug: earbudsSlug, parentId: gadgets.id } });
     const deepEarbuds = await prisma.category.create({ data: { name: `Earbuds Cases ${scope}`, slug: deepEarbudsSlug, parentId: earbuds.id } });
     await prisma.category.create({ data: { name: `Inactive Gadgets ${scope}`, slug: inactiveSlug, parentId: gadgets.id, isActive: false } });
 
-    await prisma.product.create({
+    const legacyProduct = await prisma.product.create({
       data: {
         name: `Legacy Smartphone ${scope}`,
         slug: `legacy-smartphone-${scope}`,
@@ -55,6 +59,27 @@ describe('hierarchical product catalogue', () => {
         variants: { create: { sku: `LEGACY-PHONE-${scope}`, title: 'Default', priceAmount: 90_000, stockQuantity: 2 } },
       },
     });
+    legacyProductId = legacyProduct.id;
+
+    const createCountedProduct = (categoryId: string, prefix: string, index: number, status: 'ACTIVE' | 'ARCHIVED' | 'DISCARDED' = 'ACTIVE') =>
+      prisma.product.create({
+        data: {
+          name: `${prefix} ${scope} ${index}`,
+          slug: `${prefix.toLowerCase().replaceAll(' ', '-')}-${scope}-${index}`,
+          description: 'Category count fixture',
+          status,
+          brandId: brand.id,
+          categoryId,
+          variants: { create: { sku: `${prefix.toUpperCase().replaceAll(' ', '-')}-${scope}-${index}`, title: 'Default', priceAmount: 10_000 + index, stockQuantity: 1 } },
+        },
+      });
+
+    await Promise.all([
+      ...Array.from({ length: 3 }, (_, index) => createCountedProduct(phoneChild.id, 'iPhone Child', index, 'ACTIVE')),
+      ...Array.from({ length: 12 }, (_, index) => createCountedProduct(androidChild.id, 'Android Child', index, 'ACTIVE')),
+      createCountedProduct(phoneChild.id, 'Archived Child', 0, 'ARCHIVED'),
+      createCountedProduct(androidChild.id, 'Discarded Child', 0, 'DISCARDED'),
+    ]);
 
     await prisma.product.create({
       data: {
@@ -118,6 +143,34 @@ describe('hierarchical product catalogue', () => {
     expect(categories.flatMap((category) => [category.slug, ...category.children.map((child) => child.slug)])).not.toContain(inactiveSlug);
   });
 
+  it('aggregates active descendant product counts without changing child counts', async () => {
+    const categories = parseSuccess<CategoryNode[]>(await app.inject({ method: 'GET', url: '/api/products/categories' }));
+    const phones = categories.find((category) => category.slug === 'phones');
+    const phoneChild = phones?.children.find((category) => category.slug === `phone-child-${scope}`);
+    const androidChild = phones?.children.find((category) => category.slug === androidChildSlug);
+
+    expect(phones?.productCount).toBe(15);
+    expect(phoneChild?.productCount).toBe(3);
+    expect(androidChild?.productCount).toBe(12);
+  });
+
+  it('returns all active /phones descendants once', async () => {
+    const originalLegacyStatus = await prisma.product.findUniqueOrThrow({ where: { id: legacyProductId }, select: { status: true } });
+    await prisma.product.update({ where: { id: legacyProductId }, data: { status: 'ARCHIVED' } });
+
+    try {
+      const phones = parseSuccess<{ items: Array<{ id: string }>; pagination: { total: number } }>(
+        await app.inject({ method: 'GET', url: `/api/products?category=phones&brand=${brandSlug}&limit=100` }),
+      );
+
+      expect(phones.pagination.total).toBe(15);
+      expect(phones.items).toHaveLength(15);
+      expect(new Set(phones.items.map((product) => product.id)).size).toBe(15);
+    } finally {
+      await prisma.product.update({ where: { id: legacyProductId }, data: { status: originalLegacyStatus.status } });
+    }
+  });
+
   it('includes direct and nested descendants without duplicate products', async () => {
     const parent = parseSuccess<{ items: Array<{ id: string; name: string }>; pagination: { total: number } }>(
       await app.inject({ method: 'GET', url: `/api/products?category=${gadgetSlug}` }),
@@ -143,9 +196,10 @@ describe('hierarchical product catalogue', () => {
     const legacy = parseSuccess<{ items: Array<{ id: string }>; pagination: { total: number } }>(
       await app.inject({ method: 'GET', url: `/api/products?category=smartphones&brand=${brandSlug}` }),
     );
-    expect(canonical.pagination.total).toBe(1);
-    expect(legacy.pagination.total).toBe(1);
-    expect(canonical.items[0]?.id).toBe(legacy.items[0]?.id);
+    expect(canonical.pagination.total).toBe(16);
+    expect(legacy.pagination.total).toBe(16);
+    expect(canonical.items.map((item) => item.id).sort()).toEqual(legacy.items.map((item) => item.id).sort());
+    expect(new Set(canonical.items.map((item) => item.id)).size).toBe(canonical.items.length);
   });
 
   it('keeps a multi-variant product singular while filtering relevant active variants and serializing specs', async () => {
