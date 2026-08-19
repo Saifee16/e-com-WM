@@ -83,6 +83,7 @@ describe('customer and admin auth realms', () => {
       phone: null,
       role: 'CUSTOMER',
       status: 'ACTIVE',
+      mustChangePassword: false,
       emailVerifiedAt: null,
       lastLoginAt: null,
       createdAt: now,

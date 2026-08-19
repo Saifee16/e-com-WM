@@ -6,7 +6,7 @@ import path from 'node:path';
 import { prisma } from '../../db/prisma.js';
 import { env } from '../../config/env.js';
 import { fail, ok } from '../../utils/responses.js';
-import { authenticateAdmin, authenticateCustomer } from '../auth/session.js';
+import { authenticateCustomer, requireChangedAdminPassword } from '../auth/session.js';
 import { MAX_PRODUCT_IMAGES, deleteOwnedProductImageUrls, saveProductImages } from './image-upload.js';
 
 const slugify = (value: string) =>
@@ -82,6 +82,7 @@ const getCategoryTree = async (activeOnly: boolean) => {
 
 const legacyCategoryAliases: Record<string, string[]> = {
   phones: ['smartphones', 'iphone', 'android'],
+  smartphones: ['phones'],
   'smart-watches': ['wearables', 'fitness-bands', 'calling-watches'],
   gadgets: [
     'wireless-earbuds',
@@ -697,14 +698,14 @@ interface AdminProductRoutesOptions {
 }
 
 export const adminProductRoutes: FastifyPluginAsync<AdminProductRoutesOptions> = async (app, options) => {
-  app.addHook('preHandler', authenticateAdmin);
+  app.addHook('preHandler', requireChangedAdminPassword);
   const localImageStorageOptions = {
     uploadDirectory: path.join(options.uploadDirectory, 'products'),
     publicApiBaseUrl: env.API_BASE_URL,
   };
 
   app.get('/categories', async (_request, reply) => {
-    return ok(reply, await getCategoryTree(false));
+    return ok(reply, await getCategoryTree(true));
   });
 
   // Independent from page data: a brand can be selected even when it has no

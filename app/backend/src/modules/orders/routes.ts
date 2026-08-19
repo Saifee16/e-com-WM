@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { prisma } from '../../db/prisma.js';
 import { env } from '../../config/env.js';
 import { fail, ok } from '../../utils/responses.js';
-import { authenticateAdmin, authenticateCustomer, getAuthenticatedUser, getGuestId } from '../auth/session.js';
+import { authenticateCustomer, getAuthenticatedUser, getGuestId, requireChangedAdminPassword } from '../auth/session.js';
 import { sendOrderPlacedEmails, sendOrderStatusEmail, type OrderEmailDetails } from './mailer.js';
 
 const orderInclude = {
@@ -605,7 +605,7 @@ export const orderRoutes: FastifyPluginAsync = async (app) => {
 };
 
 export const adminOrderRoutes: FastifyPluginAsync = async (app) => {
-  app.addHook('preHandler', authenticateAdmin);
+  app.addHook('preHandler', requireChangedAdminPassword);
 
   app.get('/stats/overview', async (_request, reply) => {
     const [orders, revenue] = await Promise.all([

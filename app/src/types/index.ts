@@ -7,6 +7,10 @@ export interface User {
   phone?: string;
   address?: Address;
   isAdmin: boolean;
+  role?: 'CUSTOMER' | 'ADMIN' | 'SUPER_ADMIN';
+  status?: 'ACTIVE' | 'BLOCKED' | 'DELETED';
+  lastLoginAt?: string;
+  mustChangePassword?: boolean;
   preferences?: UserPreferences;
   createdAt?: string;
 }

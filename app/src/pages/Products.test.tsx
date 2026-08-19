@@ -100,6 +100,8 @@ beforeEach(() => {
 describe('Products category routes', () => {
   it('parses top-level and child catalogue routes', () => {
     expect(getRouteCategory('/phones')).toBe('phones');
+    expect(getRouteCategory('/phones/iphone')).toBe('iphone');
+    expect(getRouteCategory('/phones/android')).toBe('android');
     expect(getRouteCategory('/smart-watches')).toBe('smart-watches');
     expect(getRouteCategory('/gadgets/wireless-earbuds')).toBe('wireless-earbuds');
     expect(getRouteCategory('/products')).toBe('');

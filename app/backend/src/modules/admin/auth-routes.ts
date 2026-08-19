@@ -7,12 +7,25 @@ import { clearAuthSession, issueAccessToken, issueAuthSession } from '../auth/co
 import { exchangeGoogleUser, getGoogleAuthUrl } from '../auth/google.js';
 import { exchangeFacebookUser, getFacebookAuthUrl } from '../auth/facebook.js';
 import { authenticateAdmin, toSafeUser } from '../auth/session.js';
-import { revokeRefreshFamily, rotateRefreshToken } from '../auth/refresh.js';
+import { revokeAllUserRefreshTokens, revokeRefreshFamily, rotateRefreshToken } from '../auth/refresh.js';
 import { env } from '../../config/env.js';
 
 const loginSchema = z.object({
   email: z.string().email().transform((value) => value.toLowerCase()),
   password: z.string().min(1),
+});
+
+const strongPasswordSchema = z.string()
+  .min(12, 'Password must be at least 12 characters')
+  .max(200)
+  .regex(/[a-z]/, 'Password must contain a lowercase letter')
+  .regex(/[A-Z]/, 'Password must contain an uppercase letter')
+  .regex(/[0-9]/, 'Password must contain a number')
+  .regex(/[^A-Za-z0-9]/, 'Password must contain a special character');
+
+const passwordChangeSchema = z.object({
+  currentPassword: z.string().min(1),
+  newPassword: strongPasswordSchema,
 });
 
 const googleCallbackSchema = z.object({
@@ -141,6 +154,33 @@ export const adminAuthRoutes: FastifyPluginAsync = async (app) => {
 
     protectedApp.get('/me', async (request, reply) => {
       return ok(reply, toSafeUser(request.authUser!));
+    });
+
+    protectedApp.put('/password', async (request, reply) => {
+      const body = passwordChangeSchema.parse(request.body);
+      const currentUser = request.authUser!;
+      if (!(await argon2.verify(currentUser.passwordHash, body.currentPassword))) {
+        return fail(reply, 400, {
+          code: 'INVALID_CURRENT_PASSWORD',
+          message: 'Current password is incorrect',
+        });
+      }
+
+      const updated = await prisma.user.update({
+        where: { id: currentUser.id },
+        data: { passwordHash: await argon2.hash(body.newPassword), mustChangePassword: false },
+      });
+      await revokeAllUserRefreshTokens(currentUser.id, 'ADMIN_PASSWORD_CHANGE');
+      await prisma.auditLog.create({
+        data: {
+          actorUserId: currentUser.id,
+          action: 'UPDATE',
+          entityType: 'AdminAccountPassword',
+          entityId: currentUser.id,
+          after: { accountId: currentUser.id, passwordChanged: true, mustChangePassword: false },
+        },
+      });
+      return ok(reply, toSafeUser(updated));
     });
   });
 

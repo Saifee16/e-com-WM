@@ -38,6 +38,7 @@ const AdminDashboard = lazy(() => import('./pages/admin/Dashboard'));
 const AdminProducts = lazy(() => import('./pages/admin/Products'));
 const AdminOrders = lazy(() => import('./pages/admin/Orders'));
 const AdminUsers = lazy(() => import('./pages/admin/Users'));
+const AccountManagement = lazy(() => import('./pages/admin/AccountManagement'));
 const AdminLogin = lazy(() => import('./pages/admin/Login'));
 const ContactMessages = lazy(() => import('./pages/admin/ContactMessages'));
 const AdminReturns = lazy(() => import('./pages/admin/Returns'));
@@ -122,6 +123,8 @@ function App() {
                 <Route index element={<Home />} />
                 <Route path="products" element={<Products />} />
                 <Route path="phones" element={<Products />} />
+                <Route path="phones/:categorySlug" element={<Products />} />
+                <Route path="smartphones" element={<Navigate to="/phones" replace />} />
                 <Route path="smart-watches" element={<Products />} />
                 <Route path="smart-watches/:categorySlug" element={<Products />} />
                 <Route path="gadgets" element={<Products />} />
@@ -202,6 +205,7 @@ function App() {
                 <Route path="products" element={<AdminProducts />} />
                 <Route path="orders" element={<AdminOrders />} />
                 <Route path="users" element={<AdminUsers />} />
+                <Route path="account-management" element={<AccountManagement />} />
                 <Route path="contact" element={<ContactMessages />} />
                 <Route path="returns" element={<AdminReturns />} />
               </Route>

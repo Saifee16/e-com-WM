@@ -18,7 +18,7 @@ vi.mock('../../db/prisma.js', () => ({
   },
 }));
 vi.mock('../auth/session.js', () => ({
-  authenticateAdmin: vi.fn(),
+  requireChangedAdminPassword: vi.fn(),
   authenticateCustomer: vi.fn(),
   getAuthenticatedUser: mocks.getAuthenticatedUser,
   getGuestId: mocks.getGuestId,

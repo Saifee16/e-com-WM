@@ -220,6 +220,19 @@ export interface AdminUser {
   orders: number;
 }
 
+export interface AdminAccount {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone?: string;
+  role: 'ADMIN' | 'SUPER_ADMIN';
+  status: 'ACTIVE' | 'BLOCKED';
+  createdAt: string;
+  lastLoginAt?: string;
+  mustChangePassword: boolean;
+}
+
 export interface AccountDashboardData {
   stats: {
     totalOrders: number;
@@ -395,6 +408,8 @@ export const adminAuthAPI = {
   facebookStart: () => adminApi.get('/auth/facebook/start'),
   facebookCallback: (code: string, state: string) => adminApi.post('/auth/facebook/callback', { code, state }),
   getProfile: () => adminApi.get('/auth/profile'),
+  changePassword: (currentPassword: string, newPassword: string) =>
+    adminApi.put('/auth/password', { currentPassword, newPassword }),
   logout: () => adminApi.post('/auth/logout'),
 };
 
@@ -472,13 +487,28 @@ export const adminAPI = {
   getTopProducts: (params?: JsonObject) => adminApi.get('/top-products', { params }),
   getTopCustomers: (params?: JsonObject) => adminApi.get('/top-customers', { params }),
   getUsers: (params?: { search?: string }) => adminApi.get<ApiSuccess<AdminUser[]>>('/users', { params }),
-  updateUser: (id: string, data: Partial<Omit<Pick<AdminUser, 'firstName' | 'lastName' | 'email' | 'phone' | 'role' | 'status'>, 'phone'>> & { phone?: string | null }) =>
+  updateUser: (id: string, data: Partial<Omit<Pick<AdminUser, 'firstName' | 'lastName' | 'email' | 'phone'>, 'phone'>> & { phone?: string | null }) =>
     adminApi.patch<ApiSuccess<AdminUser>>(`/users/${id}`, data),
   getContactMessages: (params?: JsonObject) => adminApi.get('/contact-messages', { params }),
   updateContactMessage: (id: string, status: string) => adminApi.patch(`/contact-messages/${id}`, { status }),
   getReturns: () => adminApi.get('/orders/returns'),
   resolveReturn: (id: string, data: { status: 'APPROVED' | 'REJECTED'; resolutionNote: string; manualRefundCompleted?: true }) =>
     adminApi.patch(`/orders/returns/${id}`, data),
+  getAdminAccounts: (params?: { search?: string }) => adminApi.get<ApiSuccess<AdminAccount[]>>('/account-management', { params }),
+  createAdminAccount: (data: {
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone?: string | null;
+    role: AdminAccount['role'];
+    password: string;
+    requirePasswordChange: boolean;
+  }) => adminApi.post<ApiSuccess<AdminAccount>>('/account-management', data),
+  updateAdminAccount: (id: string, data: Partial<Omit<Pick<AdminAccount, 'firstName' | 'lastName' | 'email' | 'role' | 'status'>, 'phone'>> & { phone?: string | null }) =>
+    adminApi.patch<ApiSuccess<AdminAccount>>(`/account-management/${id}`, data),
+  resetAdminAccountPassword: (id: string, data: { password: string; requirePasswordChange: boolean }) =>
+    adminApi.post<ApiSuccess<AdminAccount>>(`/account-management/${id}/password`, data),
+  revokeAdminAccountSessions: (id: string) => adminApi.post<ApiSuccess<{ sessionsRevoked: boolean }>>(`/account-management/${id}/revoke-sessions`),
 };
 
 export const contactAPI = {

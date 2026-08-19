@@ -6,15 +6,13 @@ import { useToast } from '../../contexts/ToastContext';
 import { getApiErrorMessage } from '../../utils/api-error';
 import { formatDate } from '../../utils/format';
 
-type UserForm = Pick<AdminUser, 'firstName' | 'lastName' | 'email' | 'phone' | 'role' | 'status'>;
+type UserForm = Pick<AdminUser, 'firstName' | 'lastName' | 'email' | 'phone'>;
 
 const formFor = (user: AdminUser): UserForm => ({
   firstName: user.firstName,
   lastName: user.lastName,
   email: user.email,
   phone: user.phone ?? '',
-  role: user.role,
-  status: user.status,
 });
 
 const AdminUsers = () => {
@@ -76,7 +74,6 @@ const AdminUsers = () => {
     }
   };
 
-  const admins = users.filter((user) => user.role !== 'CUSTOMER').length;
   const newThisMonth = users.filter((user) => {
     const date = new Date(user.createdAt);
     const now = new Date();
@@ -87,8 +84,8 @@ const AdminUsers = () => {
     <div>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Users</h2>
-          <p className="text-sm text-gray-500">Edit identity, contact details, account access, and role. User IDs are permanent identifiers.</p>
+          <h2 className="text-2xl font-bold text-gray-900">Customers</h2>
+          <p className="text-sm text-gray-500">Edit customer identity and contact details. Administrator accounts are managed separately by Super Admins.</p>
         </div>
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -97,8 +94,8 @@ const AdminUsers = () => {
       </div>
 
       <div className="grid sm:grid-cols-3 gap-4 mb-6">
-        <Stat label="Total Users" value={users.length} color="text-gray-900" />
-        <Stat label="Administrators" value={admins} color="text-blue-600" />
+        <Stat label="Total Customers" value={users.length} color="text-gray-900" />
+        <Stat label="Active Customers" value={users.filter((user) => user.status === 'ACTIVE').length} color="text-blue-600" />
         <Stat label="New This Month" value={newThisMonth} color="text-green-600" />
       </div>
 
@@ -138,7 +135,6 @@ const AdminUsers = () => {
               <div className="grid sm:grid-cols-2 gap-4"><Field label="First name" value={form.firstName} onChange={(value) => setForm({ ...form, firstName: value })} /><Field label="Last name" value={form.lastName} onChange={(value) => setForm({ ...form, lastName: value })} /></div>
               <Field label="Email" type="email" value={form.email} onChange={(value) => setForm({ ...form, email: value })} />
               <Field label="Phone" value={form.phone ?? ''} onChange={(value) => setForm({ ...form, phone: value })} />
-              <div className="grid sm:grid-cols-2 gap-4"><SelectField label="Role" value={form.role} options={['CUSTOMER', 'ADMIN', 'SUPER_ADMIN']} onChange={(value) => setForm({ ...form, role: value as UserForm['role'] })} /><SelectField label="Account status" value={form.status} options={['ACTIVE', 'BLOCKED']} onChange={(value) => setForm({ ...form, status: value as UserForm['status'] })} /></div>
             </div>
             <div className="p-6 border-t flex justify-end gap-3"><button type="button" onClick={() => setEditingUser(null)} className="px-4 py-2 text-gray-600" disabled={isSaving}>Cancel</button><button type="button" onClick={() => void saveUser()} disabled={isSaving} className="px-4 py-2 bg-blue-600 text-white rounded-xl disabled:opacity-50">{isSaving ? 'Saving…' : 'Save changes'}</button></div>
           </div>
@@ -152,6 +148,4 @@ const Stat = ({ label, value, color }: { label: string; value: number; color: st
 const Loading = () => <div className="bg-white rounded-2xl border border-gray-200 p-12 text-center"><LoaderCircle className="w-9 h-9 text-blue-600 animate-spin mx-auto mb-3" /><p className="text-gray-500">Loading users…</p></div>;
 const Failure = ({ message, onRetry }: { message: string; onRetry: () => void }) => <div className="bg-white rounded-2xl border border-red-200 p-12 text-center"><AlertCircle className="w-9 h-9 text-red-500 mx-auto mb-3" /><p className="text-gray-600 mb-4">{message}</p><button type="button" onClick={onRetry} className="px-4 py-2 bg-blue-600 text-white rounded-xl">Try again</button></div>;
 const Field = ({ label, value, onChange, type = 'text' }: { label: string; value: string; onChange: (value: string) => void; type?: string }) => <label className="block text-sm font-medium text-gray-700">{label}<input type={type} value={value} onChange={(event) => onChange(event.target.value)} className="mt-1 w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" /></label>;
-const SelectField = ({ label, value, options, onChange }: { label: string; value: string; options: string[]; onChange: (value: string) => void }) => <label className="block text-sm font-medium text-gray-700">{label}<select value={value} onChange={(event) => onChange(event.target.value)} className="mt-1 w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">{options.map((option) => <option key={option} value={option}>{option.replace('_', ' ')}</option>)}</select></label>;
-
 export default AdminUsers;

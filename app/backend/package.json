@@ -13,7 +13,8 @@
     "db:migrate": "node scripts/with-env.mjs prisma migrate dev",
     "db:deploy": "node scripts/with-env.mjs prisma migrate deploy",
     "db:seed": "node scripts/with-env.mjs tsx prisma/seed.ts",
-    "db:seed:categories": "node scripts/with-env.mjs tsx prisma/seed-categories.ts"
+    "db:seed:categories": "node scripts/with-env.mjs tsx prisma/seed-categories.ts",
+    "db:migrate:phone-categories": "node scripts/with-env.mjs tsx prisma/migrate-phone-categories.ts"
   },
   "keywords": [
     "ecommerce",

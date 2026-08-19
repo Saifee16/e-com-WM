@@ -56,6 +56,7 @@ const envSchema = z.object({
   PASSWORD_RESET_IP_MAX: z.coerce.number().int().positive().default(5),
   PASSWORD_RESET_IP_WINDOW_SECONDS: z.coerce.number().int().positive().default(900),
   PASSWORD_RESET_ACCOUNT_COOLDOWN_SECONDS: z.coerce.number().int().positive().default(300),
+  ALLOW_SUPER_ADMIN_CREATION: stringBoolean.default(false),
   PUBLIC_FORM_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(10),
   PUBLIC_FORM_RATE_LIMIT_WINDOW_SECONDS: z.coerce.number().int().positive().default(900),
   EMAIL_FROM: emailFromAddress.default('no-reply@example.com'),

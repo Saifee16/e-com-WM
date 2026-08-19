@@ -128,6 +128,30 @@ export const authenticateAdmin = async (request: FastifyRequest, reply: FastifyR
   request.authUser = user;
 };
 
+export const requireChangedAdminPassword = async (request: FastifyRequest, reply: FastifyReply) => {
+  await authenticateAdmin(request, reply);
+  if (reply.sent) return;
+
+  if (request.authUser?.mustChangePassword) {
+    return fail(reply, 403, {
+      code: 'PASSWORD_CHANGE_REQUIRED',
+      message: 'Change the temporary administrator password before continuing',
+    });
+  }
+};
+
+export const authenticateSuperAdmin = async (request: FastifyRequest, reply: FastifyReply) => {
+  await authenticateAdmin(request, reply);
+  if (reply.sent) return;
+
+  if (request.authUser?.role !== 'SUPER_ADMIN') {
+    return fail(reply, 403, {
+      code: 'SUPER_ADMIN_REQUIRED',
+      message: 'Super administrator access required',
+    });
+  }
+};
+
 export const toSafeUser = (user: {
   id: string;
   firstName: string;
@@ -135,7 +159,10 @@ export const toSafeUser = (user: {
   email: string;
   phone: string | null;
   role: string;
+  status?: string;
   createdAt?: Date;
+  lastLoginAt?: Date | null;
+  mustChangePassword?: boolean;
 }) => ({
   id: user.id,
   firstName: user.firstName,
@@ -144,5 +171,8 @@ export const toSafeUser = (user: {
   phone: user.phone ?? undefined,
   isAdmin: user.role === 'ADMIN' || user.role === 'SUPER_ADMIN',
   role: user.role,
+  status: user.status,
   createdAt: user.createdAt?.toISOString(),
+  lastLoginAt: user.lastLoginAt?.toISOString(),
+  mustChangePassword: user.mustChangePassword ?? false,
 });

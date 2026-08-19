@@ -1,8 +1,11 @@
 import type { FastifyPluginAsync } from 'fastify';
+import argon2 from 'argon2';
 import { z } from 'zod';
 import { prisma } from '../../db/prisma.js';
 import { fail, ok } from '../../utils/responses.js';
-import { authenticateAdmin } from '../auth/session.js';
+import { requireChangedAdminPassword, authenticateSuperAdmin } from '../auth/session.js';
+import { revokeAllUserRefreshTokens } from '../auth/refresh.js';
+import { env } from '../../config/env.js';
 
 const mapContactMessage = (message: {
   id: string;
@@ -51,6 +54,30 @@ const mapAdminUser = (user: {
   orders: user._count.orders,
 });
 
+const mapManagedAdmin = (user: {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string | null;
+  role: string;
+  status: string;
+  createdAt: Date;
+  lastLoginAt: Date | null;
+  mustChangePassword: boolean;
+}) => ({
+  id: user.id,
+  firstName: user.firstName,
+  lastName: user.lastName,
+  email: user.email,
+  phone: user.phone ?? undefined,
+  role: user.role,
+  status: user.status,
+  createdAt: user.createdAt.toISOString(),
+  lastLoginAt: user.lastLoginAt?.toISOString(),
+  mustChangePassword: user.mustChangePassword,
+});
+
 const adminUserUpdateSchema = z.object({
   firstName: z.string().trim().min(1).max(80).optional(),
   lastName: z.string().trim().min(1).max(80).optional(),
@@ -60,13 +87,62 @@ const adminUserUpdateSchema = z.object({
   status: z.enum(['ACTIVE', 'BLOCKED']).optional(),
 }).refine((body) => Object.keys(body).length > 0, { message: 'At least one field is required' });
 
+const strongPasswordSchema = z.string()
+  .min(12, 'Password must be at least 12 characters')
+  .max(200)
+  .regex(/[a-z]/, 'Password must contain a lowercase letter')
+  .regex(/[A-Z]/, 'Password must contain an uppercase letter')
+  .regex(/[0-9]/, 'Password must contain a number')
+  .regex(/[^A-Za-z0-9]/, 'Password must contain a special character');
+
+const managedAdminCreateSchema = z.object({
+  firstName: z.string().trim().min(1).max(80),
+  lastName: z.string().trim().min(1).max(80),
+  email: z.string().email().transform((value) => value.toLowerCase()),
+  phone: z.string().trim().max(40).nullable().optional(),
+  role: z.enum(['ADMIN', 'SUPER_ADMIN']).default('ADMIN'),
+  password: strongPasswordSchema,
+  requirePasswordChange: z.boolean().default(false),
+});
+
+const managedAdminUpdateSchema = z.object({
+  firstName: z.string().trim().min(1).max(80).optional(),
+  lastName: z.string().trim().min(1).max(80).optional(),
+  email: z.string().email().transform((value) => value.toLowerCase()).optional(),
+  phone: z.string().trim().max(40).nullable().optional(),
+  role: z.enum(['ADMIN', 'SUPER_ADMIN']).optional(),
+  status: z.enum(['ACTIVE', 'BLOCKED']).optional(),
+}).refine((body) => Object.keys(body).length > 0, { message: 'At least one field is required' });
+
+const managedAdminPasswordSchema = z.object({
+  password: strongPasswordSchema,
+  requirePasswordChange: z.boolean().default(false),
+});
+
+const accountManagementQuerySchema = z.object({ search: z.string().trim().max(200).optional() });
+
+const finalActiveSuperAdminError = (reply: Parameters<typeof fail>[0]) =>
+  fail(reply, 409, {
+    code: 'FINAL_SUPER_ADMIN_REQUIRED',
+    message: 'The last active Super Admin cannot be demoted or suspended',
+  });
+
+const creationPolicyError = (reply: Parameters<typeof fail>[0], role: 'ADMIN' | 'SUPER_ADMIN') =>
+  role === 'SUPER_ADMIN' && !env.ALLOW_SUPER_ADMIN_CREATION
+    ? fail(reply, 403, {
+        code: 'SUPER_ADMIN_CREATION_DISABLED',
+        message: 'Creating or promoting another Super Admin requires explicit policy approval',
+      })
+    : null;
+
 export const adminRoutes: FastifyPluginAsync = async (app) => {
-  app.addHook('preHandler', authenticateAdmin);
+  app.addHook('preHandler', requireChangedAdminPassword);
 
   app.get('/users', async (request, reply) => {
     const query = z.object({ search: z.string().trim().max(200).optional() }).parse(request.query);
-    const users = await prisma.user.findMany({
+      const users = await prisma.user.findMany({
       where: {
+        role: 'CUSTOMER',
         deletedAt: null,
         ...(query.search
           ? {
@@ -91,13 +167,13 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     const existing = await prisma.user.findFirst({ where: { id: params.id, deletedAt: null } });
     if (!existing) return fail(reply, 404, { code: 'USER_NOT_FOUND', message: 'User not found' });
 
-    const isSelf = existing.id === request.authUser!.id;
-    if (isSelf && (body.role !== undefined || body.status !== undefined)) {
-      return fail(reply, 403, { code: 'SELF_PRIVILEGE_CHANGE_FORBIDDEN', message: 'Use a different administrator to change your role or account status' });
+    if (existing.role !== 'CUSTOMER' || body.role !== undefined || body.status !== undefined) {
+      return fail(reply, 403, {
+        code: 'SUPER_ADMIN_REQUIRED',
+        message: 'Administrator accounts can only be managed by a Super Admin',
+      });
     }
-    if (existing.role === 'SUPER_ADMIN' && request.authUser!.role !== 'SUPER_ADMIN' && (body.role !== undefined || body.status !== undefined)) {
-      return fail(reply, 403, { code: 'SUPER_ADMIN_PROTECTED', message: 'Only a super administrator may change this account access' });
-    }
+
     if (body.email && body.email !== existing.email) {
       const emailInUse = await prisma.user.findUnique({ where: { email: body.email }, select: { id: true } });
       if (emailInUse) return fail(reply, 409, { code: 'EMAIL_ALREADY_REGISTERED', message: 'Email is already registered' });
@@ -110,8 +186,6 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         ...(body.lastName !== undefined ? { lastName: body.lastName } : {}),
         ...(body.email !== undefined ? { email: body.email } : {}),
         ...(body.phone !== undefined ? { phone: body.phone } : {}),
-        ...(body.role !== undefined ? { role: body.role } : {}),
-        ...(body.status !== undefined ? { status: body.status } : {}),
       },
       include: { _count: { select: { orders: true } } },
     });
@@ -126,6 +200,180 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       },
     });
     return ok(reply, mapAdminUser(updated));
+  });
+
+  await app.register(async (superAdminApp) => {
+    superAdminApp.addHook('preHandler', authenticateSuperAdmin);
+
+    superAdminApp.get('/account-management', async (request, reply) => {
+      const query = accountManagementQuerySchema.parse(request.query);
+      const accounts = await prisma.user.findMany({
+        where: {
+          role: { in: ['ADMIN', 'SUPER_ADMIN'] },
+          deletedAt: null,
+          ...(query.search
+            ? {
+                OR: [
+                  { firstName: { contains: query.search, mode: 'insensitive' } },
+                  { lastName: { contains: query.search, mode: 'insensitive' } },
+                  { email: { contains: query.search, mode: 'insensitive' } },
+                ],
+              }
+            : {}),
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 250,
+      });
+
+      return ok(reply, accounts.map(mapManagedAdmin));
+    });
+
+    superAdminApp.post('/account-management', async (request, reply) => {
+      const body = managedAdminCreateSchema.parse(request.body);
+      const policyError = creationPolicyError(reply, body.role);
+      if (policyError) return policyError;
+
+      const existing = await prisma.user.findUnique({ where: { email: body.email }, select: { id: true } });
+      if (existing) return fail(reply, 409, { code: 'EMAIL_ALREADY_REGISTERED', message: 'Email is already registered' });
+
+      const passwordHash = await argon2.hash(body.password);
+      const created = await prisma.user.create({
+        data: {
+          firstName: body.firstName,
+          lastName: body.lastName,
+          email: body.email,
+          ...(body.phone ? { phone: body.phone } : {}),
+          passwordHash,
+          role: body.role,
+          status: 'ACTIVE',
+          mustChangePassword: body.requirePasswordChange,
+        },
+      });
+      const safeAccount = mapManagedAdmin(created);
+      await prisma.auditLog.create({
+        data: {
+          actorUserId: request.authUser!.id,
+          action: 'CREATE',
+          entityType: 'AdminAccount',
+          entityId: created.id,
+          after: safeAccount,
+        },
+      });
+
+      return ok(reply.status(201), safeAccount);
+    });
+
+    superAdminApp.patch('/account-management/:id', async (request, reply) => {
+      const params = z.object({ id: z.string().uuid() }).parse(request.params);
+      const body = managedAdminUpdateSchema.parse(request.body);
+      const existing = await prisma.user.findFirst({
+        where: { id: params.id, role: { in: ['ADMIN', 'SUPER_ADMIN'] }, deletedAt: null },
+      });
+      if (!existing) return fail(reply, 404, { code: 'ADMIN_ACCOUNT_NOT_FOUND', message: 'Admin account not found' });
+
+      const isSelf = existing.id === request.authUser!.id;
+      const policyError = body.role ? creationPolicyError(reply, body.role) : null;
+      if (policyError && body.role !== existing.role) return policyError;
+
+      const removesLastActiveSuperAdmin =
+        existing.role === 'SUPER_ADMIN'
+        && existing.status === 'ACTIVE'
+        && ((body.role !== undefined && body.role !== 'SUPER_ADMIN')
+          || (body.status !== undefined && body.status !== 'ACTIVE'));
+      if (removesLastActiveSuperAdmin) {
+        const activeSuperAdmins = await prisma.user.count({
+          where: { role: 'SUPER_ADMIN', status: 'ACTIVE', deletedAt: null },
+        });
+        if (activeSuperAdmins <= 1) return finalActiveSuperAdminError(reply);
+      }
+
+      if (isSelf && (body.role !== undefined || body.status !== undefined)) {
+        return fail(reply, 403, {
+          code: 'SELF_PRIVILEGE_CHANGE_FORBIDDEN',
+          message: 'Use a different Super Admin to change your role or account status',
+        });
+      }
+
+      if (body.email && body.email !== existing.email) {
+        const emailInUse = await prisma.user.findUnique({ where: { email: body.email }, select: { id: true } });
+        if (emailInUse) return fail(reply, 409, { code: 'EMAIL_ALREADY_REGISTERED', message: 'Email is already registered' });
+      }
+
+      const updated = await prisma.user.update({
+        where: { id: existing.id },
+        data: {
+          ...(body.firstName !== undefined ? { firstName: body.firstName } : {}),
+          ...(body.lastName !== undefined ? { lastName: body.lastName } : {}),
+          ...(body.email !== undefined ? { email: body.email } : {}),
+          ...(body.phone !== undefined ? { phone: body.phone } : {}),
+          ...(body.role !== undefined ? { role: body.role } : {}),
+          ...(body.status !== undefined ? { status: body.status } : {}),
+        },
+      });
+      if (body.status === 'BLOCKED' || body.role === 'ADMIN' && existing.role === 'SUPER_ADMIN') {
+        await revokeAllUserRefreshTokens(existing.id, body.status === 'BLOCKED' ? 'ACCOUNT_SUSPENDED' : 'ROLE_CHANGED');
+      }
+      const safeAccount = mapManagedAdmin(updated);
+      await prisma.auditLog.create({
+        data: {
+          actorUserId: request.authUser!.id,
+          action: body.role !== undefined ? 'ROLE_CHANGE' : body.status !== undefined ? 'STATUS_CHANGE' : 'UPDATE',
+          entityType: 'AdminAccount',
+          entityId: updated.id,
+          before: mapManagedAdmin(existing),
+          after: safeAccount,
+        },
+      });
+      return ok(reply, safeAccount);
+    });
+
+    superAdminApp.post('/account-management/:id/password', async (request, reply) => {
+      const params = z.object({ id: z.string().uuid() }).parse(request.params);
+      const body = managedAdminPasswordSchema.parse(request.body);
+      const existing = await prisma.user.findFirst({
+        where: { id: params.id, role: { in: ['ADMIN', 'SUPER_ADMIN'] }, deletedAt: null },
+      });
+      if (!existing) return fail(reply, 404, { code: 'ADMIN_ACCOUNT_NOT_FOUND', message: 'Admin account not found' });
+
+      const passwordHash = await argon2.hash(body.password);
+      const updated = await prisma.user.update({
+        where: { id: existing.id },
+        data: { passwordHash, mustChangePassword: body.requirePasswordChange },
+      });
+      await revokeAllUserRefreshTokens(existing.id, 'ADMIN_PASSWORD_RESET');
+      const safeAccount = mapManagedAdmin(updated);
+      await prisma.auditLog.create({
+        data: {
+          actorUserId: request.authUser!.id,
+          action: 'UPDATE',
+          entityType: 'AdminAccountPassword',
+          entityId: updated.id,
+          after: { accountId: updated.id, passwordReset: true, requirePasswordChange: updated.mustChangePassword },
+        },
+      });
+      return ok(reply, safeAccount);
+    });
+
+    superAdminApp.post('/account-management/:id/revoke-sessions', async (request, reply) => {
+      const params = z.object({ id: z.string().uuid() }).parse(request.params);
+      const target = await prisma.user.findFirst({
+        where: { id: params.id, role: { in: ['ADMIN', 'SUPER_ADMIN'] }, deletedAt: null },
+        select: { id: true },
+      });
+      if (!target) return fail(reply, 404, { code: 'ADMIN_ACCOUNT_NOT_FOUND', message: 'Admin account not found' });
+
+      await revokeAllUserRefreshTokens(target.id, 'ADMIN_SESSIONS_REVOKED');
+      await prisma.auditLog.create({
+        data: {
+          actorUserId: request.authUser!.id,
+          action: 'LOGOUT',
+          entityType: 'AdminAccount',
+          entityId: target.id,
+          after: { accountId: target.id, sessionsRevoked: true },
+        },
+      });
+      return ok(reply, { sessionsRevoked: true });
+    });
   });
 
   app.get('/dashboard', async (_request, reply) => {

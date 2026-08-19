@@ -10,6 +10,8 @@ DECLARE
   v_audio uuid;
   v_power_charging uuid;
   v_mobile_accessories uuid;
+  v_legacy_smartphones uuid;
+  v_unclassified record;
 BEGIN
   INSERT INTO "categories" ("id", "parent_id", "name", "slug", "sort_order", "updated_at")
   VALUES (gen_random_uuid(), NULL, 'Phones', 'phones', 1, CURRENT_TIMESTAMP)
@@ -119,6 +121,47 @@ BEGIN
     "parent_id" = EXCLUDED."parent_id",
     "sort_order" = EXCLUDED."sort_order",
     "updated_at" = CURRENT_TIMESTAMP;
+
+  UPDATE "categories"
+  SET "is_active" = true,
+      "updated_at" = CURRENT_TIMESTAMP
+  WHERE "slug" IN ('phones', 'iphone', 'android', 'smart-watches', 'gadgets', 'audio', 'power-charging', 'mobile-accessories');
+
+  -- Legacy Smartphones is kept as an inactive compatibility row. Product
+  -- rows are reassigned in place; no product, variant, image, or order row is
+  -- inserted or deleted by this procedure.
+  SELECT "id" INTO v_legacy_smartphones
+  FROM "categories"
+  WHERE "slug" = 'smartphones';
+
+  IF v_legacy_smartphones IS NOT NULL THEN
+    RAISE NOTICE 'Unclassified legacy Smartphones products will remain under Phones:';
+    FOR v_unclassified IN
+      SELECT "id", "slug", "name"
+      FROM "products"
+      WHERE "category_id" = v_legacy_smartphones
+        AND NOT (
+          COALESCE(NULLIF(BTRIM("specifications"->>'phoneType'), ''), NULLIF(BTRIM("specifications"->>'deviceType'), ''), NULLIF(BTRIM("specifications"->>'platform'), ''), NULLIF(BTRIM("specifications"->>'operatingSystem'), ''), NULLIF(BTRIM("specifications"->>'os'), ''), '') ~* '^(iphone|ios)([[:space:]-]|[0-9]|$)'
+          OR COALESCE(NULLIF(BTRIM("specifications"->>'phoneType'), ''), NULLIF(BTRIM("specifications"->>'deviceType'), ''), NULLIF(BTRIM("specifications"->>'platform'), ''), NULLIF(BTRIM("specifications"->>'operatingSystem'), ''), NULLIF(BTRIM("specifications"->>'os'), ''), '') ~* '^android([[:space:]-]|[0-9]|$)'
+        )
+      ORDER BY "slug"
+    LOOP
+      RAISE NOTICE 'Unclassified phone id=%, slug=%, name=%', v_unclassified."id", v_unclassified."slug", v_unclassified."name";
+    END LOOP;
+
+    UPDATE "products"
+    SET "category_id" = CASE
+      WHEN COALESCE(NULLIF(BTRIM("specifications"->>'phoneType'), ''), NULLIF(BTRIM("specifications"->>'deviceType'), ''), NULLIF(BTRIM("specifications"->>'platform'), ''), NULLIF(BTRIM("specifications"->>'operatingSystem'), ''), NULLIF(BTRIM("specifications"->>'os'), ''), '') ~* '^(iphone|ios)([[:space:]-]|[0-9]|$)' THEN v_iphone
+      WHEN COALESCE(NULLIF(BTRIM("specifications"->>'phoneType'), ''), NULLIF(BTRIM("specifications"->>'deviceType'), ''), NULLIF(BTRIM("specifications"->>'platform'), ''), NULLIF(BTRIM("specifications"->>'operatingSystem'), ''), NULLIF(BTRIM("specifications"->>'os'), ''), '') ~* '^android([[:space:]-]|[0-9]|$)' THEN v_android
+      ELSE v_phones
+    END
+    WHERE "category_id" = v_legacy_smartphones;
+
+    UPDATE "categories"
+    SET "is_active" = false,
+        "updated_at" = CURRENT_TIMESTAMP
+    WHERE "id" = v_legacy_smartphones;
+  END IF;
 END
 $$;
 

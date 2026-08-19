@@ -19,6 +19,9 @@ interface SessionUser {
   phone: string | null;
   role: string;
   createdAt?: Date;
+  status?: string;
+  lastLoginAt?: Date | null;
+  mustChangePassword?: boolean;
 }
 
 const cookieSettings = (realm: AuthRealm) => ({
