@@ -135,27 +135,59 @@ BEGIN
   WHERE "slug" = 'smartphones';
 
   IF v_legacy_smartphones IS NOT NULL THEN
-    RAISE NOTICE 'Unclassified legacy Smartphones products will remain under Phones:';
+    RAISE NOTICE 'Unclassified active legacy Smartphones products will remain under Phones:';
     FOR v_unclassified IN
-      SELECT "id", "slug", "name"
-      FROM "products"
-      WHERE "category_id" = v_legacy_smartphones
+      SELECT product."id", product."slug", product."name"
+      FROM "products" AS product
+      CROSS JOIN LATERAL (
+        SELECT COALESCE(
+          (
+            SELECT regexp_replace(lower(BTRIM(candidate."value")), '[[:space:]]+', ' ', 'g')
+            FROM (VALUES
+              (product."specifications"->>'phoneType'),
+              (product."specifications"->>'deviceType'),
+              (product."specifications"->>'platform'),
+              (product."specifications"->>'operatingSystem'),
+              (product."specifications"->>'os')
+            ) AS candidate("value")
+            WHERE NULLIF(BTRIM(candidate."value"), '') IS NOT NULL
+            LIMIT 1
+          ),
+          ''
+        ) AS "value"
+      ) AS structured
+      WHERE product."category_id" = v_legacy_smartphones
+        AND product."status" <> 'DISCARDED'
         AND NOT (
-          COALESCE(NULLIF(BTRIM("specifications"->>'phoneType'), ''), NULLIF(BTRIM("specifications"->>'deviceType'), ''), NULLIF(BTRIM("specifications"->>'platform'), ''), NULLIF(BTRIM("specifications"->>'operatingSystem'), ''), NULLIF(BTRIM("specifications"->>'os'), ''), '') ~* '^(iphone|ios)([[:space:]-]|[0-9]|$)'
-          OR COALESCE(NULLIF(BTRIM("specifications"->>'phoneType'), ''), NULLIF(BTRIM("specifications"->>'deviceType'), ''), NULLIF(BTRIM("specifications"->>'platform'), ''), NULLIF(BTRIM("specifications"->>'operatingSystem'), ''), NULLIF(BTRIM("specifications"->>'os'), ''), '') ~* '^android([[:space:]-]|[0-9]|$)'
+          structured."value" ~* '(^|[^[:alnum:]])(iphone|ios)([^[:alnum:]]|$)'
+          OR structured."value" ~* '(^|[^[:alnum:]])android([^[:alnum:]]|$)'
         )
-      ORDER BY "slug"
+      ORDER BY product."slug"
     LOOP
       RAISE NOTICE 'Unclassified phone id=%, slug=%, name=%', v_unclassified."id", v_unclassified."slug", v_unclassified."name";
     END LOOP;
 
-    UPDATE "products"
+    UPDATE "products" AS product
     SET "category_id" = CASE
-      WHEN COALESCE(NULLIF(BTRIM("specifications"->>'phoneType'), ''), NULLIF(BTRIM("specifications"->>'deviceType'), ''), NULLIF(BTRIM("specifications"->>'platform'), ''), NULLIF(BTRIM("specifications"->>'operatingSystem'), ''), NULLIF(BTRIM("specifications"->>'os'), ''), '') ~* '^(iphone|ios)([[:space:]-]|[0-9]|$)' THEN v_iphone
-      WHEN COALESCE(NULLIF(BTRIM("specifications"->>'phoneType'), ''), NULLIF(BTRIM("specifications"->>'deviceType'), ''), NULLIF(BTRIM("specifications"->>'platform'), ''), NULLIF(BTRIM("specifications"->>'operatingSystem'), ''), NULLIF(BTRIM("specifications"->>'os'), ''), '') ~* '^android([[:space:]-]|[0-9]|$)' THEN v_android
+      WHEN structured."value" ~* '(^|[^[:alnum:]])(iphone|ios)([^[:alnum:]]|$)' THEN v_iphone
+      WHEN structured."value" ~* '(^|[^[:alnum:]])android([^[:alnum:]]|$)' THEN v_android
       ELSE v_phones
     END
-    WHERE "category_id" = v_legacy_smartphones;
+    FROM "products" AS source
+    LEFT JOIN LATERAL (
+      SELECT regexp_replace(lower(BTRIM(candidate."value")), '[[:space:]]+', ' ', 'g') AS "value"
+      FROM (VALUES
+        (source."specifications"->>'phoneType'),
+        (source."specifications"->>'deviceType'),
+        (source."specifications"->>'platform'),
+        (source."specifications"->>'operatingSystem'),
+        (source."specifications"->>'os')
+      ) AS candidate("value")
+      WHERE NULLIF(BTRIM(candidate."value"), '') IS NOT NULL
+      LIMIT 1
+    ) AS structured ON TRUE
+    WHERE product."id" = source."id"
+      AND product."category_id" = v_legacy_smartphones;
 
     UPDATE "categories"
     SET "is_active" = false,

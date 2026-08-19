@@ -4,6 +4,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { PrismaClient } from '@prisma/client';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { migratePhoneCategoriesInTransaction } from './migrate-phone-categories.js';
 import { CATEGORY_HIERARCHY, seedCategories } from './seed-categories.js';
 
 const prisma = new PrismaClient();
@@ -12,8 +13,14 @@ const fixtureBrandSlug = `fixture-brand-${scope}`;
 const fixtureCategorySlugs = {
   smartphones: `smartphones-${scope}`,
   tablets: `tablets-${scope}`,
-  legacy: `legacy-${scope}`,
+  legacy: 'smartphones',
 };
+const phoneFixtureSlugs = [
+  `fixture-iphone-${scope}`,
+  `fixture-android-${scope}`,
+  `fixture-magicos-${scope}`,
+  `fixture-discarded-${scope}`,
+];
 const targetSlugs = CATEGORY_HIERARCHY.map(({ slug }) => slug);
 const sql = readFileSync(new URL('./production-category-hierarchy.sql', import.meta.url), 'utf8');
 
@@ -38,6 +45,24 @@ const entityCounts = async () => ({
 const productAssignments = async () => prisma.product.findMany({
   where: { slug: { contains: scope } },
   select: { slug: true, categoryId: true },
+  orderBy: { slug: 'asc' },
+});
+
+const productCategorySlugs = async () => prisma.product.findMany({
+  where: { slug: { contains: scope } },
+  select: { slug: true, status: true, category: { select: { slug: true } } },
+  orderBy: { slug: 'asc' },
+});
+
+const productSnapshots = async () => prisma.product.findMany({
+  where: { slug: { contains: scope } },
+  select: {
+    id: true,
+    slug: true,
+    status: true,
+    specifications: true,
+    variants: { select: { id: true, sku: true, stockQuantity: true, priceAmount: true } },
+  },
   orderBy: { slug: 'asc' },
 });
 
@@ -106,22 +131,54 @@ describe('production category SQL equivalence and idempotency', () => {
   let existingCategoryIds: Array<{ slug: string; id: string; parentId: string | null }>;
   let beforeCounts: Awaited<ReturnType<typeof entityCounts>>;
   let beforeAssignments: Awaited<ReturnType<typeof productAssignments>>;
+  let legacyCategoryId: string;
 
   beforeAll(async () => {
     const brand = await prisma.brand.create({ data: { name: `Fixture Brand ${scope}`, slug: fixtureBrandSlug } });
-    const smartphones = await prisma.category.create({ data: { name: 'Smartphones', slug: fixtureCategorySlugs.smartphones } });
+    await prisma.category.create({ data: { name: 'Smartphones', slug: fixtureCategorySlugs.smartphones } });
     const tablets = await prisma.category.create({ data: { name: 'Tablets', slug: fixtureCategorySlugs.tablets } });
-    await prisma.category.create({ data: { name: 'Legacy Category', slug: fixtureCategorySlugs.legacy } });
+    const legacy = await prisma.category.create({ data: { name: 'Smartphones', slug: fixtureCategorySlugs.legacy } });
+    legacyCategoryId = legacy.id;
 
     await prisma.product.createMany({
-      data: Array.from({ length: 14 }, (_, index) => ({
-        name: `Fixture Smartphone ${index}`,
-        slug: `fixture-smartphone-${scope}-${index}`,
-        description: 'Disposable category SQL fixture',
-        status: 'ACTIVE' as const,
-        brandId: brand.id,
-        categoryId: smartphones.id,
-      })),
+      data: [
+        {
+          name: 'Fixture iPhone',
+          slug: `fixture-iphone-${scope}`,
+          description: 'Disposable category SQL fixture',
+          status: 'ACTIVE' as const,
+          brandId: brand.id,
+          categoryId: legacy.id,
+          specifications: { os: 'iOS 18' },
+        },
+        {
+          name: 'Fixture Android',
+          slug: `fixture-android-${scope}`,
+          description: 'Disposable category SQL fixture',
+          status: 'ACTIVE' as const,
+          brandId: brand.id,
+          categoryId: legacy.id,
+          specifications: { platform: 'ANDROID 15' },
+        },
+        {
+          name: 'Fixture MagicOS Android',
+          slug: `fixture-magicos-${scope}`,
+          description: 'Disposable category SQL fixture',
+          status: 'ACTIVE' as const,
+          brandId: brand.id,
+          categoryId: legacy.id,
+          specifications: { os: 'MagicOS 9.0 based on Android 15' },
+        },
+        {
+          name: 'Fixture Discarded Unclassified',
+          slug: `fixture-discarded-${scope}`,
+          description: 'Discarded category SQL fixture',
+          status: 'DISCARDED' as const,
+          brandId: brand.id,
+          categoryId: legacy.id,
+          specifications: { display: '6.5-inch' },
+        },
+      ],
     });
     await prisma.product.create({
       data: {
@@ -160,28 +217,42 @@ describe('production category SQL equivalence and idempotency', () => {
 
   it('matches the Prisma utility, preserves fixtures, and is idempotent', async () => {
     await prisma.$transaction((transaction) => seedCategories(transaction));
-    const prismaShapes = await categoryShapes(targetSlugs);
+    const seededShapes = await categoryShapes(targetSlugs);
     const afterPrismaAssignments = await productAssignments();
     const afterPrismaCounts = await entityCounts();
     const afterPrismaExistingIds = await categoryIdentity(Object.values(fixtureCategorySlugs));
 
-    expect(prismaShapes).toHaveLength(CATEGORY_HIERARCHY.length);
+    expect(seededShapes).toHaveLength(CATEGORY_HIERARCHY.length);
     expect(afterPrismaAssignments).toEqual(beforeAssignments);
     expect(afterPrismaCounts).toEqual(beforeCounts);
     expect(afterPrismaExistingIds).toEqual(existingCategoryIds);
 
+    const prismaReport = await prisma.$transaction((transaction) => migratePhoneCategoriesInTransaction(transaction));
+    const prismaShapes = await categoryShapes(targetSlugs);
+    const prismaAssignments = await productCategorySlugs();
+    const prismaSnapshots = await productSnapshots();
+    expect(prismaReport).toMatchObject({ legacyProductsFound: 4, migratedToIPhone: 1, migratedToAndroid: 2, migratedToPhones: 1, unclassifiedPhones: [] });
+    expect(prismaReport.discardedUnclassifiedPhones).toHaveLength(1);
+    expect(prismaSnapshots).toEqual(expect.arrayContaining([
+      expect.objectContaining({ slug: `fixture-discarded-${scope}`, status: 'DISCARDED' }),
+    ]));
+
+    await prisma.product.updateMany({ where: { slug: { in: phoneFixtureSlugs } }, data: { categoryId: legacyCategoryId } });
+    await prisma.category.update({ where: { id: legacyCategoryId }, data: { isActive: true } });
     await removeTargetCategories();
     expect(await categoryShapes(targetSlugs)).toEqual([]);
 
     runExactSqlFile();
     const sqlShapes = await categoryShapes(targetSlugs);
     const sqlFirstIdentity = await categoryIdentity(targetSlugs);
-    const afterSqlAssignments = await productAssignments();
+    const afterSqlAssignments = await productCategorySlugs();
+    const afterSqlSnapshots = await productSnapshots();
     const afterSqlCounts = await entityCounts();
     const afterSqlExistingIds = await categoryIdentity(Object.values(fixtureCategorySlugs));
 
     expect(sqlShapes).toEqual(prismaShapes);
-    expect(afterSqlAssignments).toEqual(beforeAssignments);
+    expect(afterSqlAssignments).toEqual(prismaAssignments);
+    expect(afterSqlSnapshots).toEqual(prismaSnapshots);
     expect(afterSqlCounts).toEqual(beforeCounts);
     expect(afterSqlExistingIds).toEqual(existingCategoryIds);
 
@@ -191,7 +262,8 @@ describe('production category SQL equivalence and idempotency', () => {
 
     expect(sqlSecondIdentity).toEqual(sqlFirstIdentity);
     expect(sqlSecondShapes).toEqual(sqlShapes);
-    expect(await productAssignments()).toEqual(beforeAssignments);
+    expect(await productCategorySlugs()).toEqual(prismaAssignments);
+    expect(await productSnapshots()).toEqual(prismaSnapshots);
     expect(await entityCounts()).toEqual(beforeCounts);
   }, 60_000);
 });

@@ -47,14 +47,26 @@ describe('phone category migration against disposable PostgreSQL', () => {
       }),
       prisma.product.create({
         data: {
-          name: `Unclassified fixture ${scope}`,
-          slug: `unclassified-${scope}`,
-          description: 'Must remain under the Phones root until manually classified',
+          name: `MagicOS fixture ${scope}`,
+          slug: `magicos-${scope}`,
+          description: 'Structured Android-based MagicOS migration fixture',
           status: 'ACTIVE',
           brandId,
           categoryId: legacyCategoryId,
+          specifications: { os: 'MagicOS 9.0 based on Android 15' },
+          variants: { create: { sku: `SKU-MAGICOS-${scope}`, title: 'Green', priceAmount: 300, stockQuantity: 11 } },
+        },
+      }),
+      prisma.product.create({
+        data: {
+          name: `Discarded unclassified fixture ${scope}`,
+          slug: `discarded-unclassified-${scope}`,
+          description: 'Discarded test residue without a structured phone subtype',
+          status: 'DISCARDED',
+          brandId,
+          categoryId: legacyCategoryId,
           specifications: { display: '6.5-inch' },
-          variants: { create: { sku: `SKU-UNKNOWN-${scope}`, title: 'Default', priceAmount: 300, stockQuantity: 11 } },
+          variants: { create: { sku: `SKU-DISCARDED-${scope}`, title: 'Default', priceAmount: 400, stockQuantity: 11 } },
         },
       }),
     ]);
@@ -84,14 +96,17 @@ describe('phone category migration against disposable PostgreSQL', () => {
       orderBy: { slug: 'asc' },
     });
 
-    expect(first).toMatchObject({ legacyCategoryFound: true, legacyProductsFound: 3, migratedToIPhone: 1, migratedToAndroid: 1, migratedToPhones: 1, productCountBefore: first.productCountAfter });
-    expect(first.unclassifiedPhones).toEqual([{ id: expect.any(String), slug: `unclassified-${scope}`, name: `Unclassified fixture ${scope}` }]);
+    expect(first).toMatchObject({ legacyCategoryFound: true, legacyProductsFound: 4, migratedToIPhone: 1, migratedToAndroid: 2, migratedToPhones: 1, productCountBefore: first.productCountAfter });
+    expect(first.unclassifiedPhones).toEqual([]);
+    expect(first.discardedUnclassifiedPhones).toEqual([{ id: expect.any(String), slug: `discarded-unclassified-${scope}`, name: `Discarded unclassified fixture ${scope}` }]);
     expect(after.map((product) => product.id)).toEqual(before.map((product) => product.id));
-    expect(after.map((product) => product.category.slug)).toEqual(['android', 'iphone', 'phones']);
+    expect(after.map((product) => product.category.slug)).toEqual(['android', 'phones', 'iphone', 'android']);
     expect(after.flatMap((product) => product.variants)).toEqual(before.flatMap((product) => product.variants));
+    expect(after.find((product) => product.slug === `discarded-unclassified-${scope}`)).toMatchObject({ category: { slug: 'phones' } });
+    expect(await prisma.product.findUnique({ where: { slug: `discarded-unclassified-${scope}` }, select: { status: true } })).toEqual({ status: 'DISCARDED' });
     expect(await prisma.category.findUnique({ where: { id: legacyCategoryId }, select: { isActive: true } })).toEqual({ isActive: false });
 
     const second = await prisma.$transaction((transaction) => migratePhoneCategoriesInTransaction(transaction));
-    expect(second).toMatchObject({ legacyProductsFound: 0, migratedToIPhone: 0, migratedToAndroid: 0, migratedToPhones: 0, productCountBefore: first.productCountAfter, productCountAfter: first.productCountAfter });
+    expect(second).toMatchObject({ legacyProductsFound: 0, migratedToIPhone: 0, migratedToAndroid: 0, migratedToPhones: 0, unclassifiedPhones: [], discardedUnclassifiedPhones: [], productCountBefore: first.productCountAfter, productCountAfter: first.productCountAfter });
   }, 60_000);
 });

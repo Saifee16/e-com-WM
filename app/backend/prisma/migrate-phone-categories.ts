@@ -15,17 +15,20 @@ export type PhoneCategoryMigrationReport = {
   migratedToAndroid: number;
   migratedToPhones: number;
   unclassifiedPhones: UnclassifiedPhone[];
+  discardedUnclassifiedPhones: UnclassifiedPhone[];
   productCountBefore: number;
   productCountAfter: number;
 };
 
 type PhoneCategoryTransaction = Prisma.TransactionClient;
 
+const normalizeStructuredPhoneType = (value: string) => value.normalize('NFKC').trim().replace(/\s+/gu, ' ').toLowerCase();
+
 const structuredPhoneType = (specifications: unknown) => {
   if (!specifications || typeof specifications !== 'object' || Array.isArray(specifications)) return null;
   const values = specifications as Record<string, unknown>;
   for (const key of ['phoneType', 'deviceType', 'platform', 'operatingSystem', 'os']) {
-    if (typeof values[key] === 'string' && values[key].trim()) return values[key].trim().toLowerCase();
+    if (typeof values[key] === 'string' && values[key].trim()) return normalizeStructuredPhoneType(values[key]);
   }
   return null;
 };
@@ -34,8 +37,8 @@ export const classifyLegacyPhone = (specifications: unknown): 'iphone' | 'androi
   const value = structuredPhoneType(specifications);
   if (!value) return null;
 
-  if (/^(iphone|ios)(?:[\s-]|\d|$)/.test(value)) return 'iphone';
-  if (/^android(?:[\s-]|\d|$)/.test(value)) return 'android';
+  if (/\b(?:iphone|ios)\b/u.test(value)) return 'iphone';
+  if (/\bandroid\b/u.test(value)) return 'android';
   return null;
 };
 
@@ -62,7 +65,7 @@ export const migratePhoneCategoriesInTransaction = async (
   const legacyProducts = legacy
     ? await transaction.product.findMany({
         where: { categoryId: legacy.id },
-        select: { id: true, slug: true, name: true, specifications: true },
+        select: { id: true, slug: true, name: true, specifications: true, status: true },
         orderBy: { slug: 'asc' },
       })
     : [];
@@ -70,8 +73,12 @@ export const migratePhoneCategoriesInTransaction = async (
   const iphoneProducts = legacyProducts.filter((product) => classifyLegacyPhone(product.specifications) === 'iphone');
   const androidProducts = legacyProducts.filter((product) => classifyLegacyPhone(product.specifications) === 'android');
   const classifiedIds = new Set([...iphoneProducts, ...androidProducts].map((product) => product.id));
-  const unclassifiedPhones = legacyProducts
-    .filter((product) => !classifiedIds.has(product.id))
+  const unclassifiedProducts = legacyProducts.filter((product) => !classifiedIds.has(product.id));
+  const unclassifiedPhones = unclassifiedProducts
+    .filter((product) => product.status !== 'DISCARDED')
+    .map(({ id, slug, name }) => ({ id, slug, name }));
+  const discardedUnclassifiedPhones = unclassifiedProducts
+    .filter((product) => product.status === 'DISCARDED')
     .map(({ id, slug, name }) => ({ id, slug, name }));
 
   if (iphoneProducts.length) {
@@ -86,9 +93,9 @@ export const migratePhoneCategoriesInTransaction = async (
       data: { categoryId: android.id },
     });
   }
-  if (unclassifiedPhones.length) {
+  if (unclassifiedProducts.length) {
     await transaction.product.updateMany({
-      where: { id: { in: unclassifiedPhones.map((product) => product.id) } },
+      where: { id: { in: unclassifiedProducts.map((product) => product.id) } },
       data: { categoryId: phones.id },
     });
   }
@@ -103,8 +110,9 @@ export const migratePhoneCategoriesInTransaction = async (
     legacyProductsFound: legacyProducts.length,
     migratedToIPhone: iphoneProducts.length,
     migratedToAndroid: androidProducts.length,
-    migratedToPhones: unclassifiedPhones.length,
+    migratedToPhones: unclassifiedProducts.length,
     unclassifiedPhones,
+    discardedUnclassifiedPhones,
     productCountBefore,
     productCountAfter: await transaction.product.count(),
   };
