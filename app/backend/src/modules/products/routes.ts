@@ -9,6 +9,7 @@ import { env } from '../../config/env.js';
 import { fail, ok } from '../../utils/responses.js';
 import { authenticateCustomer, requireChangedAdminPassword } from '../auth/session.js';
 import { MAX_PRODUCT_IMAGES, deleteOwnedProductImageUrls, saveProductImages } from './image-upload.js';
+import { mapPublicBrands } from './public-brands.js';
 
 const slugify = (value: string) =>
   value
@@ -518,13 +519,7 @@ export const productRoutes: FastifyPluginAsync = async (app) => {
 
     return ok(
       reply,
-      brands.map((brand) => ({
-        id: brand.id,
-        name: brand.name,
-        slug: brand.slug,
-        logoUrl: brand.logoUrl,
-        productCount: brand._count.products,
-      })),
+      mapPublicBrands(brands),
     );
   });
 
