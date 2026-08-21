@@ -1,0 +1,113 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  CI: 'true'
+  NODE_ENV: test
+  API_BASE_URL: http://127.0.0.1:4000
+  FRONTEND_URL: http://127.0.0.1:5173
+  VITE_API_BASE_URL: http://127.0.0.1:4000/api
+  POSTGRES_USER: ci_user
+  POSTGRES_PASSWORD: ci_only_postgres_password
+  POSTGRES_DB: ecommerce_ci
+  DATABASE_URL: postgresql://ci_user:ci_only_postgres_password@127.0.0.1:15432/ecommerce_ci?schema=public
+  REDIS_URL: redis://127.0.0.1:16379
+  JWT_ACCESS_SECRET: ci_only_access_secret_not_for_any_environment
+  JWT_REFRESH_SECRET: ci_only_refresh_secret_not_for_any_environment
+  COOKIE_SECURE: 'false'
+  COOKIE_SAME_SITE: lax
+  TRUST_PROXY_HOPS: '0'
+  EMAIL_FROM: ci@example.com
+  SUPPORT_EMAIL: ci@example.com
+  PRODUCT_IMAGE_STORAGE: local
+  COMPOSE_PROJECT_NAME: wahab-mobiles-ci-${{ github.run_id }}
+
+jobs:
+  verify:
+    name: Release verification
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.19.0
+          cache: npm
+          cache-dependency-path: |
+            app/package-lock.json
+            app/backend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: app
+        run: npm ci
+
+      - name: Install backend dependencies
+        working-directory: app/backend
+        run: npm ci
+
+      - name: Start disposable PostgreSQL and Redis
+        run: |
+          docker compose -p "$COMPOSE_PROJECT_NAME" -f app/docker-compose.yml down --volumes --remove-orphans
+          docker compose -p "$COMPOSE_PROJECT_NAME" -f app/docker-compose.yml up -d --wait --wait-timeout 60 postgres redis
+
+      - name: Generate Prisma client
+        working-directory: app/backend
+        run: npm run db:generate
+
+      - name: Validate Prisma schema
+        working-directory: app/backend
+        run: npx prisma validate
+
+      - name: Apply migrations to empty PostgreSQL
+        working-directory: app/backend
+        run: npm run db:deploy
+
+      - name: Verify migration count
+        working-directory: app/backend
+        run: |
+          actual=$(find prisma/migrations -mindepth 1 -maxdepth 1 -type d | wc -l)
+          test "$actual" -eq 12
+
+      - name: Lint backend
+        working-directory: app
+        run: npm run lint:backend
+
+      - name: Build backend
+        working-directory: app
+        run: npm run build:backend
+
+      - name: Test backend
+        working-directory: app
+        run: npm run test:backend
+
+      - name: Lint frontend
+        working-directory: app
+        run: npm run lint:frontend
+
+      - name: Test frontend
+        working-directory: app
+        run: npm run test:frontend
+
+      - name: Build frontend
+        working-directory: app
+        run: npm run build:frontend
+
+      - name: Stop disposable services
+        if: ${{ always() }}
+        run: docker compose -p "$COMPOSE_PROJECT_NAME" -f app/docker-compose.yml down --volumes --remove-orphans
