@@ -114,13 +114,27 @@ const envSchema = z.object({
   if (value.NODE_ENV === 'production' && apiUrl.protocol !== 'https:' && !localHttpApi) {
     context.addIssue({ code: 'custom', path: ['API_BASE_URL'], message: 'API_BASE_URL must use HTTPS in production' });
   }
+
+  const effectiveProductImageStorage = value.PRODUCT_IMAGE_STORAGE
+    ?? (value.NODE_ENV === 'production' ? 'cloudinary' : 'local');
+  if (effectiveProductImageStorage === 'cloudinary') {
+    for (const key of ['CLOUDINARY_CLOUD_NAME', 'CLOUDINARY_API_KEY', 'CLOUDINARY_API_SECRET'] as const) {
+      if (!value[key]) {
+        context.addIssue({ code: 'custom', path: [key], message: `${key} is required when product image storage is cloudinary` });
+      }
+    }
+  }
 });
 
-const parsed = envSchema.safeParse(process.env);
+export const parseEnv = (source: Record<string, string | undefined>) => {
+  const parsed = envSchema.safeParse(source);
 
-if (!parsed.success) {
-  const details = parsed.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`).join('; ');
-  throw new Error(`Invalid backend environment: ${details}`);
-}
+  if (!parsed.success) {
+    const details = parsed.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`).join('; ');
+    throw new Error(`Invalid backend environment: ${details}`);
+  }
 
-export const env = parsed.data;
+  return parsed.data;
+};
+
+export const env = parseEnv(process.env);

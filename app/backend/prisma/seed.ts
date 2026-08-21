@@ -1,5 +1,6 @@
 import argon2 from 'argon2';
 import { PrismaClient, ProductStatus, PromoType, UserRole } from '@prisma/client';
+import { assertDemoSeedAllowed } from './demo-seed-guard.js';
 
 const prisma = new PrismaClient();
 
@@ -21,6 +22,8 @@ const products = [
 const titleCase = (value: string) => `${value.charAt(0).toUpperCase()}${value.slice(1)}`;
 
 async function main() {
+  assertDemoSeedAllowed();
+
   const adminPassword = await argon2.hash('Admin123!Local');
   const customerPassword = await argon2.hash('Customer123!Local');
 
