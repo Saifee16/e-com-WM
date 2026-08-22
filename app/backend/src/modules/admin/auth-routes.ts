@@ -9,9 +9,14 @@ import { exchangeFacebookUser, getFacebookAuthUrl } from '../auth/facebook.js';
 import { authenticateAdmin, toSafeUser } from '../auth/session.js';
 import { revokeAllUserRefreshTokens, revokeRefreshFamily, rotateRefreshToken } from '../auth/refresh.js';
 import { env } from '../../config/env.js';
+import {
+  loginAbuseStore,
+  normalizeLoginIdentifier,
+  type LoginAbuseDecision,
+} from '../auth/login-abuse.js';
 
 const loginSchema = z.object({
-  email: z.string().email().transform((value) => value.toLowerCase()),
+  email: z.string().trim().email().transform(normalizeLoginIdentifier),
   password: z.string().min(1),
 });
 
@@ -34,6 +39,16 @@ const googleCallbackSchema = z.object({
 });
 const emptyBodySchema = z.undefined();
 
+const failThrottledLogin = (reply: Parameters<typeof fail>[0], decision: LoginAbuseDecision) => {
+  if (decision.retryAfterSeconds > 0) {
+    reply.header('Retry-After', String(decision.retryAfterSeconds));
+  }
+  return fail(reply, 429, {
+    code: 'LOGIN_TEMPORARILY_THROTTLED',
+    message: 'Too many login attempts. Try again later.',
+  });
+};
+
 export const adminAuthRoutes: FastifyPluginAsync = async (app) => {
   app.post('/login', {
     config: {
@@ -44,6 +59,9 @@ export const adminAuthRoutes: FastifyPluginAsync = async (app) => {
     },
   }, async (request, reply) => {
     const body = loginSchema.parse(request.body);
+    const throttle = await loginAbuseStore.check('admin', body.email);
+    if (throttle.blocked) return failThrottledLogin(reply, throttle);
+
     const user = await prisma.user.findFirst({
       where: {
         email: body.email,
@@ -54,6 +72,9 @@ export const adminAuthRoutes: FastifyPluginAsync = async (app) => {
     });
 
     if (!user || !(await argon2.verify(user.passwordHash, body.password))) {
+      const failure = await loginAbuseStore.recordFailure('admin', body.email);
+      if (failure.blocked) return failThrottledLogin(reply, failure);
+
       return fail(reply, 401, {
         code: 'INVALID_CREDENTIALS',
         message: 'Invalid email or password',
@@ -64,6 +85,7 @@ export const adminAuthRoutes: FastifyPluginAsync = async (app) => {
       where: { id: user.id },
       data: { lastLoginAt: new Date() },
     });
+    await loginAbuseStore.clear('admin', body.email);
 
     return reply.send(await issueAuthSession(user, request, reply, 'admin'));
   });

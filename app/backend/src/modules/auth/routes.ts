@@ -12,16 +12,21 @@ import { authenticateCustomer, toSafeUser } from './session.js';
 import { sendPasswordResetEmail } from './mailer.js';
 import { revokeRefreshFamily, rotateRefreshToken } from './refresh.js';
 import { issueCsrfToken } from '../../plugins/csrf.js';
+import {
+  loginAbuseStore,
+  normalizeLoginIdentifier,
+  type LoginAbuseDecision,
+} from './login-abuse.js';
 
 const loginSchema = z.object({
-  email: z.string().email().transform((value) => value.toLowerCase()),
+  email: z.string().trim().email().transform(normalizeLoginIdentifier),
   password: z.string().min(1),
 });
 
 const registerSchema = z.object({
   firstName: z.string().trim().min(1).max(80),
   lastName: z.string().trim().min(1).max(80),
-  email: z.string().email().transform((value) => value.toLowerCase()),
+  email: z.string().trim().email().transform(normalizeLoginIdentifier),
   password: z.string().min(8).max(200),
   phone: z.string().trim().max(40).optional(),
 });
@@ -43,7 +48,7 @@ const googleCallbackSchema = z.object({
 });
 
 const passwordResetRequestSchema = z.object({
-  email: z.string().email().transform((value) => value.toLowerCase()),
+  email: z.string().trim().email().transform(normalizeLoginIdentifier),
 });
 
 const passwordResetConsumeSchema = z.object({
@@ -53,6 +58,16 @@ const passwordResetConsumeSchema = z.object({
 const emptyBodySchema = z.undefined();
 
 const hashOpaqueToken = (token: string) => createHash('sha256').update(token).digest('hex');
+
+const failThrottledLogin = (reply: Parameters<typeof fail>[0], decision: LoginAbuseDecision) => {
+  if (decision.retryAfterSeconds > 0) {
+    reply.header('Retry-After', String(decision.retryAfterSeconds));
+  }
+  return fail(reply, 429, {
+    code: 'LOGIN_TEMPORARILY_THROTTLED',
+    message: 'Too many login attempts. Try again later.',
+  });
+};
 
 export const authRoutes: FastifyPluginAsync = async (app) => {
   app.get('/csrf', async (_request, reply) => {
@@ -68,6 +83,9 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     },
   }, async (request, reply) => {
     const body = loginSchema.parse(request.body);
+    const throttle = await loginAbuseStore.check('customer', body.email);
+    if (throttle.blocked) return failThrottledLogin(reply, throttle);
+
     const user = await prisma.user.findFirst({
       where: {
         email: body.email,
@@ -78,6 +96,9 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     });
 
     if (!user || !(await argon2.verify(user.passwordHash, body.password))) {
+      const failure = await loginAbuseStore.recordFailure('customer', body.email);
+      if (failure.blocked) return failThrottledLogin(reply, failure);
+
       return fail(reply, 401, {
         code: 'INVALID_CREDENTIALS',
         message: 'Invalid email or password',
@@ -88,6 +109,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
       where: { id: user.id },
       data: { lastLoginAt: new Date() },
     });
+    await loginAbuseStore.clear('customer', body.email);
 
     return reply.send(await issueAuthSession(user, request, reply, 'customer'));
   });

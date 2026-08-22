@@ -184,12 +184,27 @@ describe('customer and admin auth realms', () => {
     const payload = { email: 'nobody@example.com', password: 'WrongPassword123!' };
 
     for (let attempt = 0; attempt < env.RATE_LIMIT_LOGIN_MAX; attempt += 1) {
-      const response = await app.inject({ method: 'POST', url: '/api/auth/login', headers: { 'x-forwarded-for': lockedClient }, payload });
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/auth/login',
+        headers: { 'x-forwarded-for': lockedClient },
+        payload: { ...payload, email: `nobody-${attempt}@example.com` },
+      });
       expect(response.statusCode).toBe(401);
     }
 
-    expect((await app.inject({ method: 'POST', url: '/api/auth/login', headers: { 'x-forwarded-for': lockedClient }, payload })).statusCode).toBe(429);
-    expect((await app.inject({ method: 'POST', url: '/api/auth/login', headers: { 'x-forwarded-for': otherClient }, payload })).statusCode).toBe(401);
+    expect((await app.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      headers: { 'x-forwarded-for': lockedClient },
+      payload: { ...payload, email: 'nobody-after-ip-limit@example.com' },
+    })).statusCode).toBe(429);
+    expect((await app.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      headers: { 'x-forwarded-for': otherClient },
+      payload: { ...payload, email: 'nobody-other-ip@example.com' },
+    })).statusCode).toBe(401);
   });
 
   it('limits password-reset abuse by IP and by account without revealing either result', async () => {
