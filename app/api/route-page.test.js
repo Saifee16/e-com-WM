@@ -95,7 +95,7 @@ describe('raw route metadata', () => {
 
     const result = await invoke({
       url: 'https://wahabmobiles.com/phones/samsung',
-      query: { route: 'category', root: 'phones', slug: 'samsung' },
+      query: { route: 'category', root: 'phones', slug: 'samsung', categorySlug: 'samsung' },
     });
 
     expect(result.statusCode).toBe(200);
@@ -138,6 +138,84 @@ describe('raw route metadata', () => {
     expect(result.body).toContain('name="robots" content="noindex,follow"');
     expect(result.body).toContain('rel="canonical" href="https://wahabmobiles.com/phones"');
   });
+  it('keeps every sitemap-eligible landing indexable and every listed static page coherent', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (input) => {
+      if (String(input).endsWith('/index.html')) return { ok: true, text: async () => shell };
+      if (String(input).endsWith('/categories')) {
+        return {
+          ok: true,
+          json: async () => ({
+            data: [{
+              slug: 'phones',
+              name: 'Phones',
+              isActive: true,
+              children: [
+                { slug: 'iphone', name: 'iPhone', isActive: true },
+                { slug: 'android', name: 'Android Phones', isActive: true },
+              ],
+            }],
+          }),
+        };
+      }
+      return {
+        ok: true,
+        json: async () => ({
+          data: {
+            items: [
+              { brandSlug: 'samsung' },
+              { brandSlug: 'xiaomi-mi' },
+              { brandSlug: 'realme' },
+              { brandSlug: 'honor' },
+              { brandSlug: 'tecno' },
+            ],
+            pagination: { total: 5 },
+          },
+        }),
+      };
+    }));
+
+    for (const slug of ['iphone', 'android', 'samsung', 'xiaomi', 'realme', 'honor', 'tecno', 'under-30000', 'under-50000', 'under-100000']) {
+      const result = await invoke({
+        url: `https://wahabmobiles.com/phones/${slug}`,
+        query: { route: 'category', root: 'phones', slug, categorySlug: slug },
+      });
+      expect(result.statusCode).toBe(200);
+      expect(result.body).not.toContain('name="robots" content="noindex,follow"');
+      expect(result.body).toContain(`rel="canonical" href="https://wahabmobiles.com/phones/${slug}"`);
+    }
+
+    for (const slug of ['about', 'services', 'support', 'returns', 'privacy', 'terms', 'data-deletion']) {
+      const result = await invoke({
+        url: `https://wahabmobiles.com/${slug}`,
+        query: { route: 'static', slug },
+      });
+      expect(result.statusCode).toBe(200);
+      expect(result.body).toContain('name="robots" content="index,follow"');
+      expect(result.body).toContain(`rel="canonical" href="https://wahabmobiles.com/${slug}"`);
+    }
+  });
+
+  it('keeps an ineligible price landing noindex and out of the index contract', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (input) => {
+      if (String(input).endsWith('/index.html')) return { ok: true, text: async () => shell };
+      return {
+        ok: true,
+        json: async () => ({
+          data: {
+            items: [{ brandSlug: 'samsung' }, { brandSlug: 'xiaomi-mi' }, { brandSlug: 'realme' }, { brandSlug: 'honor' }],
+            pagination: { total: 4 },
+          },
+        }),
+      };
+    }));
+
+    const result = await invoke({
+      url: 'https://wahabmobiles.com/phones/under-30000',
+      query: { route: 'category', root: 'phones', slug: 'under-30000', categorySlug: 'under-30000' },
+    });
+
+    expect(result.body).toContain('name="robots" content="noindex,follow"');
+  });
 });
 
 describe('Vercel route policy', () => {
@@ -149,5 +227,8 @@ describe('Vercel route policy', () => {
     expect(config.rewrites).toContainEqual({ source: '/search', destination: '/api/route-page?route=search' });
     expect(config.rewrites).toContainEqual({ source: '/phones', destination: '/api/route-page?route=category&root=phones&slug=phones' });
     expect(config.rewrites).toContainEqual({ source: '/tablets', destination: '/api/route-page?route=category&root=tablets&slug=tablets' });
+    for (const slug of ['about', 'services', 'support', 'returns', 'privacy', 'terms', 'data-deletion']) {
+      expect(config.rewrites).toContainEqual({ source: `/${slug}`, destination: `/api/route-page?route=static&slug=${slug}` });
+    }
   });
 });
