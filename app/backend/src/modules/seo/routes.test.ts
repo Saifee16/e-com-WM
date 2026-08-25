@@ -86,4 +86,23 @@ describe('seo sitemap route', () => {
     expect(xml).not.toContain('/account');
     expect(reply.type).toHaveBeenCalledWith('application/xml; charset=utf-8');
   });
+  it('omits a price landing when its current inventory falls below the configured threshold', async () => {
+    mocks.productFindMany.mockResolvedValue([
+      phone('low-samsung', 'samsung', 20_000),
+      phone('low-xiaomi', 'xiaomi-mi', 22_000),
+      phone('low-realme', 'realme', 24_000),
+      phone('low-honor', 'honor', 26_000),
+    ]);
+
+    const handler = await registerRoute();
+    const reply: Record<string, unknown> = {};
+    reply.type = vi.fn(() => reply);
+    reply.header = vi.fn(() => reply);
+    reply.send = vi.fn((payload) => payload);
+
+    await handler({}, reply);
+    const xml = (reply.send as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as string;
+
+    expect(xml).not.toContain('https://wahabmobiles.com/phones/under-30000');
+  });
 });

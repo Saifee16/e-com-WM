@@ -81,10 +81,11 @@ const buildProductJsonLd = (product, canonicalUrl) => {
 const buildProductBreadcrumbJsonLd = (product, canonicalUrl) => {
   const category = ['iphone', 'android', 'phones'].includes(product.category) ? product.category : 'phones';
   const categoryName = category === 'iphone' ? 'iPhone' : category === 'android' ? 'Android Phones' : 'Phones';
+  const categoryPath = category === 'iphone' || category === 'android' ? `/phones/${category}` : '/phones';
   const items = [
     { name: 'Home', item: SITE_URL + '/' },
     { name: 'Products', item: SITE_URL + '/products' },
-    { name: categoryName, item: SITE_URL + '/' + category },
+    { name: categoryName, item: SITE_URL + categoryPath },
     { name: product.name, item: canonicalUrl },
   ];
   return {
@@ -136,4 +137,4 @@ export default async function handler(request, response) {
   response.status(200).send(renderProductShell(await shellResponse.text(), product));
 }
 
-export { buildProductJsonLd, renderProductShell };
+export { buildProductBreadcrumbJsonLd, buildProductJsonLd, renderProductShell };

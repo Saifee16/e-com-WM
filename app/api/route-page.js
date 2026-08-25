@@ -90,6 +90,15 @@ const landingPages = {
   },
 };
 
+const staticPages = {
+  about: { path: '/about', title: 'About Wahab Mobiles | Wahab Mobiles', description: 'Learn about Wahab Mobiles, its phone catalogue and customer support.' },
+  services: { path: '/services', title: 'Services | Wahab Mobiles', description: 'Explore Wahab Mobiles store, delivery and customer support services.' },
+  support: { path: '/support', title: 'Support | Wahab Mobiles', description: 'Get help with products, orders, deliveries, returns and support at Wahab Mobiles.' },
+  returns: { path: '/returns', title: 'Returns & Refund Policy | Wahab Mobiles', description: 'Read the Wahab Mobiles returns and refund policy.' },
+  privacy: { path: '/privacy', title: 'Privacy Policy | Wahab Mobiles', description: 'Read the Wahab Mobiles privacy policy.' },
+  terms: { path: '/terms', title: 'Terms of Service | Wahab Mobiles', description: 'Read the terms for using Wahab Mobiles and its support services.' },
+  'data-deletion': { path: '/data-deletion', title: 'Data Deletion | Wahab Mobiles', description: 'Learn how to request deletion of Wahab Mobiles account data.' },
+};
 const buildPhonesMetadata = () => ({
   title: 'Phones Price in Pakistan | Wahab Mobiles',
   description: 'Browse the live Wahab Mobiles phone catalogue with iPhone, Android, brand, price and PTA filters.',
@@ -177,7 +186,7 @@ export default async function handler(request, response) {
   const requestUrl = new URL(request.url || '/', SITE_URL);
   const route = queryValue(request, 'route', requestUrl);
 
-  if (route !== 'search' && route !== 'products' && route !== 'category') {
+  if (route !== 'search' && route !== 'products' && route !== 'category' && route !== 'static') {
     response.status(404).send('Route metadata unavailable');
     return;
   }
@@ -189,7 +198,14 @@ export default async function handler(request, response) {
   }
 
   let metadata;
-  if (route === 'search') {
+  if (route === 'static') {
+    const page = staticPages[queryValue(request, 'slug', requestUrl)];
+    if (!page) {
+      response.status(404).send('Static metadata unavailable');
+      return;
+    }
+    metadata = { ...page, canonical: SITE_URL + page.path, ogImage: DEFAULT_OG_IMAGE, robots: 'index,follow' };
+  } else if (route === 'search') {
     metadata = buildSearchMetadata();
   } else if (route === 'products') {
     metadata = {
@@ -208,7 +224,7 @@ export default async function handler(request, response) {
       ? '/' + rootSlug
       : '/' + rootSlug + '/' + categorySlug;
     const landing = rootSlug === 'phones' ? landingPages[categorySlug] : undefined;
-    const reservedKeys = new Set(['route', 'root', 'slug']);
+    const reservedKeys = new Set(['route', 'root', 'slug', 'categorySlug']);
 
     if (landing && landing.kind !== 'category') {
       const params = new URLSearchParams({ limit: '100', page: '1', category: 'phones' });

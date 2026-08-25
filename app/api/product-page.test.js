@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildProductJsonLd, renderProductShell } from './product-page.js';
+import { buildProductBreadcrumbJsonLd, buildProductJsonLd, renderProductShell } from './product-page.js';
 
 const product = { slug: 'phone-script', name: 'Phone Script', brand: 'Example', description: 'A test phone for metadata.', price: 55_000, countInStock: 4, images: ['https://example.com/phone.jpg'], variants: [{ title: '128GB', sku: 'PHONE-128', price: 55_000, countInStock: 4, isActive: true }], numReviews: 0, rating: null };
 
@@ -32,5 +32,15 @@ describe('product page initial metadata', () => {
   });
   it('uses the canonical product URL for variant offers', () => {
     expect(buildProductJsonLd(product, 'https://wahabmobiles.com/products/phone-script')).toMatchObject({ offers: { url: 'https://wahabmobiles.com/products/phone-script' } });
+  });
+
+  it('uses canonical phone category paths for Android and iPhone breadcrumbs', () => {
+    const canonical = 'https://wahabmobiles.com/products/phone-script';
+    expect(buildProductBreadcrumbJsonLd({ ...product, category: 'android' }, canonical)).toMatchObject({
+      itemListElement: expect.arrayContaining([expect.objectContaining({ item: 'https://wahabmobiles.com/phones/android' })]),
+    });
+    expect(buildProductBreadcrumbJsonLd({ ...product, category: 'iphone' }, canonical)).toMatchObject({
+      itemListElement: expect.arrayContaining([expect.objectContaining({ item: 'https://wahabmobiles.com/phones/iphone' })]),
+    });
   });
 });
