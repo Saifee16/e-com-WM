@@ -23,7 +23,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { productsAPI, wishlistAPI } from '../services/api';
 import AuthModal from '../components/auth/AuthModal';
 import ProductRating from '../components/product/ProductRating';
-import Seo, { buildProductJsonLd, buildProductMetadata } from '../seo/seo';
+import Seo, { buildBreadcrumbJsonLd, buildProductJsonLd, buildProductMetadata } from '../seo/seo';
 import { getProductPath } from '../utils/product-url';
 
 const ProductDetail = () => {
@@ -180,12 +180,22 @@ const ProductDetail = () => {
     ? Math.round(((currentOriginalPrice - currentPrice) / currentOriginalPrice) * 100)
     : 0;
   const productMetadata = buildProductMetadata(product);
+  const productCategoryPath = product.category === "iphone" ? "/phones/iphone" : product.category === "android" ? "/phones/android" : product.category === "phones" ? "/phones" : `/products?category=${encodeURIComponent(product.category)}`;
+  const productCategoryName = product.category === "iphone" ? "iPhone" : product.category === "android" ? "Android Phones" : product.categoryName ?? "Catalogue";
+  const brandPath = product.brandSlug === "samsung" ? "/phones/samsung" : product.brandSlug === "xiaomi-mi" ? "/phones/xiaomi" : product.brandSlug === "realme" ? "/phones/realme" : product.brandSlug === "honor" ? "/phones/honor" : product.brandSlug === "tecno" ? "/phones/tecno" : undefined;
+  const breadcrumbItems = [
+    { name: "Home", url: "https://wahabmobiles.com/" },
+    { name: "Products", url: "https://wahabmobiles.com/products" },
+    ...(product.category === "iphone" ? [{ name: "iPhone", url: "https://wahabmobiles.com/phones/iphone" }] : [{ name: "Phones", url: "https://wahabmobiles.com/phones" }]),
+    ...(brandPath && product.category !== "iphone" ? [{ name: product.brand, url: `https://wahabmobiles.com${brandPath}` }] : product.category === "android" ? [{ name: productCategoryName, url: `https://wahabmobiles.com${productCategoryPath}` }] : []),
+    { name: product.name, url: productMetadata.canonical },
+  ];
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <Seo
         metadata={productMetadata}
-        structuredData={buildProductJsonLd(product, productMetadata.canonical)}
+        structuredData={[buildProductJsonLd(product, productMetadata.canonical), buildBreadcrumbJsonLd(breadcrumbItems)]}
       />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Breadcrumb */}
@@ -193,6 +203,9 @@ const ProductDetail = () => {
           <Link to="/" className="hover:text-blue-600">Home</Link>
           <ChevronRight className="w-4 h-4" />
           <Link to="/products" className="hover:text-blue-600">Products</Link>
+          <ChevronRight className="w-4 h-4" />
+          <Link to={productCategoryPath} className="hover:text-blue-600">{productCategoryName}</Link>
+          {brandPath && product.category !== "iphone" && <><ChevronRight className="w-4 h-4" /><Link to={brandPath} className="hover:text-blue-600">{product.brand}</Link></>}
           <ChevronRight className="w-4 h-4" />
           <span className="text-gray-900">{product.name}</span>
         </nav>
@@ -205,7 +218,10 @@ const ProductDetail = () => {
               <div className="relative aspect-square bg-gray-100 rounded-2xl overflow-hidden mb-4">
                 <img
                   src={currentImages[selectedImage] ?? currentImages[0]}
-                  alt={product.name}
+                  width={800}
+                  height={800}
+                  fetchPriority="high"
+                  alt={product.name + ' product image'}
                   className="w-full h-full object-cover"
                 />
                 {discount > 0 && (
@@ -235,6 +251,9 @@ const ProductDetail = () => {
                       <img
                         src={image}
                         alt={`${product.name} - ${index + 1}`}
+                        width={80}
+                        height={80}
+                        loading="lazy"
                         className="w-full h-full object-cover"
                       />
                     </button>
@@ -530,6 +549,9 @@ const ProductDetail = () => {
                       <img
                         src={relatedProduct.images[0]}
                         alt={relatedProduct.name}
+                        width={400}
+                        height={400}
+                        loading="lazy"
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                       />
                     </div>

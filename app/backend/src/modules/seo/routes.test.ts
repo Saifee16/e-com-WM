@@ -27,22 +27,39 @@ const registerRoute = async () => {
   return handler!;
 };
 
+const phone = (slug: string, brandSlug: string, priceAmount: number, categorySlug = 'android') => ({
+  slug,
+  status: 'ACTIVE',
+  updatedAt: new Date('2026-08-17T00:00:00.000Z'),
+  brand: { slug: brandSlug },
+  category: { slug: categorySlug },
+  variants: [{ priceAmount }],
+});
+
 describe('seo sitemap route', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.categoryFindMany.mockResolvedValue([
-      { id: 'gadgets', parentId: null, slug: 'gadgets', isActive: true, _count: { products: 0 } },
-      { id: 'earbuds', parentId: 'gadgets', slug: 'wireless-earbuds', isActive: true, _count: { products: 1 } },
+      { id: 'phones', parentId: null, slug: 'phones', isActive: true, _count: { products: 5 } },
+      { id: 'iphone', parentId: 'phones', slug: 'iphone', isActive: true, _count: { products: 1 } },
+      { id: 'android', parentId: 'phones', slug: 'android', isActive: true, _count: { products: 4 } },
+      { id: 'tablets', parentId: null, slug: 'tablets', isActive: true, _count: { products: 1 } },
+      { id: 'gadgets', parentId: null, slug: 'gadgets', isActive: true, _count: { products: 1 } },
       { id: 'inactive', parentId: null, slug: 'inactive', isActive: false, _count: { products: 1 } },
     ]);
     mocks.productFindMany.mockResolvedValue([
-      { slug: 'active-phone', status: 'ACTIVE', updatedAt: new Date('2026-08-17T00:00:00.000Z') },
+      phone('active-samsung', 'samsung', 20000),
+      phone('active-xiaomi', 'xiaomi-mi', 22000),
+      phone('active-honor', 'honor', 24000),
+      phone('active-tecno', 'tecno', 26000),
+      phone('active-realme', 'realme', 28000),
+      phone('active-iphone', 'apple', 100000, 'iphone'),
       { slug: 'draft-phone', status: 'DRAFT', updatedAt: new Date('2026-08-17T00:00:00.000Z') },
       { slug: 'archived-phone', status: 'ARCHIVED', updatedAt: new Date('2026-08-17T00:00:00.000Z') },
     ]);
   });
 
-  it('includes active catalogue URLs and excludes inactive, draft, and private URLs', async () => {
+  it('includes approved phone URLs and excludes empty/non-phone category URLs', async () => {
     const handler = await registerRoute();
     const reply: Record<string, unknown> = {};
     reply.type = vi.fn(() => reply);
@@ -54,9 +71,14 @@ describe('seo sitemap route', () => {
 
     expect(mocks.categoryFindMany).toHaveBeenCalledWith(expect.objectContaining({ where: { isActive: true } }));
     expect(mocks.productFindMany).toHaveBeenCalledWith(expect.objectContaining({ where: { status: 'ACTIVE' } }));
-    expect(xml).toContain('https://wahabmobiles.com/gadgets');
-    expect(xml).toContain('https://wahabmobiles.com/gadgets/wireless-earbuds');
-    expect(xml).toContain('https://wahabmobiles.com/products/active-phone');
+    expect(xml).toContain('https://wahabmobiles.com/phones');
+    expect(xml).toContain('https://wahabmobiles.com/phones/iphone');
+    expect(xml).toContain('https://wahabmobiles.com/phones/android');
+    expect(xml).toContain('https://wahabmobiles.com/phones/samsung');
+    expect(xml).toContain('https://wahabmobiles.com/phones/under-30000');
+    expect(xml).not.toContain('https://wahabmobiles.com/tablets');
+    expect(xml).not.toContain('https://wahabmobiles.com/gadgets');
+    expect(xml).toContain('https://wahabmobiles.com/products/active-samsung');
     expect(xml).not.toContain('draft-phone');
     expect(xml).not.toContain('archived-phone');
     expect(xml).not.toContain('/inactive');

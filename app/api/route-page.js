@@ -23,6 +23,86 @@ const buildProductsMetadata = () => ({
   ogImage: DEFAULT_OG_IMAGE,
 });
 
+const landingPages = {
+  iphone: {
+    kind: 'category',
+    title: 'iPhone Price in Pakistan | Wahab Mobiles',
+    description: 'Shop the current iPhone range from Wahab Mobiles with live prices, PTA status and stock details.',
+  },
+  android: {
+    kind: 'category',
+    title: 'Android Phones Price in Pakistan | Wahab Mobiles',
+    description: 'Browse Android phones from Wahab Mobiles with live prices, specifications, PTA status and stock details.',
+  },
+  samsung: {
+    kind: 'brand',
+    title: 'Samsung Mobiles Price in Pakistan | Wahab Mobiles',
+    description: 'Shop current Samsung phones from Wahab Mobiles with live prices, specifications and availability.',
+    brand: 'samsung',
+  },
+  xiaomi: {
+    kind: 'brand',
+    title: 'Xiaomi Mobiles Price in Pakistan | Wahab Mobiles',
+    description: 'Shop current Xiaomi Mi phones from Wahab Mobiles with live prices, specifications and availability.',
+    brand: 'xiaomi-mi',
+  },
+  realme: {
+    kind: 'brand',
+    title: 'Realme Mobiles Price in Pakistan | Wahab Mobiles',
+    description: 'Shop current Realme phones from Wahab Mobiles with live prices, specifications and availability.',
+    brand: 'realme',
+  },
+  honor: {
+    kind: 'brand',
+    title: 'Honor Mobiles Price in Pakistan | Wahab Mobiles',
+    description: 'Shop current Honor phones from Wahab Mobiles with live prices, specifications and availability.',
+    brand: 'honor',
+  },
+  tecno: {
+    kind: 'brand',
+    title: 'Tecno Mobiles Price in Pakistan | Wahab Mobiles',
+    description: 'Shop current Tecno phones from Wahab Mobiles with live prices, specifications and availability.',
+    brand: 'tecno',
+  },
+  'under-30000': {
+    kind: 'price',
+    title: 'Under Rs. 30,000 Phones in Pakistan | Wahab Mobiles',
+    description: 'Compare phones available under Rs. 30,000 from the live Wahab Mobiles catalogue.',
+    maxPrice: 30000,
+    minProducts: 5,
+    minBrands: 3,
+  },
+  'under-50000': {
+    kind: 'price',
+    title: 'Under Rs. 50,000 Phones in Pakistan | Wahab Mobiles',
+    description: 'Compare phones available under Rs. 50,000 from the live Wahab Mobiles catalogue.',
+    maxPrice: 50000,
+    minProducts: 5,
+    minBrands: 3,
+  },
+  'under-100000': {
+    kind: 'price',
+    title: 'Under Rs. 100,000 Phones in Pakistan | Wahab Mobiles',
+    description: 'Compare phones available under Rs. 100,000 from the live Wahab Mobiles catalogue.',
+    maxPrice: 100000,
+    minProducts: 5,
+    minBrands: 3,
+  },
+};
+
+const buildPhonesMetadata = () => ({
+  title: 'Phones Price in Pakistan | Wahab Mobiles',
+  description: 'Browse the live Wahab Mobiles phone catalogue with iPhone, Android, brand, price and PTA filters.',
+  canonical: SITE_URL + '/phones',
+  ogImage: DEFAULT_OG_IMAGE,
+});
+
+const buildLandingMetadata = (page, pathname) => ({
+  title: page.title,
+  description: page.description,
+  canonical: SITE_URL + pathname,
+  ogImage: DEFAULT_OG_IMAGE,
+});
 export const buildCategoryMetadata = (category, pathname) => {
   const name = normalizeText(category?.name || 'Catalogue', 120);
   const description = normalizeText(
@@ -124,31 +204,55 @@ export default async function handler(request, response) {
       return;
     }
 
-    const categoriesResponse = await fetch(`${PRODUCT_API_BASE_URL}/api/products/categories`, {
-      headers: { accept: 'application/json' },
-      cache: 'no-store',
-    });
-    if (!categoriesResponse.ok) {
-      response.status(502).send('Category page unavailable');
-      return;
-    }
-
-    const categories = (await categoriesResponse.json())?.data;
-    const category = Array.isArray(categories) ? findCategory(categories, rootSlug, categorySlug) : undefined;
-    if (!category) {
-      response.status(404).send('Category not found');
-      return;
-    }
-
     const pathname = categorySlug === rootSlug
-      ? `/${rootSlug}`
-      : `/${rootSlug}/${categorySlug}`;
-    metadata = {
-      ...buildCategoryMetadata(category, pathname),
-      ...(hasAdditionalQuery(request, requestUrl, new Set(['route', 'root', 'slug']))
-        ? { robots: 'noindex,follow' }
-        : {}),
-    };
+      ? '/' + rootSlug
+      : '/' + rootSlug + '/' + categorySlug;
+    const landing = rootSlug === 'phones' ? landingPages[categorySlug] : undefined;
+    const reservedKeys = new Set(['route', 'root', 'slug']);
+
+    if (landing && landing.kind !== 'category') {
+      const params = new URLSearchParams({ limit: '100', page: '1', category: 'phones' });
+      if (landing.brand) params.set('brand', landing.brand);
+      if (landing.maxPrice) params.set('maxPrice', String(landing.maxPrice));
+      const productsResponse = await fetch(PRODUCT_API_BASE_URL + '/api/products?' + params.toString(), {
+        headers: { accept: 'application/json' },
+        cache: 'no-store',
+      });
+      if (!productsResponse.ok) {
+        response.status(502).send('Landing page unavailable');
+        return;
+      }
+      const payload = await productsResponse.json();
+      const products = Array.isArray(payload?.data) ? payload.data : Array.isArray(payload?.data?.items) ? payload.data.items : [];
+      const productCount = Number(payload?.pagination?.total ?? payload?.data?.pagination?.total ?? products.length);
+      const brandCount = new Set(products.map((product) => product.brandSlug || product.brand).filter(Boolean)).size;
+      const eligible = productCount >= (landing.minProducts || 0) && brandCount >= (landing.minBrands || 0);
+      metadata = {
+        ...buildLandingMetadata(landing, pathname),
+        ...(hasAdditionalQuery(request, requestUrl, reservedKeys) || !eligible ? { robots: 'noindex,follow' } : {}),
+      };
+    } else {
+      const categoriesResponse = await fetch(PRODUCT_API_BASE_URL + '/api/products/categories', {
+        headers: { accept: 'application/json' },
+        cache: 'no-store',
+      });
+      if (!categoriesResponse.ok) {
+        response.status(502).send('Category page unavailable');
+        return;
+      }
+
+      const categories = (await categoriesResponse.json())?.data;
+      const category = Array.isArray(categories) ? findCategory(categories, rootSlug, categorySlug) : undefined;
+      if (!category) {
+        response.status(404).send('Category not found');
+        return;
+      }
+
+      metadata = {
+        ...(landing ? buildLandingMetadata(landing, pathname) : rootSlug === 'phones' ? buildPhonesMetadata() : buildCategoryMetadata(category, pathname)),
+        ...(hasAdditionalQuery(request, requestUrl, reservedKeys) || rootSlug !== 'phones' ? { robots: 'noindex,follow' } : {}),
+      };
+    }
   }
 
   response.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
