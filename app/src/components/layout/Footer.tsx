@@ -9,10 +9,8 @@ import {
 } from '../../config/contact';
 
 const shopLinks = [
-  { name: 'All phones', path: '/products' },
+  { name: 'All phones', path: '/phones' },
   { name: 'New phones', path: '/products?condition=new' },
-  { name: 'Used phones', path: '/products?condition=used' },
-  { name: 'Refurbished phones', path: '/products?condition=refurbished' },
   { name: 'Compare phones', path: '/compare' },
 ];
 
@@ -45,7 +43,7 @@ const Footer = () => (
           </div>
         </Link>
         <p className="mt-5 max-w-sm text-sm leading-6 text-blue-100">
-          Shop new, used and refurbished phones online from a physical mobile store in Saddar Cantt Hyderabad.
+          Shop current phones online from a physical mobile store in Saddar Cantt Hyderabad.
         </p>
         <div className="mt-6 space-y-3 text-sm text-blue-100">
           <div className="flex items-start gap-3">

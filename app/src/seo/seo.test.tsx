@@ -83,7 +83,7 @@ describe('SEO metadata and structured data', () => {
     render(<Seo metadata={buildProductMetadata(product)} />);
 
     await waitFor(() => {
-      expect(document.title).toBe('Phone <script> | Wahab Mobiles');
+      expect(document.title).toBe('Phone <script> Price in Pakistan | Wahab Mobiles');
     });
     expect(document.querySelector('meta[name="description"]')).toHaveAttribute('content', product.description);
     expect(document.querySelector('meta[property="og:url"]')).toHaveAttribute(
@@ -112,6 +112,9 @@ describe('SEO metadata and structured data', () => {
     expect(structuredData).toMatchObject({ '@type': 'ProductGroup', aggregateRating: { ratingValue: 4.5, reviewCount: 2 } });
     expect(variants[0]).toMatchObject({ sku: 'PHONE-128', offers: { price: 100_000, availability: 'https://schema.org/InStock' } });
     expect(variants[1]).toMatchObject({ sku: 'PHONE-256', offers: { price: 120_000, availability: 'https://schema.org/OutOfStock' } });
+    expect(structuredData).not.toHaveProperty('variesBy');
+    expect(variants[0]).toHaveProperty('isVariantOf', { '@id': 'https://wahabmobiles.com/products/phone-script#product-group' });
+    expect(variants[0]).toHaveProperty('additionalProperty');
   });
 
   it('serializes user-provided text without a script-closing sequence', () => {

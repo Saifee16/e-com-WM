@@ -1,5 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { prisma } from '../../db/prisma.js';
+import { SEO_LANDING_PAGE_RULES, isSeoLandingEligible } from './landing-pages.js';
 
 const SITE_URL = 'https://wahabmobiles.com';
 
@@ -15,6 +16,8 @@ const staticPaths = [
   '/data-deletion',
 ];
 
+const publicPhoneCategoryPaths = new Set(['/phones', '/phones/iphone', '/phones/android']);
+
 export interface SitemapCategoryRow {
   id: string;
   parentId: string | null;
@@ -27,6 +30,9 @@ export interface SitemapProductRow {
   slug: string;
   status: string;
   updatedAt: Date;
+  brandSlug?: string;
+  categorySlug?: string;
+  prices?: number[];
 }
 
 const escapeXml = (value: string) => value
@@ -88,9 +94,9 @@ export const getPublicCategorySitemapPath = (
   if (!hasActiveProducts(category.id, childrenByParent, byId)) return undefined;
   const root = getRootCategory(category, byId);
   if (!root) return undefined;
-  if (root.id === category.id) return `/${encodePathSegment(root.slug)}`;
+  if (root.id === category.id) return '/' + encodePathSegment(root.slug);
   if (root.id === category.parentId) {
-    return `/${encodePathSegment(root.slug)}/${encodePathSegment(category.slug)}`;
+    return '/' + encodePathSegment(root.slug) + '/' + encodePathSegment(category.slug);
   }
   return undefined;
 };
@@ -99,8 +105,26 @@ const getCategoryPaths = (categories: readonly SitemapCategoryRow[]) =>
   [...new Set(
     categories
       .map((category) => getPublicCategorySitemapPath(category, categories))
-      .filter((path): path is string => Boolean(path)),
+      .filter((path): path is string => Boolean(path))
+      .filter((path) => publicPhoneCategoryPaths.has(path)),
   )];
+
+const getLandingPaths = (products: readonly SitemapProductRow[]) => {
+  const phoneProducts = products.filter((product) =>
+    ['phones', 'iphone', 'android'].includes(product.categorySlug ?? ''),
+  );
+
+  return SEO_LANDING_PAGE_RULES
+    .filter((page) => page.kind !== 'category')
+    .filter((page) => {
+      const matches = page.kind === 'brand'
+        ? phoneProducts.filter((product) => product.brandSlug === page.brand)
+        : phoneProducts.filter((product) => product.prices?.some((price) => price <= (page.maxPrice ?? 0)));
+      const brands = new Set(matches.map((product) => product.brandSlug).filter(Boolean));
+      return isSeoLandingEligible(page, matches.length, brands.size);
+    })
+    .map((page) => page.path);
+};
 
 export const buildSitemapXml = ({
   categories,
@@ -112,10 +136,11 @@ export const buildSitemapXml = ({
   const urls: Array<{ path: string; lastmod?: string }> = [
     ...staticPaths.map((path) => ({ path })),
     ...getCategoryPaths(categories).map((path) => ({ path })),
+    ...getLandingPaths(products).map((path) => ({ path })),
     ...products
       .filter((product) => product.status === 'ACTIVE' && product.slug.trim())
       .map((product) => ({
-        path: `/products/${encodePathSegment(product.slug)}`,
+        path: '/products/' + encodePathSegment(product.slug),
         lastmod: product.updatedAt.toISOString(),
       })),
   ];
@@ -125,8 +150,8 @@ export const buildSitemapXml = ({
     '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
     ...urls.map(({ path, lastmod }) => [
       '<url>',
-      `<loc>${escapeXml(`${SITE_URL}${path}`)}</loc>`,
-      ...(lastmod ? [`<lastmod>${escapeXml(lastmod)}</lastmod>`] : []),
+      '<loc>' + escapeXml(SITE_URL + path) + '</loc>',
+      ...(lastmod ? ['<lastmod>' + escapeXml(lastmod) + '</lastmod>'] : []),
       '</url>',
     ].join('')),
     '</urlset>',
@@ -148,7 +173,17 @@ export const seoRoutes: FastifyPluginAsync = async (app) => {
       }),
       prisma.product.findMany({
         where: { status: 'ACTIVE' },
-        select: { slug: true, status: true, updatedAt: true },
+        select: {
+          slug: true,
+          status: true,
+          updatedAt: true,
+          brand: { select: { slug: true } },
+          category: { select: { slug: true } },
+          variants: {
+            where: { isActive: true },
+            select: { priceAmount: true },
+          },
+        },
       }),
     ]);
 
@@ -163,7 +198,14 @@ export const seoRoutes: FastifyPluginAsync = async (app) => {
           isActive: category.isActive,
           productCount: category._count.products,
         })),
-        products,
+        products: products.map((product) => ({
+          slug: product.slug,
+          status: product.status,
+          updatedAt: product.updatedAt,
+          brandSlug: product.brand?.slug,
+          categorySlug: product.category?.slug,
+          prices: (product.variants ?? []).map((variant) => variant.priceAmount),
+        })),
       }));
   });
 };

@@ -7,8 +7,8 @@ import Seo, { buildStaticMetadata } from '../../seo/seo';
 
 const staticMetadataByPath: Record<string, ReturnType<typeof buildStaticMetadata>> = {
   '/': buildStaticMetadata(
-    'Wahab Mobiles - New and Used Phones in Hyderabad',
-    'Browse new, used and refurbished phones from Wahab Mobiles in Hyderabad.',
+    'Wahab Mobiles - Phones in Hyderabad',
+    'Browse current phones from Wahab Mobiles in Hyderabad.',
     '/',
   ),
   '/products': buildStaticMetadata(
@@ -73,6 +73,7 @@ const isPageManagedSeoRoute = (pathname: string) =>
   pathname === '/'
   || pathname.startsWith('/products')
   || pathname.startsWith('/phones')
+  || pathname.startsWith('/tablets')
   || pathname.startsWith('/smart-watches')
   || pathname.startsWith('/gadgets');
 

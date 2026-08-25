@@ -22,7 +22,7 @@ import {
   SHOP_MAPS_URL,
   SHOP_WHATSAPP_URL,
 } from '../config/contact';
-import Seo, { buildLocalBusinessJsonLd, buildStaticMetadata } from '../seo/seo';
+import Seo, { buildOrganizationJsonLd, buildStaticMetadata, buildWebSiteJsonLd } from '../seo/seo';
 import { getProductPath } from '../utils/product-url';
 
 type Brand = {
@@ -40,10 +40,8 @@ const businessStats = [
 ];
 
 const conditionLinks = [
-  { label: 'New', description: 'Brand new phones', to: '/products?condition=new' },
-  { label: 'Used', description: 'Pre-owned phones', to: '/products?condition=used' },
-  { label: 'Refurbished', description: 'Restored phones', to: '/products?condition=refurbished' },
-  { label: 'All phones', description: 'Full catalogue', to: '/products' },
+  { label: 'New', description: 'Brand new phones', to: '/phones?condition=new' },
+  { label: 'All phones', description: 'Full catalogue', to: '/phones' },
 ];
 
 const priceLinks = priceRanges.slice(0, 4).map((range) => ({
@@ -130,11 +128,11 @@ const Home = () => {
     <div className="min-h-[100dvh] overflow-x-hidden bg-[#f5f8fc] text-slate-950">
       <Seo
         metadata={buildStaticMetadata(
-          'Wahab Mobiles - New and Used Phones in Hyderabad',
-          'Browse new, used and refurbished phones from Wahab Mobiles in Hyderabad.',
+          'Wahab Mobiles - Phones in Hyderabad',
+          'Browse current phones from Wahab Mobiles in Hyderabad.',
           '/',
         )}
-        structuredData={buildLocalBusinessJsonLd()}
+        structuredData={[buildOrganizationJsonLd(), buildWebSiteJsonLd()]}
       />
       <section className="bg-[#082f63] text-white">
         <div className="mx-auto grid max-w-[1400px] items-center gap-6 px-4 py-8 sm:gap-8 sm:px-6 sm:py-9 md:py-11 lg:grid-cols-[1.02fr_.98fr] lg:px-8">
@@ -144,21 +142,15 @@ const Home = () => {
               Find the right phone, faster.
             </h1>
             <p className="mt-4 max-w-xl text-base leading-7 text-blue-100 sm:text-lg">
-              Shop new, used and refurbished phones with clear prices, condition details and PTA status.
+              Shop current phones with clear prices, condition details and PTA status.
             </p>
             <div className="mt-7 grid grid-cols-2 gap-3">
               <Link
-                to="/products"
+                to="/phones"
                 className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-white px-5 text-sm font-bold text-[#0b3f82] transition hover:bg-blue-50 active:translate-y-px"
               >
                 Shop phones
                 <ArrowRight className="h-4 w-4" aria-hidden="true" />
-              </Link>
-              <Link
-                to="/products?condition=used"
-                className="inline-flex min-h-12 items-center justify-center rounded-lg border border-blue-300/60 px-5 text-sm font-bold text-white transition hover:bg-white/10 active:translate-y-px"
-              >
-                Used phones
               </Link>
             </div>
           </div>
@@ -167,7 +159,7 @@ const Home = () => {
         </div>
       </section>
 
-      <section className="border-b border-slate-200 bg-white" aria-label="Shop by phone condition">
+      <section className="border-b border-slate-200 bg-white" aria-label="Shop current phones">
         <div className="mx-auto grid max-w-[1400px] grid-cols-2 px-4 py-3 sm:grid-cols-4 sm:px-6 lg:px-8">
           {conditionLinks.map((condition, index) => (
             <Link

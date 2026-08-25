@@ -125,6 +125,7 @@ function App() {
                 <Route path="search" element={<Products />} />
                 <Route path="phones" element={<Products />} />
                 <Route path="phones/:categorySlug" element={<Products />} />
+                <Route path="tablets" element={<Products />} />
                 <Route path="smartphones" element={<Navigate to="/phones" replace />} />
                 <Route path="smart-watches" element={<Products />} />
                 <Route path="smart-watches/:categorySlug" element={<Products />} />

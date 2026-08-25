@@ -7,6 +7,7 @@ import {
   SHOP_ADDRESS,
 } from '../config/contact';
 import { getProductPath } from '../utils/product-url';
+import type { SeoLandingPage } from './landing-pages';
 
 export const SITE_URL = 'https://wahabmobiles.com';
 export const DEFAULT_OG_IMAGE = `${SITE_URL}/assets/wahab-shop.jpg`;
@@ -54,7 +55,7 @@ export const buildStaticMetadata = (
 });
 
 export const buildProductMetadata = (product: Product): SeoMetadata => ({
-  title: `${product.name} | Wahab Mobiles`,
+  title: `${product.name} Price in Pakistan | Wahab Mobiles`,
   description: truncateDescription(product.description || `${product.name} from ${product.brand}.`),
   canonical: buildCanonicalUrl(getProductPath(product)),
   ogImage: absoluteUrl(product.images.find(Boolean)),
@@ -72,6 +73,13 @@ export const buildCategoryMetadata = (category: Category | undefined, pathname: 
     ogImage: absoluteUrl(category?.imageUrl ?? undefined),
   };
 };
+
+export const buildLandingMetadata = (page: SeoLandingPage, pathname = page.path): SeoMetadata => ({
+  title: page.title,
+  description: truncateDescription(page.description),
+  canonical: buildCanonicalUrl(pathname),
+  ogImage: DEFAULT_OG_IMAGE,
+});
 
 export const buildSearchMetadata = (query: string, pathname = '/search'): SeoMetadata => {
   const cleanQuery = query.trim();
@@ -116,17 +124,30 @@ const buildAggregateRating = (product: Product): JsonLd | undefined =>
       }
     : undefined;
 
-const buildVariantJsonLd = (product: Product, variant: ProductVariant, canonicalUrl: string): JsonLd => ({
+const buildVariantProperties = (variant: ProductVariant) => [
+  variant.storage ? { '@type': 'PropertyValue', name: 'Storage', propertyID: 'storage', value: variant.storage } : undefined,
+  variant.options.RAM ? { '@type': 'PropertyValue', name: 'RAM', propertyID: 'RAM', value: variant.options.RAM } : undefined,
+].filter(Boolean) as JsonLd[];
+
+const buildVariantJsonLd = (
+  product: Product,
+  variant: ProductVariant,
+  canonicalUrl: string,
+  productGroupId?: string,
+): JsonLd => ({
   '@type': 'Product',
   name: variant.title ? `${product.name} - ${variant.title}` : product.name,
   ...(variant.sku ? { sku: variant.sku } : {}),
   ...(variant.images.length > 0 ? { image: variant.images } : { image: product.images }),
+  ...(variant.color ? { color: variant.color } : {}),
+  ...(buildVariantProperties(variant).length > 0 ? { additionalProperty: buildVariantProperties(variant) } : {}),
+  ...(productGroupId ? { isVariantOf: { '@id': productGroupId } } : {}),
   brand: { '@type': 'Brand', name: product.brand },
   offers: buildOffer(
     variant.price,
     variant.availableCountInStock ?? variant.countInStock,
     canonicalUrl,
-    variant.condition,
+    variant.condition ?? product.condition,
   ),
 });
 
@@ -143,19 +164,17 @@ export const buildProductJsonLd = (product: Product, canonicalUrl = buildCanonic
   } satisfies JsonLd;
 
   if (activeVariants.length > 1) {
-    const variesBy = [
-      ...new Set([
-        ...(activeVariants.some((variant) => variant.storage) ? ['storage'] : []),
-        ...(activeVariants.some((variant) => variant.color) ? ['color'] : []),
-        ...activeVariants.flatMap((variant) => Object.keys(variant.options)),
-      ]),
-    ];
+    const productGroupId = `${canonicalUrl}#product-group`;
+    const colors = new Set(activeVariants.map((variant) => variant.color).filter(Boolean));
+    const variesBy = colors.size > 1 ? ['https://schema.org/color'] : [];
 
     return {
       ...common,
       '@type': 'ProductGroup',
+      '@id': productGroupId,
+      productGroupID: product.slug ?? product._id,
       ...(variesBy.length > 0 ? { variesBy } : {}),
-      hasVariant: activeVariants.map((variant) => buildVariantJsonLd(product, variant, canonicalUrl)),
+      hasVariant: activeVariants.map((variant) => buildVariantJsonLd(product, variant, canonicalUrl, productGroupId)),
     };
   }
 
@@ -172,6 +191,39 @@ export const buildProductJsonLd = (product: Product, canonicalUrl = buildCanonic
     ),
   };
 };
+
+export const buildBreadcrumbJsonLd = (items: Array<{ name: string; url: string }>): JsonLd => ({
+  '@context': 'https://schema.org',
+  '@type': 'BreadcrumbList',
+  itemListElement: items.map((item, position) => ({
+    '@type': 'ListItem',
+    position: position + 1,
+    name: item.name,
+    item: item.url,
+  })),
+});
+
+export const buildOrganizationJsonLd = (): JsonLd => ({
+  '@context': 'https://schema.org',
+  '@type': 'Organization',
+  name: 'Wahab Mobiles',
+  url: SITE_URL,
+  logo: `${SITE_URL}/assets/wahab-logo.jpg`,
+  email: CONTACT_EMAIL,
+  telephone: CONTACT_PHONE_NUMBERS[0].label,
+});
+
+export const buildWebSiteJsonLd = (): JsonLd => ({
+  '@context': 'https://schema.org',
+  '@type': 'WebSite',
+  name: 'Wahab Mobiles',
+  url: SITE_URL,
+  potentialAction: {
+    '@type': 'SearchAction',
+    target: `${SITE_URL}/search?q={search_term_string}`,
+    'query-input': 'required name=search_term_string',
+  },
+});
 
 export const buildLocalBusinessJsonLd = (): JsonLd => ({
   '@context': 'https://schema.org',

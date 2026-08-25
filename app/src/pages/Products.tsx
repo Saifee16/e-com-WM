@@ -22,7 +22,8 @@ import StorefrontProductCard from '../components/product/StorefrontProductCard';
 import { CONTACT_PHONE_NUMBERS } from '../config/contact';
 import { flattenCategories } from '../config/category-catalog';
 import { getCategoryBySlug } from '../components/layout/navigation-data';
-import Seo, { buildCategoryMetadata, buildSearchMetadata } from '../seo/seo';
+import Seo, { buildCategoryMetadata, buildLandingMetadata, buildSearchMetadata } from '../seo/seo';
+import { getSeoLandingPage, isSeoLandingEligible, SEO_LANDING_PAGES } from '../seo/landing-pages';
 
 const PAGE_SIZE = 20;
 
@@ -31,8 +32,6 @@ const conditionOptions: Array<{
   label: string;
 }> = [
   { value: 'new', label: 'New' },
-  { value: 'used', label: 'Used' },
-  { value: 'refurbished', label: 'Refurbished' },
 ];
 
 const conditionLabels: Record<
@@ -47,8 +46,8 @@ const conditionLabels: Record<
 const getRequestedCondition = (
   value: string | null,
 ): ProductQueryParams['condition'] | '' =>
-  conditionOptions.some((option) => option.value === value)
-    ? (value as ProductQueryParams['condition'])
+  value === 'new' || value === 'used' || value === 'refurbished'
+    ? value
     : '';
 
 const getRequestedPrice = (value: string | null) =>
@@ -58,14 +57,15 @@ const getRequestedPrice = (value: string | null) =>
 // eslint-disable-next-line react-refresh/only-export-components
 export const getRouteCategory = (pathname: string) => {
   const segments = pathname.split('/').filter(Boolean);
-  if (segments[0] === 'phones' || segments[0] === 'smart-watches' || segments[0] === 'gadgets') {
+  if (segments[0] === 'phones' || segments[0] === 'tablets' || segments[0] === 'smart-watches' || segments[0] === 'gadgets') {
     return segments[1] ?? segments[0];
   }
   return '';
 };
+const landingLabel = (slug: string) => ({ iphone: 'iPhone', android: 'Android', samsung: 'Samsung', xiaomi: 'Xiaomi', realme: 'Realme', honor: 'Honor', tecno: 'Tecno', 'under-30000': 'Under Rs. 30,000', 'under-50000': 'Under Rs. 50,000', 'under-100000': 'Under Rs. 100,000' }[slug] ?? slug);
 
 const categoryHref = (category: Category) => {
-  const routeRoots = new Set(['phones', 'smart-watches', 'gadgets']);
+  const routeRoots = new Set(['phones', 'tablets', 'smart-watches', 'gadgets']);
   if (category.parentSlug && routeRoots.has(category.parentSlug)) return `/${category.parentSlug}/${category.slug}`;
   if (routeRoots.has(category.slug)) return `/${category.slug}`;
   return `/products?category=${encodeURIComponent(category.slug)}`;
@@ -75,7 +75,10 @@ const Products = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const routeCategory = getRouteCategory(location.pathname);
+  const routeLanding = getSeoLandingPage(location.pathname);
+  const routeCategory = routeLanding?.category ?? getRouteCategory(location.pathname);
+  const landingBrand = routeLanding?.kind === "brand" ? routeLanding.brand : undefined;
+  const landingPriceMax = routeLanding?.kind === "price" ? routeLanding.maxPrice : undefined;
   const isSearchRoute = location.pathname === '/search';
   const requestedSearchQuery = isSearchRoute
     ? searchParams.get('q') ?? searchParams.get('search') ?? ''
@@ -111,7 +114,7 @@ const Products = () => {
   const { showToast } = useToast();
 
   const [selectedBrands, setSelectedBrands] = useState<string[]>(() =>
-    searchParams.get('brand')?.split(',').filter(Boolean) ?? [],
+    landingBrand ? [landingBrand] : searchParams.get('brand')?.split(',').filter(Boolean) ?? [],
   );
 
   const [selectedPriceRange, setSelectedPriceRange] = useState(() =>
@@ -284,20 +287,13 @@ const Products = () => {
           sort: sortOption,
           q: isSearchRoute ? debouncedSearch || undefined : undefined,
           search: isSearchRoute ? undefined : debouncedSearch || undefined,
-          brand:
-            selectedBrands.length > 0
-              ? selectedBrands.join(',')
-              : undefined,
+          brand: landingBrand ?? (selectedBrands.length > 0 ? selectedBrands.join(',') : undefined),
           category: selectedCategory || undefined,
           featured: featuredOnly || undefined,
           discounted: discountedOnly || undefined,
           ptaApproved: ptaApprovedOnly || undefined,
           minPrice: priceRange?.min,
-          maxPrice:
-            priceRange?.max !== undefined &&
-            Number.isFinite(priceRange.max)
-              ? priceRange.max
-              : undefined,
+          maxPrice: landingPriceMax ?? (priceRange?.max !== undefined && Number.isFinite(priceRange.max) ? priceRange.max : undefined),
           storage: selectedStorage || undefined,
           condition: selectedCondition || undefined,
         });
@@ -330,6 +326,8 @@ const Products = () => {
       isActive = false;
     };
   }, [
+    landingBrand,
+    landingPriceMax,
     currentPage,
     debouncedSearch,
     discountedOnly,
@@ -352,7 +350,7 @@ const Products = () => {
       nextParams.set(isSearchRoute ? 'q' : 'search', debouncedSearch);
     }
 
-    if (selectedBrands.length > 0) {
+    if (!landingBrand && selectedBrands.length > 0) {
       nextParams.set('brand', selectedBrands.join(','));
     }
 
@@ -411,6 +409,7 @@ const Products = () => {
       setSearchParams(nextParams, { replace: true });
     }
   }, [
+    landingBrand,
     currentPage,
     debouncedSearch,
     discountedOnly,
@@ -608,6 +607,8 @@ const Products = () => {
         </div>
       </FilterGroup>
 
+
+
       <label className="flex min-h-10 cursor-pointer items-center gap-3 border-t border-slate-200 pt-5 text-sm font-bold text-slate-700">
         <input
           type="checkbox"
@@ -662,27 +663,27 @@ const Products = () => {
     </div>
   );
 
+  const landingIsEligible = routeLanding ? isSeoLandingEligible(routeLanding, pagination.total, new Set(products.map((product) => product.brandSlug ?? product.brand)).size) : true;
+
   return (
     <div className="min-h-[100dvh] bg-[#f5f8fc] py-8 sm:py-10">
       <Seo
-        metadata={isSearchRoute
-          ? buildSearchMetadata(debouncedSearch)
-          : {
-              ...buildCategoryMetadata(routeCategoryData, location.pathname),
-              robots: searchParams.toString() ? 'noindex,follow' : undefined,
-            }}
+        metadata={routeLanding ? { ...buildLandingMetadata(routeLanding, location.pathname), ...((searchParams.toString() || (!isLoadingProducts && !landingIsEligible)) ? { robots: 'noindex,follow' } : {}) } : isSearchRoute ? buildSearchMetadata(debouncedSearch) : { ...buildCategoryMetadata(routeCategoryData, location.pathname), robots: searchParams.toString() ? 'noindex,follow' : undefined }}
       />
       <div className="mx-auto max-w-[1400px] px-3 sm:px-6 lg:px-8">
         <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
           <div>
             <h1 className="text-3xl font-extrabold tracking-tight text-slate-950 sm:text-4xl">
-              {isSearchRoute && debouncedSearch
+              {routeLanding ? routeLanding.h1 : isSearchRoute && debouncedSearch
                 ? `Search results for "${debouncedSearch}"`
                 : isSearchRoute
                   ? 'Search products'
-                  : 'Shop products'}
+                  : location.pathname === '/products' ? 'Shop all products' : routeCategoryData?.name ?? 'Phones in Pakistan'}
             </h1>
 
+        {routeLanding && (
+          <p className='mt-3 max-w-3xl text-sm leading-6 text-slate-600'>{routeLanding.intro}</p>
+        )}
             <p className="mt-2 text-sm text-slate-600">
               {isLoadingProducts
                 ? 'Loading the live catalogue'
@@ -702,19 +703,7 @@ const Products = () => {
               New
             </Link>
 
-            <Link
-              to="/products?condition=used"
-              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-600 hover:border-blue-300 hover:text-blue-700"
-            >
-              Used
-            </Link>
 
-            <Link
-              to="/products?condition=refurbished"
-              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-600 hover:border-blue-300 hover:text-blue-700"
-            >
-              Refurbished
-            </Link>
           </div>
         </div>
 
@@ -727,6 +716,16 @@ const Products = () => {
                 className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-bold ${selectedCategory === category.slug ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-slate-200 bg-white text-slate-600 hover:border-blue-300 hover:text-blue-700'}`}
               >
                 {category.parentSlug ? '↳ ' : ''}{category.name}
+              </Link>
+            ))}
+          </nav>
+        )}
+
+        {routeCategory === 'phones' && (
+          <nav className='mt-4 flex flex-wrap gap-2' aria-label='Phone shopping pages'>
+            {SEO_LANDING_PAGES.filter((page) => page.path !== location.pathname).map((page) => (
+              <Link key={page.path} to={page.path} className='rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 hover:border-blue-300 hover:text-blue-700'>
+                {landingLabel(page.slug)}
               </Link>
             ))}
           </nav>

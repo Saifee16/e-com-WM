@@ -51,8 +51,8 @@ describe('raw route metadata', () => {
     });
 
     expect(result.statusCode).toBe(200);
-    expect(result.body).toContain('<title>Phones | Wahab Mobiles</title>');
-    expect(result.body).toContain('content="Shop current phones from the live catalogue."');
+    expect(result.body).toContain('<title>Phones Price in Pakistan | Wahab Mobiles</title>');
+    expect(result.body).toContain('content="Browse the live Wahab Mobiles phone catalogue with iPhone, Android, brand, price and PTA filters."');
     expect(result.body).toContain('rel="canonical" href="https://wahabmobiles.com/phones"');
     expect(result.body).toContain('property="og:url" content="https://wahabmobiles.com/phones"');
     expect(result.body).not.toContain('href="https://wahabmobiles.com/"');
@@ -76,6 +76,54 @@ describe('raw route metadata', () => {
     expect(result.body).not.toContain('href="https://wahabmobiles.com/"');
   });
 
+  it('renders eligible brand landing metadata without a filter query', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (input) => {
+      if (String(input).endsWith('/index.html')) return { ok: true, text: async () => shell };
+      return {
+        ok: true,
+        json: async () => ({
+          data: {
+            items: [
+              { brand: 'Samsung', brandSlug: 'samsung' },
+              { brand: 'Samsung', brandSlug: 'samsung' },
+            ],
+            pagination: { total: 2 },
+          },
+        }),
+      };
+    }));
+
+    const result = await invoke({
+      url: 'https://wahabmobiles.com/phones/samsung',
+      query: { route: 'category', root: 'phones', slug: 'samsung' },
+    });
+
+    expect(result.statusCode).toBe(200);
+    expect(result.body).toContain('<title>Samsung Mobiles Price in Pakistan | Wahab Mobiles</title>');
+    expect(result.body).toContain('rel="canonical" href="https://wahabmobiles.com/phones/samsung"');
+    expect(result.body).not.toContain('name="robots" content="noindex,follow"');
+  });
+
+  it('keeps tablets routeable but noindexable when the inventory is empty', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (input) => {
+      if (String(input).endsWith('/index.html')) return { ok: true, text: async () => shell };
+      return {
+        ok: true,
+        json: async () => ({
+          data: [{ slug: 'tablets', name: 'Tablets', isActive: true, children: [] }],
+        }),
+      };
+    }));
+
+    const result = await invoke({
+      url: 'https://wahabmobiles.com/tablets',
+      query: { route: 'category', root: 'tablets', slug: 'tablets' },
+    });
+
+    expect(result.statusCode).toBe(200);
+    expect(result.body).toContain('name="robots" content="noindex,follow"');
+    expect(result.body).toContain('rel="canonical" href="https://wahabmobiles.com/tablets"');
+  });
   it('keeps filtered category URLs out of the index while preserving the category canonical', async () => {
     vi.stubGlobal('fetch', vi.fn(async (input) => {
       if (String(input).endsWith('/index.html')) return { ok: true, text: async () => shell };
@@ -100,5 +148,6 @@ describe('Vercel route policy', () => {
     expect(config.rewrites).toContainEqual({ source: '/products/:slug', destination: '/api/product-page?slug=:slug' });
     expect(config.rewrites).toContainEqual({ source: '/search', destination: '/api/route-page?route=search' });
     expect(config.rewrites).toContainEqual({ source: '/phones', destination: '/api/route-page?route=category&root=phones&slug=phones' });
+    expect(config.rewrites).toContainEqual({ source: '/tablets', destination: '/api/route-page?route=category&root=tablets&slug=tablets' });
   });
 });
