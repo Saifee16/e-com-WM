@@ -4,6 +4,11 @@ import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { prisma } from '../../db/prisma.js';
 import { env } from '../../config/env.js';
+import {
+  FREE_STANDARD_SHIPPING_SUBTOTAL,
+  getShippingCost,
+  isHyderabadCity,
+} from '../../config/order-policy.js';
 import { fail, ok } from '../../utils/responses.js';
 import { authenticateCustomer, getAuthenticatedUser, getGuestId, requireChangedAdminPassword } from '../auth/session.js';
 import { sendOrderPlacedEmails, sendOrderStatusEmail, type OrderEmailDetails } from './mailer.js';
@@ -154,11 +159,6 @@ const checkoutSchema = z.object({
   notes: z.string().trim().max(1000).optional(),
 });
 
-const shippingCosts = {
-  standard: 500,
-  express: 1500,
-  pickup: 0,
-};
 
 const getCartForRequest = async (request: FastifyRequest) => {
   const user = await getAuthenticatedUser(request);
@@ -282,9 +282,11 @@ export const orderRoutes: FastifyPluginAsync = async (app) => {
         (total, item) => total + item.variant.priceAmount * item.cartItem.quantity,
         0,
       );
-      let shipping = body.shippingMethod === 'standard' && subtotal >= 100_000
+      let shipping = body.shippingMethod === 'standard'
+        && isHyderabadCity(body.shippingInfo.city)
+        && subtotal >= FREE_STANDARD_SHIPPING_SUBTOTAL
         ? 0
-        : shippingCosts[body.shippingMethod];
+        : getShippingCost(body.shippingInfo.city, body.shippingMethod);
       let discount = 0;
       let appliedPromoId: string | null = null;
 

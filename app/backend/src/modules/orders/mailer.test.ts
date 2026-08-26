@@ -8,7 +8,7 @@ const importMailer = async (overrides: Record<string, unknown> = {}) => {
       EMAIL_FROM: 'Wahab Mobiles <noreply@wahabmobiles.com>',
       FRONTEND_URL: 'https://wahabmobiles.com',
       RESEND_API_KEY: 'unit-test-api-key',
-      SUPPORT_EMAIL: 'support@wahabmobiles.com',
+      SUPPORT_EMAIL: 'wahabmobiles@gmail.com',
       ...overrides,
     },
   }));
@@ -84,7 +84,7 @@ describe('order mailer', () => {
       'Idempotency-Key': `order-${order.id}-placed-store`,
     });
     expect(store.payload).toMatchObject({
-      to: ['support@wahabmobiles.com'],
+      to: ['wahabmobiles@gmail.com'],
       reply_to: order.customer.email,
       subject: `New order: ${order.orderNumber}`,
     });

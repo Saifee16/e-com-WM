@@ -1,6 +1,42 @@
 const SITE_URL = 'https://wahabmobiles.com';
 const PRODUCT_API_BASE_URL = (process.env.PRODUCT_API_BASE_URL || 'https://api.wahabmobiles.com').replace(/\/+$/, '');
 const DEFAULT_OG_IMAGE = `${SITE_URL}/assets/wahab-shop.jpg`;
+const LOCAL_BUSINESS_JSON_LD = {
+  '@context': 'https://schema.org',
+  '@type': 'MobilePhoneStore',
+  '@id': `${SITE_URL}/#store`,
+  name: 'Wahab Mobiles',
+  url: `${SITE_URL}/hyderabad`,
+  image: DEFAULT_OG_IMAGE,
+  telephone: '+92 312 2995584',
+  email: 'wahabmobiles@gmail.com',
+  address: {
+    '@type': 'PostalAddress',
+    streetAddress: 'Shop #30, 2nd Corner, Ground Floor, Chandni Shopping Mall, opposite Soghat-e-Sheerin, Saddar Cantt',
+    addressLocality: 'Hyderabad',
+    addressRegion: 'Sindh',
+    postalCode: '71000',
+    addressCountry: 'PK',
+  },
+  openingHoursSpecification: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Saturday', 'Sunday'].map((dayOfWeek) => ({
+    '@type': 'OpeningHoursSpecification',
+    dayOfWeek,
+    opens: '14:00',
+    closes: '00:00',
+  })),
+  hasMap: 'https://maps.app.goo.gl/sDRAiyBxtHMhD9Mb6',
+  foundingDate: '2009-03-21',
+  sameAs: [
+    'https://www.facebook.com/profile.php?id=100063650661893',
+    'https://www.instagram.com/mobileswahab',
+    'https://www.youtube.com/@wahabmobiles662',
+    'https://www.tiktok.com/@wahabmobilespak',
+  ],
+};
+const serializeJsonLd = (value) => JSON.stringify(value)
+  .replaceAll('&', '\\u0026')
+  .replaceAll('<', '\\u003c')
+  .replaceAll('>', '\\u003e');
 
 const escapeHtml = (value) => String(value)
   .replaceAll('&', '&amp;')
@@ -64,6 +100,12 @@ const landingPages = {
     description: 'Shop current Tecno phones from Wahab Mobiles with live prices, specifications and availability.',
     brand: 'tecno',
   },
+  'google-pixel': {
+    kind: 'brand',
+    title: 'Google Pixel Phones Price in Pakistan | Wahab Mobiles',
+    description: 'Browse current Google Pixel phones, prices and available variants in Pakistan, with PTA status shown on each Wahab Mobiles product.',
+    brand: 'google',
+  },
   'under-30000': {
     kind: 'price',
     title: 'Under Rs. 30,000 Phones in Pakistan | Wahab Mobiles',
@@ -98,6 +140,12 @@ const staticPages = {
   privacy: { path: '/privacy', title: 'Privacy Policy | Wahab Mobiles', description: 'Read the Wahab Mobiles privacy policy.' },
   terms: { path: '/terms', title: 'Terms of Service | Wahab Mobiles', description: 'Read the terms for using Wahab Mobiles and its support services.' },
   'data-deletion': { path: '/data-deletion', title: 'Data Deletion | Wahab Mobiles', description: 'Learn how to request deletion of Wahab Mobiles account data.' },
+  hyderabad: {
+    path: '/hyderabad',
+    title: 'Wahab Mobiles Hyderabad | Mobile Phones & Accessories',
+    description: 'Visit Wahab Mobiles in Saddar Cantt Hyderabad for new and used phones, tablets, accessories, local pickup and same-day Hyderabad delivery.',
+    structuredData: LOCAL_BUSINESS_JSON_LD,
+  },
 };
 const buildPhonesMetadata = () => ({
   title: 'Phones Price in Pakistan | Wahab Mobiles',
@@ -143,7 +191,8 @@ const renderMetadataShell = (shell, metadata) => {
     .replace(/<meta\s+name="robots"[^>]*>\s*/gi, '')
     .replace(/<link\s+rel="canonical"[^>]*>\s*/gi, '')
     .replace(/<meta\s+property="og:[^"]+"[^>]*>\s*/gi, '')
-    .replace(/<title>[\s\S]*?<\/title>\s*/gi, '');
+    .replace(/<title>[\s\S]*?<\/title>\s*/gi, '')
+    .replace(/<script\s+type="application\/ld\+json"[^>]*>[\s\S]*?<\/script>\s*/gi, '');
 
   const rendered = [
     `<meta name="description" content="${escapeHtml(metadata.description)}" />`,
@@ -156,6 +205,9 @@ const renderMetadataShell = (shell, metadata) => {
     `<meta property="og:url" content="${escapeHtml(metadata.canonical)}" />`,
     `<meta property="og:image" content="${escapeHtml(metadata.ogImage || DEFAULT_OG_IMAGE)}" />`,
     `<title>${escapeHtml(metadata.title)}</title>`,
+    ...(metadata.structuredData
+      ? [`<script type="application/ld+json">${serializeJsonLd(metadata.structuredData)}</script>`]
+      : []),
   ].join('');
 
   return `${cleanedHead}${rendered}</head>${shell.slice(headEnd + '</head>'.length)}`;

@@ -6,6 +6,7 @@ describe('SEO landing-page policy', () => {
     expect(getSeoLandingPage('/phones/iphone')).toMatchObject({ kind: 'category', category: 'iphone' });
     expect(getSeoLandingPage('/phones/samsung')).toMatchObject({ kind: 'brand', brand: 'samsung' });
     expect(getSeoLandingPage('/phones/xiaomi')).toMatchObject({ kind: 'brand', brand: 'xiaomi-mi' });
+    expect(getSeoLandingPage('/phones/google-pixel')).toMatchObject({ kind: 'brand', brand: 'google' });
   });
 
   it('keeps price landings indexable only when inventory and brand thresholds are met', () => {

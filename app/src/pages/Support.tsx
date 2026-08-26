@@ -50,7 +50,7 @@ const Support = () => {
         },
         {
           q: 'Do you offer free shipping?',
-          a: 'Standard shipping is free when the order subtotal is Rs. 100,000 or more. Checkout shows the final shipping charge before the order is placed.',
+          a: 'For Hyderabad orders, standard shipping may be free when the order subtotal is Rs. 100,000 or more. Orders outside Hyderabad can be placed online; checkout shows the applicable charge before the order is placed.',
         },
         {
           q: 'Can I track my order?',
@@ -64,7 +64,7 @@ const Support = () => {
       questions: [
         {
           q: 'What is your return policy?',
-          a: 'Eligible delivered orders can submit a return request within seven days of delivery. Every request is reviewed before approval.',
+          a: 'Return or exchange eligibility is generally limited to unopened, unactivated box-pack products within 2–3 working days. Defective-product claims may require video proof. Every request is reviewed.',
         },
         {
           q: 'How do I initiate a return?',
@@ -86,7 +86,7 @@ const Support = () => {
         },
         {
           q: 'Is warranty coverage the same for every phone?',
-          a: 'No universal warranty is promised on this site. Confirm the coverage for the specific new, used or refurbished device before purchase.',
+          a: 'Warranty varies by product and brand. New devices may include official manufacturer or distributor warranty, while selected used phones may include a 2–3 day checking warranty. Confirm exact terms before purchase.',
         },
         {
           q: 'How can I confirm PTA status?',
@@ -100,11 +100,11 @@ const Support = () => {
       questions: [
         {
           q: 'What payment methods do you accept?',
-          a: 'Cash on Delivery (COD) is the only payment method. Refunds are handled manually by the support team.',
+          a: 'Cash on Delivery is available for Hyderabad/local orders. Orders outside Hyderabad can be placed online; our team contacts the customer to confirm the order and arrange advance payment before dispatch. Refunds are handled manually by the support team.',
         },
         {
           q: 'Is my payment information secure?',
-          a: 'The current checkout does not request or store card details because Cash on Delivery is the only payment method.',
+          a: 'The current checkout does not request or store card details. Hyderabad/local orders may use Cash on Delivery; outside-Hyderabad orders are confirmed and paid in advance before dispatch.',
         },
         {
           q: 'Can I pay in installments?',

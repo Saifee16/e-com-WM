@@ -1139,7 +1139,7 @@ describe('endpoint smoke suite', () => {
       quantity: 1,
     });
     expect(variantOrder.tax).toBe(0);
-    expect(variantOrder.shippingCost).toBe(1_500);
+    expect(variantOrder.shippingCost).toBe(1_000);
     expect(variantOrder.discount).toBe(5_000);
     expect(variantOrder.total).toBe(variantOrder.subtotal + variantOrder.shippingCost - variantOrder.discount);
     await expect(prisma.productVariant.findUniqueOrThrow({ where: { id: selectedVariant.id } })).resolves.toMatchObject({

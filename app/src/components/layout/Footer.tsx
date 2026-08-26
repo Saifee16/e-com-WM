@@ -23,6 +23,7 @@ const customerLinks = [
 ];
 
 const supportLinks = [
+  { name: 'Hyderabad Store', path: '/hyderabad' },
   { name: 'Contact support', path: '/support#contact' },
   { name: 'Help and FAQs', path: '/support' },
   { name: 'Services', path: '/services#services' },

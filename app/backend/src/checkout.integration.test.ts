@@ -222,8 +222,8 @@ describe('checkout transaction routes', () => {
         guestEmail: `guest-${scope}@example.com`,
         subtotal: 100_000,
         tax: 0,
-        shippingCost: 0,
-        total: 100_000,
+        shippingCost: 300,
+        total: 100_300,
         items: [{ variantId: variant.id, quantity: 2, price: 50_000 }],
       },
     });

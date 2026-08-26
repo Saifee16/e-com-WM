@@ -104,6 +104,52 @@ describe('raw route metadata', () => {
     expect(result.body).not.toContain('name="robots" content="noindex,follow"');
   });
 
+  it('renders Hyderabad as indexable with self-canonical LocalBusiness data', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, text: async () => shell })));
+
+    const result = await invoke({
+      url: 'https://wahabmobiles.com/hyderabad',
+      query: { route: 'static', slug: 'hyderabad' },
+    });
+
+    expect(result.statusCode).toBe(200);
+    expect(result.body).toContain('<title>Wahab Mobiles Hyderabad | Mobile Phones &amp; Accessories</title>');
+    expect(result.body).toContain('name="robots" content="index,follow"');
+    expect(result.body).toContain('rel="canonical" href="https://wahabmobiles.com/hyderabad"');
+    expect(result.body).toContain('"@type":"MobilePhoneStore"');
+    expect(result.body).toContain('"telephone":"+92 312 2995584"');
+    expect(result.body).toContain('"hasMap":"https://maps.app.goo.gl/sDRAiyBxtHMhD9Mb6"');
+    expect(result.body).not.toContain('AggregateRating');
+    expect(result.body).not.toContain('0348 3034922');
+  });
+
+  it('renders only the canonical Google Pixel landing and filters by the live Google brand slug', async () => {
+    const fetchMock = vi.fn(async (input) => {
+      if (String(input).endsWith('/index.html')) return { ok: true, text: async () => shell };
+      return {
+        ok: true,
+        json: async () => ({
+          data: {
+            items: [{ brand: 'Google', brandSlug: 'google' }],
+            pagination: { total: 1 },
+          },
+        }),
+      };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await invoke({
+      url: 'https://wahabmobiles.com/phones/google-pixel',
+      query: { route: 'category', root: 'phones', slug: 'google-pixel', categorySlug: 'google-pixel' },
+    });
+
+    expect(result.statusCode).toBe(200);
+    expect(result.body).toContain('<title>Google Pixel Phones Price in Pakistan | Wahab Mobiles</title>');
+    expect(result.body).toContain('rel="canonical" href="https://wahabmobiles.com/phones/google-pixel"');
+    expect(result.body).not.toContain('name="robots" content="noindex,follow"');
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes('brand=google'))).toBe(true);
+  });
+
   it('keeps tablets routeable but noindexable when the inventory is empty', async () => {
     vi.stubGlobal('fetch', vi.fn(async (input) => {
       if (String(input).endsWith('/index.html')) return { ok: true, text: async () => shell };
@@ -174,7 +220,7 @@ describe('raw route metadata', () => {
       };
     }));
 
-    for (const slug of ['iphone', 'android', 'samsung', 'xiaomi', 'realme', 'honor', 'tecno', 'under-30000', 'under-50000', 'under-100000']) {
+    for (const slug of ['iphone', 'android', 'samsung', 'xiaomi', 'realme', 'honor', 'tecno', 'google-pixel', 'under-30000', 'under-50000', 'under-100000']) {
       const result = await invoke({
         url: `https://wahabmobiles.com/phones/${slug}`,
         query: { route: 'category', root: 'phones', slug, categorySlug: slug },
@@ -184,7 +230,7 @@ describe('raw route metadata', () => {
       expect(result.body).toContain(`rel="canonical" href="https://wahabmobiles.com/phones/${slug}"`);
     }
 
-    for (const slug of ['about', 'services', 'support', 'returns', 'privacy', 'terms', 'data-deletion']) {
+    for (const slug of ['about', 'services', 'support', 'returns', 'privacy', 'terms', 'data-deletion', 'hyderabad']) {
       const result = await invoke({
         url: `https://wahabmobiles.com/${slug}`,
         query: { route: 'static', slug },
@@ -227,7 +273,7 @@ describe('Vercel route policy', () => {
     expect(config.rewrites).toContainEqual({ source: '/search', destination: '/api/route-page?route=search' });
     expect(config.rewrites).toContainEqual({ source: '/phones', destination: '/api/route-page?route=category&root=phones&slug=phones' });
     expect(config.rewrites).toContainEqual({ source: '/tablets', destination: '/api/route-page?route=category&root=tablets&slug=tablets' });
-    for (const slug of ['about', 'services', 'support', 'returns', 'privacy', 'terms', 'data-deletion']) {
+    for (const slug of ['about', 'services', 'support', 'returns', 'privacy', 'terms', 'data-deletion', 'hyderabad']) {
       expect(config.rewrites).toContainEqual({ source: `/${slug}`, destination: `/api/route-page?route=static&slug=${slug}` });
     }
   });

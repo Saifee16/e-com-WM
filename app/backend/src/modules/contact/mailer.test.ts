@@ -7,7 +7,7 @@ const importMailer = async (overrides: Record<string, unknown> = {}) => {
       EMAIL_FROM: 'Wahab Mobiles <noreply@wahabmobiles.com>',
       FRONTEND_URL: 'https://wahabmobiles.com',
       RESEND_API_KEY: 'unit-test-api-key',
-      SUPPORT_EMAIL: 'support@wahabmobiles.com',
+      SUPPORT_EMAIL: 'wahabmobiles@gmail.com',
       ...overrides,
     },
   }));
@@ -47,7 +47,7 @@ describe('sendContactMessageNotification', () => {
     const payload = JSON.parse(String(options.body));
     expect(payload).toMatchObject({
       from: 'Wahab Mobiles <noreply@wahabmobiles.com>',
-      to: ['support@wahabmobiles.com'],
+      to: ['wahabmobiles@gmail.com'],
       reply_to: 'customer@example.com',
       subject: 'New Wahab Mobiles contact message',
     });

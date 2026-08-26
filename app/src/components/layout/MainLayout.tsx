@@ -71,6 +71,7 @@ const staticMetadataByPath: Record<string, ReturnType<typeof buildStaticMetadata
 
 const isPageManagedSeoRoute = (pathname: string) =>
   pathname === '/'
+  || pathname === '/hyderabad'
   || pathname.startsWith('/products')
   || pathname.startsWith('/phones')
   || pathname.startsWith('/tablets')

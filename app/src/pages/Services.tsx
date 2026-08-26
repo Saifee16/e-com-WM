@@ -12,6 +12,7 @@ import {
   Truck,
 } from 'lucide-react';
 import { CONTACT_EMAIL, CONTACT_PHONE_NUMBERS } from '../config/contact';
+import { NATIONWIDE_SHIPPING_COSTS } from '../config/order-policy';
 
 const Services = () => {
   const services = [
@@ -36,7 +37,7 @@ const Services = () => {
     {
       icon: RotateCcw,
       title: 'Return requests',
-      description: 'Eligible delivered orders can submit a return request within seven days.',
+      description: 'Eligible unopened, unactivated box-pack products may be returned or exchanged within 2–3 working days.',
       features: ['Account workflow', 'Guest workflow', 'Admin review', 'Recorded resolution'],
     },
     {
@@ -48,21 +49,21 @@ const Services = () => {
     {
       icon: CreditCard,
       title: 'Cash on Delivery',
-      description: 'Checkout currently uses Cash on Delivery and does not collect card details.',
-      features: ['No card entry', 'No stored payment card', 'Pay on delivery', 'Manual refund records'],
+      description: 'Hyderabad deliveries may use Cash on Delivery. Orders outside Hyderabad are confirmed and arranged for advance payment before dispatch.',
+      features: ['No card entry', 'No stored payment card', 'Local COD available', 'Manual refund records'],
     },
   ];
 
   const shippingInfo = [
     {
       method: 'Standard Shipping',
-      cost: 'Rs. 500',
-      detail: 'Free when the standard-shipping subtotal is Rs. 100,000 or more.',
+      cost: `PKR ${NATIONWIDE_SHIPPING_COSTS.standard.toLocaleString('en-PK')} outside Hyderabad`,
+      detail: 'Free for qualifying Hyderabad orders; outside-Hyderabad orders require advance payment before dispatch.',
     },
     {
-      method: 'Express Shipping',
-      cost: 'Rs. 1,500',
-      detail: 'The selected charge is included in the checkout total.',
+      method: 'Fast Shipping',
+      cost: `PKR ${NATIONWIDE_SHIPPING_COSTS.express.toLocaleString('en-PK')} outside Hyderabad`,
+      detail: 'Fast shipping; confirm timing with the shop before dispatch.',
     },
     {
       method: 'Store Pickup',
@@ -149,7 +150,7 @@ const Services = () => {
           <div>
             <h2 className="text-3xl font-bold">How return requests work</h2>
             <p className="mt-4 max-w-3xl leading-7 text-slate-300">
-              An eligible delivered order can submit a request within seven days of delivery. The request is reviewed before approval, and submission alone does not confirm a refund or exchange.
+              Return or exchange eligibility is generally limited to unopened, unactivated box-pack products within 2–3 working days. Defective-product claims may require video proof. Every request is reviewed, and submission alone does not confirm a refund or exchange.
             </p>
             <Link to="/returns" className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-cyan-300 hover:text-cyan-200">
               Read the return process

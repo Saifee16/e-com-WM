@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { Category, Product } from '../types';
 import Seo, {
   buildCategoryMetadata,
+  buildLocalBusinessJsonLd,
   buildProductJsonLd,
   buildProductMetadata,
   serializeJsonLd,
@@ -115,6 +116,24 @@ describe('SEO metadata and structured data', () => {
     expect(structuredData).not.toHaveProperty('variesBy');
     expect(variants[0]).toHaveProperty('isVariantOf', { '@id': 'https://wahabmobiles.com/products/phone-script#product-group' });
     expect(variants[0]).toHaveProperty('additionalProperty');
+  });
+
+  it('builds truthful Hyderabad store schema without ratings or reviews', () => {
+    const structuredData = buildLocalBusinessJsonLd();
+
+    expect(structuredData).toMatchObject({
+      '@type': 'MobilePhoneStore',
+      telephone: '+92 312 2995584',
+      email: 'wahabmobiles@gmail.com',
+      hasMap: 'https://maps.app.goo.gl/sDRAiyBxtHMhD9Mb6',
+      address: {
+        addressLocality: 'Hyderabad',
+        addressRegion: 'Sindh',
+        postalCode: '71000',
+      },
+    });
+    expect(structuredData).not.toHaveProperty('aggregateRating');
+    expect(structuredData).not.toHaveProperty('review');
   });
 
   it('serializes user-provided text without a script-closing sequence', () => {

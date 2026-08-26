@@ -27,6 +27,7 @@ const TermsOfService = lazy(() => import('./pages/TermsOfService'));
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
 const DataDeletion = lazy(() => import('./pages/DataDeletion'));
 const ReturnsPolicy = lazy(() => import('./pages/ReturnsPolicy'));
+const Hyderabad = lazy(() => import('./pages/Hyderabad'));
 const Dashboard = lazy(() => import('./pages/account/Dashboard'));
 const Orders = lazy(() => import('./pages/account/Orders'));
 const OrderDetail = lazy(() => import('./pages/account/OrderDetail'));
@@ -134,6 +135,7 @@ function App() {
                 <Route path="products/:id" element={<ProductDetail />} />
                 <Route path="cart" element={<Cart />} />
                 <Route path="about" element={<About />} />
+                <Route path="hyderabad" element={<Hyderabad />} />
                 <Route path="services" element={<Services />} />
                 <Route path="support" element={<Support />} />
                 <Route path="help" element={<Navigate to="/support#faqs" replace />} />
