@@ -62,7 +62,7 @@ export const getRouteCategory = (pathname: string) => {
   }
   return '';
 };
-const landingLabel = (slug: string) => ({ iphone: 'iPhone', android: 'Android', samsung: 'Samsung', xiaomi: 'Xiaomi', realme: 'Realme', honor: 'Honor', tecno: 'Tecno', 'under-30000': 'Under Rs. 30,000', 'under-50000': 'Under Rs. 50,000', 'under-100000': 'Under Rs. 100,000' }[slug] ?? slug);
+const landingLabel = (slug: string) => ({ iphone: 'iPhone', android: 'Android', samsung: 'Samsung', xiaomi: 'Xiaomi', realme: 'Realme', honor: 'Honor', tecno: 'Tecno', 'google-pixel': 'Google Pixel', 'under-30000': 'Under Rs. 30,000', 'under-50000': 'Under Rs. 50,000', 'under-100000': 'Under Rs. 100,000' }[slug] ?? slug);
 
 const categoryHref = (category: Category) => {
   const routeRoots = new Set(['phones', 'tablets', 'smart-watches', 'gadgets']);

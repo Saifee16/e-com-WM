@@ -49,6 +49,7 @@ describe('seo sitemap route', () => {
     ]);
     mocks.productFindMany.mockResolvedValue([
       phone('active-samsung', 'samsung', 20000),
+      phone('active-google-pixel', 'google', 90000),
       phone('active-xiaomi', 'xiaomi-mi', 22000),
       phone('active-honor', 'honor', 24000),
       phone('active-tecno', 'tecno', 26000),
@@ -75,6 +76,8 @@ describe('seo sitemap route', () => {
     expect(xml).toContain('https://wahabmobiles.com/phones/iphone');
     expect(xml).toContain('https://wahabmobiles.com/phones/android');
     expect(xml).toContain('https://wahabmobiles.com/phones/samsung');
+    expect(xml).toContain('https://wahabmobiles.com/phones/google-pixel');
+    expect(xml).toContain('https://wahabmobiles.com/hyderabad');
     expect(xml).toContain('https://wahabmobiles.com/phones/under-30000');
     expect(xml).not.toContain('https://wahabmobiles.com/tablets');
     expect(xml).not.toContain('https://wahabmobiles.com/gadgets');

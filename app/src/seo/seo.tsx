@@ -2,9 +2,13 @@
 import { useEffect } from 'react';
 import type { Category, Product, ProductVariant } from '../types';
 import {
+  BUSINESS_NAME,
   CONTACT_EMAIL,
   CONTACT_PHONE_NUMBERS,
-  SHOP_ADDRESS,
+  SHOP_MAPS_URL,
+  SHOP_OPENING_HOURS,
+  SHOP_STRUCTURED_ADDRESS,
+  SOCIAL_PROFILE_URLS,
 } from '../config/contact';
 import { getProductPath } from '../utils/product-url';
 import type { SeoLandingPage } from './landing-pages';
@@ -206,11 +210,14 @@ export const buildBreadcrumbJsonLd = (items: Array<{ name: string; url: string }
 export const buildOrganizationJsonLd = (): JsonLd => ({
   '@context': 'https://schema.org',
   '@type': 'Organization',
-  name: 'Wahab Mobiles',
+  '@id': `${SITE_URL}/#organization`,
+  name: BUSINESS_NAME,
   url: SITE_URL,
   logo: `${SITE_URL}/assets/wahab-logo.jpg`,
   email: CONTACT_EMAIL,
   telephone: CONTACT_PHONE_NUMBERS[0].label,
+  address: { '@type': 'PostalAddress', ...SHOP_STRUCTURED_ADDRESS },
+  sameAs: SOCIAL_PROFILE_URLS,
 });
 
 export const buildWebSiteJsonLd = (): JsonLd => ({
@@ -228,17 +235,23 @@ export const buildWebSiteJsonLd = (): JsonLd => ({
 export const buildLocalBusinessJsonLd = (): JsonLd => ({
   '@context': 'https://schema.org',
   '@type': 'MobilePhoneStore',
-  name: 'Wahab Mobiles',
-  url: SITE_URL,
+  '@id': `${SITE_URL}/#store`,
+  name: BUSINESS_NAME,
+  url: `${SITE_URL}/hyderabad`,
   image: DEFAULT_OG_IMAGE,
   telephone: CONTACT_PHONE_NUMBERS[0].label,
   email: CONTACT_EMAIL,
   address: {
     '@type': 'PostalAddress',
-    streetAddress: SHOP_ADDRESS,
-    addressLocality: 'Hyderabad',
-    addressCountry: 'PK',
+    ...SHOP_STRUCTURED_ADDRESS,
   },
+  openingHoursSpecification: SHOP_OPENING_HOURS.map((hours) => ({
+    '@type': 'OpeningHoursSpecification',
+    ...hours,
+  })),
+  hasMap: SHOP_MAPS_URL,
+  foundingDate: '2009-03-21',
+  sameAs: SOCIAL_PROFILE_URLS,
 });
 
 const upsertMeta = (attribute: 'name' | 'property', key: string, content: string | undefined) => {

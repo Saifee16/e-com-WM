@@ -25,7 +25,7 @@ const ReturnsPolicy = () => (
       </div>
 
       <div className="mt-8 space-y-7 rounded-3xl border border-slate-200 bg-white p-6 text-slate-700 shadow-sm sm:p-10">
-        <section><h2 className="text-xl font-bold text-slate-950">Eligibility</h2><p className="mt-3">Eligible delivered orders can be submitted through the return workflow within seven days of delivery. The request is reviewed before approval; submitting one does not by itself confirm a refund.</p></section>
+        <section><h2 className="text-xl font-bold text-slate-950">Eligibility</h2><p className="mt-3">Return or exchange eligibility is generally limited to unopened, unactivated box-pack products within 2–3 working days. Opened or activated phones are not normally eligible. Defective-product claims may require video proof, and the product must remain non-activated where applicable. Every request is reviewed; submitting one does not by itself confirm a refund or exchange.</p></section>
         <section><h2 className="text-xl font-bold text-slate-950">Review and refund</h2><p className="mt-3">Provide a clear reason and any useful details. If approved, the support team records the resolution and confirms the manual refund only after it has actually been completed.</p></section>
         <section><h2 className="text-xl font-bold text-slate-950">Need help or want to make a complaint?</h2><p className="mt-3">Use the unified <Link className="font-medium text-blue-700 underline" to="/account/support">Support Tickets</Link> queue. Complaints are not sent to a separate page, so your updates remain in one trackable conversation.</p></section>
       </div>

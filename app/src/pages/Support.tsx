@@ -64,7 +64,7 @@ const Support = () => {
       questions: [
         {
           q: 'What is your return policy?',
-          a: 'Eligible delivered orders can submit a return request within seven days of delivery. Every request is reviewed before approval.',
+          a: 'Return or exchange eligibility is generally limited to unopened, unactivated box-pack products within 2–3 working days. Defective-product claims may require video proof. Every request is reviewed.',
         },
         {
           q: 'How do I initiate a return?',
@@ -86,7 +86,7 @@ const Support = () => {
         },
         {
           q: 'Is warranty coverage the same for every phone?',
-          a: 'No universal warranty is promised on this site. Confirm the coverage for the specific new, used or refurbished device before purchase.',
+          a: 'Warranty varies by product and brand. New devices may include official manufacturer or distributor warranty, while selected used phones may include a 2–3 day checking warranty. Confirm exact terms before purchase.',
         },
         {
           q: 'How can I confirm PTA status?',

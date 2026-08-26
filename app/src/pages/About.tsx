@@ -26,7 +26,7 @@ const catalogueFeatures = [
   {
     icon: Smartphone,
     title: 'Condition-aware browsing',
-    description: 'Filter the live catalogue for new, used and refurbished phones.',
+    description: 'Filter the live catalogue for new and used phones.',
   },
   {
     icon: ShieldCheck,
@@ -55,7 +55,7 @@ const About = () => (
             A Hyderabad mobile shop built on real customer relationships.
           </h1>
           <p className="mt-5 max-w-xl text-base leading-7 text-slate-600 sm:text-lg">
-            Wahab Mobiles combines a physical Saddar Cantt store with an online catalogue for new, used and refurbished phones.
+            Wahab Mobiles combines a physical Saddar Cantt store with an online catalogue for new and used phones.
           </p>
           <div className="mt-7 flex flex-col gap-3 min-[430px]:flex-row">
             <Link to="/products" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-blue-700 px-5 text-sm font-bold text-white hover:bg-blue-800">

@@ -52,6 +52,17 @@ export const SEO_LANDING_PAGES: readonly SeoLandingPage[] = [
     description: `Shop current ${brand} phones from Wahab Mobiles with live prices, specifications and availability.`,
     intro: `See the ${brand} phones currently listed in the live Wahab Mobiles catalogue.`,
   })),
+  {
+    path: '/phones/google-pixel',
+    slug: 'google-pixel',
+    kind: 'brand',
+    brand: 'google',
+    category: 'phones',
+    title: 'Google Pixel Phones Price in Pakistan | Wahab Mobiles',
+    h1: 'Google Pixel Phones in Pakistan',
+    description: 'Browse current Google Pixel phones, prices and available variants in Pakistan, with PTA status shown on each Wahab Mobiles product.',
+    intro: 'See the Google Pixel phones currently listed in the live Wahab Mobiles catalogue, including variant availability and product-specific PTA status.',
+  },
   ...([
     [30000, 'under-30000', 'Under Rs. 30,000 Phones in Pakistan'],
     [50000, 'under-50000', 'Under Rs. 50,000 Phones in Pakistan'],

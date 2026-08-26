@@ -36,7 +36,7 @@ const Services = () => {
     {
       icon: RotateCcw,
       title: 'Return requests',
-      description: 'Eligible delivered orders can submit a return request within seven days.',
+      description: 'Eligible unopened, unactivated box-pack products may be returned or exchanged within 2–3 working days.',
       features: ['Account workflow', 'Guest workflow', 'Admin review', 'Recorded resolution'],
     },
     {
@@ -149,7 +149,7 @@ const Services = () => {
           <div>
             <h2 className="text-3xl font-bold">How return requests work</h2>
             <p className="mt-4 max-w-3xl leading-7 text-slate-300">
-              An eligible delivered order can submit a request within seven days of delivery. The request is reviewed before approval, and submission alone does not confirm a refund or exchange.
+              Return or exchange eligibility is generally limited to unopened, unactivated box-pack products within 2–3 working days. Defective-product claims may require video proof. Every request is reviewed, and submission alone does not confirm a refund or exchange.
             </p>
             <Link to="/returns" className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-cyan-300 hover:text-cyan-200">
               Read the return process

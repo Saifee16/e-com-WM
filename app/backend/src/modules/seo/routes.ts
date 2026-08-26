@@ -14,6 +14,7 @@ const staticPaths = [
   '/privacy',
   '/terms',
   '/data-deletion',
+  '/hyderabad',
 ];
 
 const publicPhoneCategoryPaths = new Set(['/phones', '/phones/iphone', '/phones/android']);

@@ -213,7 +213,7 @@ const OrderDetail = () => {
       {order.status === 'delivered' && !order.returnRequest && (
         <div className="mb-6 rounded-2xl border border-blue-200 bg-blue-50 p-5">
           <h3 className="flex items-center gap-2 font-semibold text-gray-900"><RefreshCcw className="h-5 w-5" /> Request a return</h3>
-          <p className="mt-1 text-sm text-gray-600">Eligible orders can be requested within seven days of delivery.</p>
+          <p className="mt-1 text-sm text-gray-600">Eligible unopened, unactivated box-pack products may be requested within 2–3 working days.</p>
           <input aria-label="Return reason" value={returnReason} onChange={(event) => setReturnReason(event.target.value)} className="mt-3 w-full rounded-xl border border-blue-200 bg-white px-4 py-2.5" />
           <textarea aria-label="Return details" value={returnDetails} onChange={(event) => setReturnDetails(event.target.value)} placeholder="Additional details (optional)" className="mt-3 min-h-24 w-full rounded-xl border border-blue-200 bg-white px-4 py-2.5" />
           <button disabled={isActing || returnReason.trim().length < 3} onClick={requestReturn} className="mt-3 rounded-xl bg-blue-600 px-5 py-2.5 font-medium text-white disabled:opacity-50">Submit return request</button>

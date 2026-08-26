@@ -182,7 +182,7 @@ const ProductDetail = () => {
   const productMetadata = buildProductMetadata(product);
   const productCategoryPath = product.category === "iphone" ? "/phones/iphone" : product.category === "android" ? "/phones/android" : product.category === "phones" ? "/phones" : `/products?category=${encodeURIComponent(product.category)}`;
   const productCategoryName = product.category === "iphone" ? "iPhone" : product.category === "android" ? "Android Phones" : product.categoryName ?? "Catalogue";
-  const brandPath = product.brandSlug === "samsung" ? "/phones/samsung" : product.brandSlug === "xiaomi-mi" ? "/phones/xiaomi" : product.brandSlug === "realme" ? "/phones/realme" : product.brandSlug === "honor" ? "/phones/honor" : product.brandSlug === "tecno" ? "/phones/tecno" : undefined;
+  const brandPath = product.brandSlug === "samsung" ? "/phones/samsung" : product.brandSlug === "xiaomi-mi" ? "/phones/xiaomi" : product.brandSlug === "realme" ? "/phones/realme" : product.brandSlug === "honor" ? "/phones/honor" : product.brandSlug === "tecno" ? "/phones/tecno" : product.brandSlug === "google" ? "/phones/google-pixel" : undefined;
   const breadcrumbItems = [
     { name: "Home", url: "https://wahabmobiles.com/" },
     { name: "Products", url: "https://wahabmobiles.com/products" },
@@ -404,7 +404,7 @@ const ProductDetail = () => {
                 </div>
                 <div className="text-center">
                   <RotateCcw className="w-6 h-6 mx-auto mb-2 text-blue-600" />
-                  <span className="text-xs text-gray-600">7-day request window</span>
+                  <span className="text-xs text-gray-600">2–3 working-day eligibility</span>
                 </div>
               </div>
             </div>
