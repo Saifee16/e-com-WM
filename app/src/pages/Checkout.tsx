@@ -15,6 +15,12 @@ import { formatPrice } from '../utils/format';
 import { ordersAPI } from '../services/api';
 import { useToast } from '../contexts/ToastContext';
 import { getApiErrorMessage } from '../utils/api-error';
+import {
+  FREE_STANDARD_SHIPPING_SUBTOTAL,
+  getShippingCosts,
+  isHyderabadCity,
+  NATIONWIDE_ORDER_NOTICE,
+} from '../config/order-policy';
 
 const Checkout = () => {
   const navigate = useNavigate();
@@ -43,13 +49,11 @@ const Checkout = () => {
   const paymentMethod = 'cod' as const;
   const [shippingMethod, setShippingMethod] = useState<'standard' | 'express' | 'pickup'>('standard');
 
-  const shippingCosts = {
-    standard: 500,
-    express: 1500,
-    pickup: 0,
-  };
-
-  const qualifiesForFreeStandardShipping = shippingMethod === 'standard' && totals.subtotal >= 100_000;
+  const isHyderabadOrder = isHyderabadCity(shippingInfo.city);
+  const shippingCosts = getShippingCosts(shippingInfo.city);
+  const qualifiesForFreeStandardShipping = isHyderabadOrder
+    && shippingMethod === 'standard'
+    && totals.subtotal >= FREE_STANDARD_SHIPPING_SUBTOTAL;
   const selectedShipping = totals.freeShipping || qualifiesForFreeStandardShipping
     ? 0
     : shippingCosts[shippingMethod];
@@ -288,9 +292,9 @@ const Checkout = () => {
                     </label>
                     <div className="space-y-3">
                       {([
-                        { key: 'standard', label: 'Standard Shipping', price: 500, detail: 'Free for qualifying orders' },
-                        { key: 'express', label: 'Express Shipping', price: 1500, detail: 'Confirm timing with the shop' },
-                        { key: 'pickup', label: 'Store Pickup', price: 0, detail: 'Coordinate collection with the shop' },
+                        { key: 'standard', label: 'Standard Shipping', detail: 'Free for qualifying Hyderabad orders' },
+                        { key: 'express', label: 'Fast Shipping', detail: 'Confirm timing with the shop' },
+                        { key: 'pickup', label: 'Store Pickup', detail: 'Coordinate collection with the shop' },
                       ] as const).map((method) => (
                         <label
                           key={method.key}
@@ -313,7 +317,7 @@ const Checkout = () => {
                             <p className="text-sm text-gray-500">{method.detail}</p>
                           </div>
                           <span className="font-medium">
-                            {method.price === 0 ? 'Free' : formatPrice(method.price)}
+                            {shippingCosts[method.key] === 0 ? 'Free' : formatPrice(shippingCosts[method.key])}
                           </span>
                         </label>
                       ))}
@@ -342,7 +346,11 @@ const Checkout = () => {
                       <Banknote className="w-6 h-6 text-gray-600" />
                       <div>
                         <span className="font-medium text-gray-900">Cash on Delivery</span>
-                        <p className="text-sm text-gray-500">Pay the courier when your order arrives.</p>
+                        <p className="text-sm text-gray-500">
+  {isHyderabadOrder
+    ? 'Available for Hyderabad deliveries; our team may contact you to confirm the order.'
+    : NATIONWIDE_ORDER_NOTICE}
+</p>
                       </div>
                     </div>
                   </div>

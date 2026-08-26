@@ -20,6 +20,7 @@ import {
   SHOP_MAPS_URL,
   SHOP_WHATSAPP_URL,
 } from '../config/contact';
+import { NATIONWIDE_SHIPPING_COPY } from '../config/order-policy';
 import Seo, {
   buildBreadcrumbJsonLd,
   buildLocalBusinessJsonLd,
@@ -171,9 +172,11 @@ const Hyderabad = () => (
           <Truck className="h-6 w-6 text-blue-700" aria-hidden="true" />
           <h2 className="mt-4 text-xl font-extrabold">Pickup and delivery</h2>
           <p className="mt-3 text-sm leading-6 text-slate-600">
-            Store pickup is available from 5 PM onward. Same-day delivery is available in Hyderabad.
-            Nationwide shipping is available, with advance payment required for orders outside Hyderabad.
-            Delivery charges vary by area.
+            Store pickup is available from 5 PM onward. Same-day delivery is available in Hyderabad
+            where applicable.
+          </p>
+          <p className="mt-3 text-sm leading-6 text-slate-600">
+            {NATIONWIDE_SHIPPING_COPY}
           </p>
         </article>
         <article className="rounded-xl border border-slate-200 p-6">

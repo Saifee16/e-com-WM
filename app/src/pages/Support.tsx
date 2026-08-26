@@ -50,7 +50,7 @@ const Support = () => {
         },
         {
           q: 'Do you offer free shipping?',
-          a: 'Standard shipping is free when the order subtotal is Rs. 100,000 or more. Checkout shows the final shipping charge before the order is placed.',
+          a: 'For Hyderabad orders, standard shipping may be free when the order subtotal is Rs. 100,000 or more. Orders outside Hyderabad can be placed online; checkout shows the applicable charge before the order is placed.',
         },
         {
           q: 'Can I track my order?',
@@ -100,11 +100,11 @@ const Support = () => {
       questions: [
         {
           q: 'What payment methods do you accept?',
-          a: 'Cash on Delivery (COD) is the only payment method. Refunds are handled manually by the support team.',
+          a: 'Cash on Delivery is available for Hyderabad/local orders. Orders outside Hyderabad can be placed online; our team contacts the customer to confirm the order and arrange advance payment before dispatch. Refunds are handled manually by the support team.',
         },
         {
           q: 'Is my payment information secure?',
-          a: 'The current checkout does not request or store card details because Cash on Delivery is the only payment method.',
+          a: 'The current checkout does not request or store card details. Hyderabad/local orders may use Cash on Delivery; outside-Hyderabad orders are confirmed and paid in advance before dispatch.',
         },
         {
           q: 'Can I pay in installments?',
