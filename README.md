@@ -1,91 +1,40 @@
-Wahab Mobiles
+# Wahab Mobiles
 
-Production e-commerce platform for Wahab Mobiles, a real mobile-phone retailer in Hyderabad, Sindh, Pakistan.
+Production e-commerce platform for a real mobile-phone retailer in Hyderabad, Sindh, Pakistan.
 
-Live: https://wahabmobiles.com
+**Live:** [wahabmobiles.com](https://wahabmobiles.com)
 
-This repository is a production business system, not a toy/demo application. The public repository is intentionally documentation-friendly, but production credentials, customer data, private orders, secrets, and other sensitive operational information must never be committed here.
+> This is a production business system, not a demo application. Production credentials, customer data, orders, and other sensitive operational information are never committed to this repository.
 
-What this project demonstrates
+---
 
-Full-stack e-commerce for a physical retail business
+## What This Project Demonstrates
 
-Product, variant, inventory, category and brand management
+- Full-stack e-commerce for a physical retail business
+- Product, variant, inventory, category, and brand management
+- Guest and customer shopping flows
+- Cart, Buy Now, COD checkout, shipping, order lifecycle, and returns
+- Admin / Super Admin separation with tested authorization boundaries
+- Security controls covering auth abuse, sessions, CSRF, CORS, and uploads
+- Server-rendered SEO metadata, structured data, and sitemap/robots/canonical management
+- Automated regression and release verification
 
-Guest and customer shopping flows
+---
 
-Cart, Buy Now, COD checkout, shipping, order lifecycle and returns
+## Product Scope
 
-Admin and Super Admin separation
+- New and used mobile phones and tablets
+- Smart watches
+- Accessories — screen protectors, chargers, cases/covers, headphones/earbuds, power banks
+- Mobile hardware and software repair
 
-Customer/Admin/Super Admin authentication boundaries
+The catalogue supports product variants, inventory/stock, prices, conditions, PTA status, product images, and structured metadata across major phone brands (Apple, Samsung, Xiaomi, Google Pixel, realme, OPPO, vivo, Infinix, TECNO, itel, Nokia/HMD, HONOR).
 
-Security controls covering authentication abuse, sessions, CSRF, CORS, uploads and authorization
+---
 
-Server-rendered/raw SEO metadata for commercial routes
+## Architecture
 
-Product and product-variant structured data
-
-Sitemap/robots/canonical management
-
-Local business SEO for Hyderabad
-
-Google Pixel and major-brand landing coverage
-
-Automated regression and release verification
-
-Product scope
-
-Wahab Mobiles sells and services:
-
-New mobile phones
-
-Used mobile phones
-
-New and used tablets
-
-Smart watches
-
-Mobile accessories
-
-Screen protectors, chargers, cases/covers, headphones/earbuds, power banks and related accessories
-
-Mobile hardware and software repair
-
-The catalogue supports product variants, inventory/stock, prices, conditions, PTA status, product images and structured product metadata.
-
-Major phone brands
-
-The current local/business positioning includes:
-
-Apple / iPhone
-
-Samsung
-
-Xiaomi / Redmi
-
-Google Pixel
-
-realme
-
-OPPO
-
-vivo
-
-Infinix
-
-TECNO
-
-itel
-
-Nokia / HMD
-
-HONOR
-
-Brand landing pages are only treated as SEO assets where the application's route and catalogue logic support them. Inventory is live and availability varies by product.
-
-Architecture
-
+```mermaid
 flowchart LR
     U[Customer / Staff Browser]
     V[Vercel Frontend<br/>React + Vite]
@@ -103,886 +52,119 @@ flowchart LR
     A --> C
     V --> G
     A --> G
+```
 
-Deployment topology
+| Layer | Technology |
+|---|---|
+| Frontend | React + Vite, hosted on Vercel |
+| Backend API | Fastify + TypeScript, hosted on Render |
+| Database | PostgreSQL via Prisma |
+| Cache / rate limiting / sessions | Redis |
+| Media storage | Cloudinary |
 
-Frontend: Vercel
-Backend API: Render
-Database: PostgreSQL via the project's production database configuration
-Caching/rate-limit/session support: Redis
-Image/media storage: Cloudinary where configured
-DNS/domain: wahabmobiles.com
-Maps/local presence: Google Business Profile / Google Maps
+The frontend and API are deployed separately; the frontend consumes the public HTTPS API origin with route-aware raw metadata/rewrite handling for SEO.
 
-The production frontend and API are intentionally separated. The API is consumed through the public HTTPS API origin and the frontend uses route-aware raw metadata/rewrite handling for SEO.
+---
 
-Security & checkout integrity
+## Security
 
-Security work has been validated in multiple dedicated release gates.
+Verified in dedicated release gates:
 
-Verified controls
+- SQL injection review and dynamic checks — pass
+- XSS checks — pass
+- IDOR / authorization checks — pass
+- Customer → Admin boundary — pass
+- Admin → Super Admin boundary — pass
+- Session cookies: HttpOnly/Secure production behavior
+- Refresh/session rotation and logout invalidation — pass
+- Password-change session revocation — pass
+- CSRF protection — pass
+- Exact-origin CORS policy — pass
+- Authenticated upload controls (MIME/signature/size/count/ownership) — pass
+- Exposed `.env`, `.git`, source map, and debug-file checks — pass
+- Stack-trace / database-error leakage checks — pass
+- Account-aware distributed login-abuse protection
 
-SQL injection review and dynamic checks passed
+**Credential abuse protection:** the account-aware login limiter is Redis-backed, realm-separated, HMAC-based, and normalized by identifier. It supplements existing IP/global limits and was validated against distributed attempts on a single account. Key properties: finite cooldowns, escalation, successful-login reset, realm isolation, and fail-open behavior if Redis is unavailable (without disabling IP/global controls).
 
-XSS checks passed
+---
 
-IDOR / authorization checks passed
+## Checkout Model
 
-Customer → Admin boundary passed
+Payment method is **Cash on Delivery**, with a location-based policy:
 
-Admin → Super Admin boundary passed
+- **Hyderabad / local orders:** COD available.
+- **Orders outside Hyderabad:** placed online, staff confirms with the customer, advance payment collected before dispatch.
 
-Session cookies use HttpOnly/Secure production behavior
+| Shipping tier | Cost |
+|---|---|
+| Standard | PKR 300 |
+| Fast | PKR 1,000 |
 
-Refresh/session rotation and logout invalidation passed
+---
 
-Password-change session revocation passed
+## Authentication
 
-CSRF protection passed
+Separate customer and admin authentication realms.
 
-Exact-origin CORS policy passed
+**Customer** — email/password login, registration, refresh/session handling, password reset, profile/password changes, supported social/OAuth flows.
 
-Authenticated image upload controls passed
+**Staff Admin** — separate admin API realm and login flow, with roles:
 
-Upload MIME/signature/size/count/ownership checks passed
+| Role | Capabilities |
+|---|---|
+| `ADMIN` | Dashboard, Products, Orders, Users, Messages, Returns |
+| `SUPER_ADMIN` | All of the above + staff/account management |
 
-Exposed .env, .git, source maps and debug-file checks passed
+One user identity is enforced per email address at the account layer — the same email cannot be duplicated across a customer and admin record. Role boundaries are tested directly and via automated regression suites.
 
-Stack-trace / database-error leakage checks passed
+---
 
-Account-aware distributed login-abuse protection was added and verified
+## SEO Architecture
 
-Credential abuse protection
+Shared route/metadata architecture rather than client-side-only title updates.
 
-The account-aware login limiter is Redis-backed, realm-separated, HMAC-based and normalized by identifier. It supplements existing IP/global limits and was specifically validated against distributed attempts against one account.
+- Page-specific raw/server metadata, canonical URLs, robots directives
+- Sitemap generation, robots.txt, legacy redirects
+- Structured data: breadcrumb, Product/ProductGroup schema, variant relationships
+- `LocalBusiness`/`MobilePhoneStore` structured data for local landing pages
+- Raw-vs-rendered metadata regression tests
+- Commercial landing-page indexability rules; search/filter utility routes kept non-indexable
 
-Important recovery properties include:
+---
 
-finite cooldowns
+## Local Development
 
-escalation
+Verify the exact local setup against the current repository files before running commands. At a high level:
 
-successful-login reset
+1. Install Node.js dependencies for `app/` and `app/backend/`.
+2. Configure local environment files from the committed `.env.example` templates.
+3. Start disposable PostgreSQL and Redis via the repository's Docker configuration.
+4. Run Prisma generation/validation and migrations.
+5. Start the backend.
+6. Start the Vite frontend.
 
-realm isolation
+Use only disposable/local data for tests. Never point local integration tests at production databases or production Redis.
 
-fail-open behavior if Redis is unavailable without disabling existing IP/global controls
+---
 
-Checkout model
+## Screenshots
 
-The production checkout currently uses Cash on Delivery as the customer-facing payment method, with an important business-policy distinction:
-
-Hyderabad/local orders: COD remains available.
-
-Orders outside Hyderabad: customers can place the order online, staff contacts the customer to confirm it, and advance payment is collected before dispatch.
-
-Current nationwide shipping policy:
-
-Standard: PKR 300
-
-Fast: PKR 1,000
-
-No invented fast-shipping SLA
-
-Nationwide COD is not promised
-
-The application was updated so outside-Hyderabad checkout no longer displays an unconditional "pay the courier when your order arrives" promise.
-
-Authentication
-
-The application contains separate customer and admin authentication realms.
-
-Customer
-
-Customer routes use the public/customer API and support:
-
-email/password login
-
-registration
-
-refresh/session handling
-
-password reset
-
-profile/password changes
-
-supported social/OAuth flows
-
-Staff Admin
-
-Admin authentication uses a separate admin API realm and separate login flow.
-
-Roles include:
-
-ADMIN
-
-SUPER_ADMIN
-
-Role boundaries have been tested directly and through automated regression suites.
-
-Account identity policy
-
-The application currently enforces one user identity per email address at the account layer, so the same email cannot currently be duplicated across a customer and admin record.
-
-This is an intentional design point worth knowing before future authentication changes. The preferred future direction is to keep account realms and authorization claims separate rather than attempting to make customer credentials function as admin credentials.
-
-Admin workflows
-
-ADMIN
-
-Ordinary staff administrators can work with normal operational areas such as:
-
-Dashboard
-
-Products
-
-Orders
-
-Users
-
-Messages
-
-Returns
-
-SUPER_ADMIN
-
-Super Admin additionally controls staff/account-management capabilities.
-
-Account-management functionality is intentionally restricted from ordinary Admin users.
-
-Production tests have confirmed that Customer/Admin and Admin/Super Admin privilege boundaries hold.
-
-SEO architecture
-
-The site uses a shared route/metadata architecture rather than relying only on client-side title updates.
-
-Technical SEO
-
-Verified production work includes:
-
-page-specific raw/server metadata
-
-canonical URLs
-
-robots directives
-
-sitemap generation
-
-robots.txt
-
-legacy redirects
-
-structured data
-
-breadcrumb structured data
-
-Product / ProductGroup schema
-
-variant relationships
-
-raw-vs-rendered metadata regression tests
-
-commercial landing-page indexability rules
-
-Current commercial SEO routes
-
-Examples include:
-
-/products
-
-/phones
-
-/phones/iphone
-
-/phones/android
-
-/phones/samsung
-
-/phones/xiaomi
-
-/phones/realme
-
-/phones/honor
-
-/phones/tecno
-
-/phones/google-pixel
-
-eligible price landing pages such as /phones/under-30000
-
-/phones/under-50000
-
-/phones/under-100000
-
-Non-indexable areas include search/filter utilities and other non-commercial utility routes as governed by the SEO contract.
-
-Local SEO
-
-A dedicated Hyderabad local-business page exists at:
-
-https://wahabmobiles.com/hyderabad
-
-It provides:
-
-physical address
-
-phone/WhatsApp contact
-
-opening hours
-
-Google Maps destination
-
-store pickup
-
-Hyderabad delivery
-
-nationwide shipping policy
-
-PTA positioning
-
-warranty/returns summary
-
-product/category/brand discovery
-
-repair/accessory information
-
-LocalBusiness / MobilePhoneStore structured data
-
-Google Pixel
-
-A dedicated route exists at:
-
-https://wahabmobiles.com/phones/google-pixel
-
-The current production catalogue has one known active Google Pixel product (Google Pixel 6 Pro) at the time of the last verified SEO pass.
-
-The page uses the final production brand identity:
-
-Google Pixel / google-pixel
-
-Do not assume the current product count remains unchanged; inventory is dynamic.
-
-Business / NAP facts
-
-Authoritative owner-confirmed public business information currently used by the site:
-
-Business: Wahab Mobiles
-Established: 21 March 2009
-Address: Shop #30, 2nd Corner, Ground Floor, Chandni Shopping Mall, opposite Soghat-e-Sheerin, Saddar Cantt, Hyderabad 71000, Sindh, Pakistan
-Primary: +92 312 2995584
-Secondary: +92 315 6914633
-WhatsApp: +92 312 2995584
-Email: wahabmobiles@gmail.com
-Maps: https://maps.app.goo.gl/sDRAiyBxtHMhD9Mb6
-
-Opening hours
-
-Monday–Thursday: 2:00 PM–12:00 AM
-
-Friday: Closed
-
-Saturday–Sunday: 2:00 PM–12:00 AM
-
-Public holidays: varies
-
-Local operations
-
-Store pickup: available from 5 PM onward
-
-Same-day Hyderabad delivery: available where applicable
-
-Nationwide shipping: available
-
-Nationwide standard shipping: PKR 300
-
-Nationwide fast shipping: PKR 1,000
-
-Outside Hyderabad: advance payment before dispatch
-
-PTA
-
-The business primarily emphasizes PTA-approved inventory, but PTA status is shown at the individual product level.
-
-Do not claim that every catalogue item is PTA approved.
-
-Warranty / returns
-
-Warranty varies by product and brand.
-
-New devices may include manufacturer/distributor warranty. Selected used phones may include a 2–3 day checking warranty.
-
-Returns/exchanges are generally limited to eligible unopened, unactivated box-pack products within 2–3 working days, subject to the published policy and review.
-
-Reviews and local reputation
-
-The Google Business Profile has an established review base. Recent owner verification observed 4.9 stars and 165 reviews, but these values are intentionally not hardcoded into website structured data.
-
-Do not:
-
-fabricate reviews
-
-purchase reviews
-
-incentivize positive reviews
-
-manufacture rating schema
-
-copy Google review text into product/business structured data without an appropriate basis
-
-A genuine review-request workflow is preferred.
-
-Deployment and operational notes
-
-Hosting
-
-The frontend is hosted on Vercel.
-
-The backend runs on Render.
-
-The project has previously used Render Free tier. Free instance hours are pooled at the workspace level, so unused experimental services must not be left running unnecessarily.
-
-A recent incident exhausted the pooled monthly Render free-instance allowance (758/750 at the time of observation), which suspended the Wahab backend and caused catalogue-backed routes and the sitemap to become temporarily unavailable.
-
-This was classified as a hosting quota incident, not catalogue/database deletion or an SEO code regression.
-
-Important resilience lesson
-
-The storefront should not interpret an API timeout/failure as "the catalogue is empty."
-
-Future resilience work should distinguish:
-
-loading
-
-backend waking/unavailable
-
-genuine zero-result catalogue/filter state
-
-successful product response
-
-Safe retries should be limited to idempotent public GETs and must never become a retry storm or affect authentication/admin/order mutations.
-
-Do not solve Render quota problems by blindly installing a permanent keep-alive service: an always-on monitor can consume most/all of the pooled monthly free-instance allowance.
-
-Completed major engineering gates
-
-Security / authorization
-
-The project reached a release state with:
-
-SQLi: pass
-
-XSS: pass
-
-sessions: pass
-
-CSRF: pass
-
-CORS: pass
-
-upload security: pass
-
-Customer/Admin boundary: pass
-
-Admin/Super Admin boundary: pass
-
-IDOR: pass
-
-privilege escalation: none verified
-
-credential-abuse M-01: resolved
-
-SEO Phase 2
-
-Technical SEO landing/schema phase closed in production after resolving:
-
-sitemap/noindex contradictions
-
-breadcrumb routing mismatch
-
-static canonical leakage
-
-Final production verification recorded:
-
-66 sitemap URLs at the time
-
-zero noindex conflicts
-
-zero canonical conflicts
-
-zero non-200s
-
-no unexpected utility URLs
-
-SEO Phase 3B
-
-Hyderabad local presence + Google Pixel coverage closed in production.
-
-Final production verification recorded:
-
-68 sitemap URLs at the time
-
-zero noindex conflicts
-
-zero canonical conflicts
-
-zero non-200s
-
-/hyderabad indexable/self-canonical
-
-/phones/google-pixel indexable/self-canonical
-
-MobilePhoneStore structured data valid
-
-obsolete phone removed from public runtime output
-
-checkout/shipping wording reconciled with actual business policy
-
-Phase 2 routes remained healthy
-
-Git / release history
-
-Known major commits and release milestones:
-
-Commit
-
-Purpose
-
-e0fc68154b626f35127515c2bdd42b5be3dcb0b2
-
-ci: add automated release verification
-
-2cc3543319bf2d6ed0814902a450bf060a98d918
-
-fix: render route-specific SEO metadata
-
-e9202278c815dd3e2c73e1a4f68b53a5872f2c1a
-
-fix: add account-aware login abuse protection
-
-4b1a848fedbf0282d86f54567ff3967bd2788497
-
-feat: complete SEO phase 2 landing and schema loop
-
-9e2b82114f83ac82350bea0af64c2989606c5e66
-
-Merge PR #1 — SEO Phase 2
-
-58e52061fec516c3aa357d2453cc5ae0813109a1
-
-fix: close production seo indexability gaps
-
-d9bee287c76c5ef2c056bc0fdb9de47e0e024d71
-
-Merge PR #2 — SEO Phase 2 closure
-
-9026ae9c90537316e4d63cff55e9ec766d58e944
-
-SEO Phase 3B: Hyderabad local landing, NAP normalization, Google Pixel coverage
-
-c9bf3a309b7e99c1f268da81be8b94dcd35f6918
-
-fix: clarify nationwide payment policy
-
-054a0f51c04d93c79f609c171eb49c99a9ca31d3
-
-Merge PR #3 — SEO Phase 3B
-
-9026ae9 → c9bf3a3
-
-Phase 3B implementation + shipping-policy correction before merge
-
-Pull requests
-
-PR #1 — feat: complete SEO phase 2 landing and schema loop — merged
-
-PR #2 — fix: close production seo indexability gaps — merged
-
-PR #3 — feat: add Hyderabad local presence and Google Pixel SEO — merged
-
-Current verified main at last known project checkpoint:
-
-054a0f51c04d93c79f609c171eb49c99a9ca31d3
-
-Note: the repository may advance after this document is written. Always verify the current main SHA before starting new work.
-
-Branch / worktree rules
-
-These are project workflow rules:
-
-Do not casually edit production main.
-
-Use an isolated worktree for substantive engineering tasks.
-
-The owner may create worktrees manually; if an agent creates one, the name must not start with codex.
-
-Use short descriptive branch/worktree names such as:
-
-seo-phase3b-hyderabad
-
-hotfix/product-cold-start-resilience
-
-Never force-push.
-
-Never bypass CI with an admin merge.
-
-Merge only through a normal green PR.
-
-Keep historical worktrees until their changes are confirmed merged/obsolete.
-
-Remove stale local branches only after their worktree is detached.
-
-Preserve owner-created/untracked operational files such as .codex/ unless explicitly instructed otherwise.
-
-Agent / model operating rules
-
-Use the right model for the task
-
-Luna High: research, audits, SEO analysis, read-only external work, Search Console, public web research, small deterministic tasks.
-
-Terra High: production engineering, architecture changes, security-sensitive fixes, integration work, complex refactors.
-
-Lower-tier models: repetitive data-entry or deterministic inventory tasks where browser automation and verification are already available.
-
-Loop engineering
-
-Use:
-
-Observe → identify contract → minimal change → focused test → inspect output → regression test → checkpoint
-
-Do not repeatedly rerun complete audits when a focused closure check is sufficient.
-
-Harness engineering
-
-Prefer deterministic harnesses for:
-
-SEO route metadata
-
-sitemap integrity
-
-product schema
-
-auth boundaries
-
-order/shipping policy
-
-production route verification
-
-A tool/browser outage is INCONCLUSIVE, not automatically a product defect.
-
-Privacy / public-repository boundaries
-
-This repository is currently public.
-
-Safe public content includes:
-
-architecture
-
-source code
-
-technical descriptions
-
-verified feature documentation
-
-test strategy
-
-screenshots that contain no private information
-
-sanitized diagrams
-
-Never commit:
-
-.env files with secrets
-
-API keys
-
-JWT secrets
-
-database credentials
-
-Redis credentials
-
-Cloudinary secrets
-
-customer names/emails/phones
-
-private orders
-
-payment details
-
-admin credentials
-
-session cookies/tokens
-
-internal support/customer conversations
-
-private invoices
-
-sensitive production exports
-
-Before adding screenshots, scrub:
-
-customer PII
-
-order numbers where sensitive
-
-admin email addresses if not intended for publication
-
-tokens
-
-URLs containing secrets
-
-private dashboards that reveal operational data
-
-Screenshots
-
-Storefront
-
-A real Wahab Mobiles store image is already used by the site for local SEO/Open Graph purposes.
-
-Recommended README presentation:
-
+```markdown
 ![Wahab Mobiles storefront](https://wahabmobiles.com/assets/wahab-shop.jpg)
+```
 
-This is preferable to publishing a browser screenshot containing personal/customer information.
+---
 
-Architecture
+## License / Contribution Policy
 
-The repository can use the Mermaid architecture diagram above directly in GitHub. If a standalone image is preferred, keep it as a static docs/architecture.svg generated from the same system boundaries.
+This repository belongs to a real business and is maintained primarily for the Wahab Mobiles platform and technical portfolio. Public visibility does not imply an open contribution process.
 
-Local development
+**Do not submit changes that:**
+- expose private business/customer information
+- weaken authentication or authorization
+- bypass release gates
+- alter production data or pricing
+- copy proprietary business content or imagery
 
-The exact local setup should always be verified from the current repository files before running commands.
-
-At a high level:
-
-Install Node.js dependencies for app/ and app/backend/.
-
-Configure local environment files from the committed .env.example templates.
-
-Start disposable PostgreSQL and Redis using the repository's Docker configuration.
-
-Run Prisma generation/validation and migrations.
-
-Start the backend.
-
-Start the Vite frontend.
-
-Use only disposable/local data for tests.
-
-Never point local integration tests at production databases or production Redis.
-
-Operational / privacy boundaries
-
-The website is a real commercial system.
-
-Treat production as production:
-
-no destructive test orders
-
-no fake customer accounts unless explicitly approved for a controlled test environment
-
-no role changes during exploratory testing
-
-no stock/pricing mutations unless the owner explicitly requests them
-
-no customer-data extraction
-
-no payment transactions
-
-no billing changes
-
-no secrets in chat/logs/reports
-
-For production QA, prefer:
-
-GET/read-only checks
-
-health endpoints
-
-deterministic public-route tests
-
-disposable local databases
-
-synthetic/test identities
-
-Current known backlog
-
-These items are intentionally not treated as release blockers unless new evidence changes their severity:
-
-Search Console historical-performance baseline may require an authenticated human browser session.
-
-Fresh real-store photo gallery is pending owner-provided imagery.
-
-Merchant Center is a future opportunity, not currently activated.
-
-Frontend defense-in-depth headers (CSP and related headers) may be hardened later.
-
-CI/automation and Docker image digest pinning can be improved later.
-
-DKIM/DMARC hardening can be continued later.
-
-Search-driven content expansion should be based on real Search Console evidence rather than speculative pages.
-
-Product-catalogue cold-start UX should be hardened so transient API outages never appear as an empty catalogue.
-
-Current work / immediate status
-
-At the latest project checkpoint:
-
-SEO Phase 2: closed
-
-SEO Phase 3B: closed
-
-GBP core profile: substantially completed; fresh photos still pending owner upload
-
-3D–3F autonomous growth work: partial, mainly because Search Console could not be accessed during the relevant browser session and the Render backend was temporarily suspended
-
-Render free-hour incident: identified
-
-Unused Render services: removed to prevent unnecessary future pooled-hour consumption
-
-Search Console historical baseline: still requires an authenticated session
-
-Merchant Center: research only; no account/feed/campaign/billing setup
-
-Product cold-start resilience: identified as worthwhile follow-up, but not a response to the Render suspension itself
-
-Next phases
-
-Phase 3C — GBP final polish
-
-Mostly operational/manual:
-
-finish any remaining core profile fields
-
-verify final address/pin after Google's update settles
-
-add fresh storefront photos
-
-confirm category/attributes
-
-maintain genuine review workflow
-
-keep GBP/site NAP aligned
-
-Phase 3D — Search Console activation & measurement
-
-When the API/sitemap is healthy and an authenticated Search Console session is available:
-
-confirm the existing verified property
-
-inspect the existing sitemap submission
-
-resubmit the canonical sitemap once if warranted
-
-inspect /hyderabad
-
-inspect /phones/google-pixel
-
-request indexing only when appropriate
-
-establish query/page/CTR/position baseline
-
-Phase 3E — Evidence-based local authority
-
-clean meaningful public citations
-
-remove stale phone/address where owner-controlled
-
-keep social profiles consistent
-
-avoid low-value directory spam and paid listings
-
-Phase 3F — Image / conversion refinement
-
-After fresh photos arrive:
-
-privacy-screen imagery
-
-optimize web derivatives
-
-build modest local gallery
-
-improve image metadata/alt text
-
-validate mobile performance
-
-preserve genuine business representation
-
-Phase 4 — Search-data growth
-
-Only after sufficient Search Console data:
-
-improve titles/snippets where CTR evidence supports it
-
-strengthen existing pages ranking around positions 8–20
-
-improve internal links from real search intent
-
-add new pages only when demand + inventory + business intent justify them
-
-consider selected buying guides/comparison content
-
-evaluate Merchant Center only when product identifiers/shipping/returns data are sufficiently complete
-
-Phase 5 — Long-term business growth
-
-Potential later work:
-
-local authority/backlink strategy
-
-image/Lens visibility
-
-stronger product-feed infrastructure
-
-performance/Core Web Vitals refinement
-
-customer communication automation
-
-review workflow tooling
-
-analytics/reporting
-
-commercial SEO/content expansion
-
-These should be evidence-driven and should not disturb the stable ecommerce/security foundation.
-
-How a new agent should begin
-
-Before changing anything:
-
-1. Verify current git branch and SHA.
-2. Read this README/scope file.
-3. Inspect the current repository structure and relevant tests.
-4. Check whether production is healthy before assuming code is broken.
-5. Identify the exact phase/task being continued.
-6. Avoid redoing completed gates unless the task explicitly requires regression verification.
-7. Use an isolated non-codex worktree for substantive changes.
-8. Preserve production data and secrets.
-9. Run focused tests before broad tests.
-10. Do not merge/deploy until CI is green and the production risk is understood.
-
-License / contribution policy
-
-This repository belongs to a real business and is maintained primarily for the Wahab Mobiles platform and technical portfolio.
-
-Public visibility does not imply an open contribution process.
-
-Do not submit changes that:
-
-expose private business/customer information
-
-weaken authentication or authorization
-
-bypass release gates
-
-add paid services without owner approval
-
-alter production data or pricing
-
-introduce speculative SEO spam
-
-copy proprietary business content or imagery
-
-For external readers, the repository is primarily a demonstration of engineering, security, full-stack delivery, and production-oriented software practices.
- 
+For external readers, this repository is primarily a demonstration of engineering, security, full-stack delivery, and production-oriented software practices.
