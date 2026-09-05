@@ -14,6 +14,7 @@ export const sendPasswordResetEmail = async (email: string, resetUrl: string, lo
   }
 
   const response = await fetch(resendEmailsUrl, {
+    signal: AbortSignal.timeout(10_000),
     method: 'POST',
     headers: {
       Authorization: `Bearer ${env.RESEND_API_KEY}`,

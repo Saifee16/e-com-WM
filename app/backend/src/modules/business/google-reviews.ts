@@ -104,6 +104,7 @@ export const googleReviewsRoutes: FastifyPluginAsync = async (app) => {
       const response = await fetch(
         `https://places.googleapis.com/v1/places/${encodeURIComponent(env.GOOGLE_PLACE_ID)}`,
         {
+          signal: AbortSignal.timeout(10_000),
           headers: {
             'Content-Type': 'application/json',
             'X-Goog-Api-Key': env.GOOGLE_MAPS_API_KEY,

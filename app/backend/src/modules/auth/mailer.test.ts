@@ -21,6 +21,30 @@ describe('sendPasswordResetEmail', () => {
     vi.unstubAllGlobals();
   });
 
+  it('aborts a stalled provider request without retrying or logging reset details', async () => {
+    const nativeTimeout = AbortSignal.timeout.bind(AbortSignal);
+    const timeout = vi.spyOn(AbortSignal, 'timeout').mockImplementation(() => nativeTimeout(20));
+    const fetchMock = vi.fn((_url: string, options: RequestInit) => new Promise((_resolve, reject) => {
+      options.signal!.addEventListener('abort', () => reject(options.signal!.reason), { once: true });
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+    const log = vi.fn();
+
+    try {
+      const { sendPasswordResetEmail } = await importMailer({});
+      await expect(sendPasswordResetEmail(
+        'customer@example.com',
+        'https://example.com/reset?token=synthetic-test-value',
+        log,
+      )).rejects.toMatchObject({ name: 'TimeoutError' });
+      expect(timeout).toHaveBeenCalledWith(10_000);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(log).not.toHaveBeenCalled();
+    } finally {
+      timeout.mockRestore();
+    }
+  });
+
   it('sends password-reset mail through Resend HTTPS API', async () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200 });
     vi.stubGlobal('fetch', fetchMock);

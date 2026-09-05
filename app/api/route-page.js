@@ -235,6 +235,15 @@ const findCategory = (categories, rootSlug, categorySlug) => {
 };
 
 export default async function handler(request, response) {
+  try {
+    await renderPage(request, response);
+  } catch {
+    response.setHeader('Cache-Control', 'no-store');
+    response.status(502).send('Route page unavailable');
+  }
+}
+
+async function renderPage(request, response) {
   const requestUrl = new URL(request.url || '/', SITE_URL);
   const route = queryValue(request, 'route', requestUrl);
 
@@ -243,7 +252,7 @@ export default async function handler(request, response) {
     return;
   }
 
-  const shellResponse = await fetch(`${SITE_URL}/index.html`, { cache: 'no-store' });
+  const shellResponse = await fetch(`${SITE_URL}/index.html`, { signal: AbortSignal.timeout(10_000), cache: 'no-store' });
   if (!shellResponse.ok) {
     response.status(502).send('Route page unavailable');
     return;
@@ -283,6 +292,7 @@ export default async function handler(request, response) {
       if (landing.brand) params.set('brand', landing.brand);
       if (landing.maxPrice) params.set('maxPrice', String(landing.maxPrice));
       const productsResponse = await fetch(PRODUCT_API_BASE_URL + '/api/products?' + params.toString(), {
+        signal: AbortSignal.timeout(10_000),
         headers: { accept: 'application/json' },
         cache: 'no-store',
       });
@@ -301,6 +311,7 @@ export default async function handler(request, response) {
       };
     } else {
       const categoriesResponse = await fetch(PRODUCT_API_BASE_URL + '/api/products/categories', {
+        signal: AbortSignal.timeout(10_000),
         headers: { accept: 'application/json' },
         cache: 'no-store',
       });

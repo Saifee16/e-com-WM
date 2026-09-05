@@ -74,7 +74,7 @@ export const exchangeFacebookUser = async (
     redirect_uri: env.FACEBOOK_REDIRECT_URI!,
     code,
   }).toString();
-  const tokenResponse = await fetch(tokenUrl);
+  const tokenResponse = await fetch(tokenUrl, { signal: AbortSignal.timeout(10_000) });
   if (!tokenResponse.ok) {
     fail(reply, 401, { code: 'FACEBOOK_OAUTH_EXCHANGE_FAILED', message: 'Facebook Login failed.' });
     return null;
@@ -84,6 +84,7 @@ export const exchangeFacebookUser = async (
   const profileUrl = new URL(`https://graph.facebook.com/${env.FACEBOOK_GRAPH_API_VERSION}/me`);
   profileUrl.searchParams.set('fields', 'id,name,email,first_name,last_name');
   const profileResponse = await fetch(profileUrl, {
+    signal: AbortSignal.timeout(10_000),
     headers: { Authorization: `Bearer ${token.access_token}` },
   });
   if (!profileResponse.ok) {

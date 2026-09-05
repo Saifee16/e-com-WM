@@ -28,6 +28,29 @@ afterEach(() => {
 });
 
 describe('raw route metadata', () => {
+  it.each(['headers', 'body'])('fails safely when the shell stalls during %s', async (stage) => {
+    const nativeTimeout = AbortSignal.timeout.bind(AbortSignal);
+    const timeout = vi.spyOn(AbortSignal, 'timeout').mockImplementation(() => nativeTimeout(20));
+    const fetchMock = vi.fn(async (_url, { signal }) => {
+      const stalled = () => new Promise((_resolve, reject) => {
+        if (signal.aborted) reject(signal.reason);
+        else signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+      });
+      return stage === 'headers' ? stalled() : { ok: true, text: stalled };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    try {
+      const result = await invoke({ url: '/search', query: { route: 'search' } });
+      expect(result.statusCode).toBe(502);
+      expect(result.body).toBe('Route page unavailable');
+      expect(result.response.setHeader).toHaveBeenCalledWith('Cache-Control', 'no-store');
+      expect(timeout).toHaveBeenCalledWith(10_000);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    } finally {
+      timeout.mockRestore();
+    }
+  });
   it('renders category-specific title, description, canonical, and OG metadata', async () => {
     vi.stubGlobal('fetch', vi.fn(async (input) => {
       if (String(input).endsWith('/index.html')) return { ok: true, text: async () => shell };

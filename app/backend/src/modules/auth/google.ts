@@ -75,6 +75,7 @@ export const exchangeGoogleUser = async (
   if (!context?.codeVerifier) return null;
 
   const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+    signal: AbortSignal.timeout(10_000),
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
@@ -97,6 +98,7 @@ export const exchangeGoogleUser = async (
 
   const tokenJson = z.object({ access_token: z.string() }).parse(await tokenResponse.json());
   const userResponse = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+    signal: AbortSignal.timeout(10_000),
     headers: { Authorization: `Bearer ${tokenJson.access_token}` },
   });
 

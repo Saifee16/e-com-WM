@@ -121,13 +121,22 @@ const renderProductShell = (shell, product) => {
 };
 
 export default async function handler(request, response) {
+  try {
+    await renderPage(request, response);
+  } catch {
+    response.setHeader('Cache-Control', 'no-store');
+    response.status(502).send('Product page unavailable');
+  }
+}
+
+async function renderPage(request, response) {
   const requestUrl = new URL(request.url || '/', SITE_URL);
   const slugValue = typeof request.query?.slug === 'string' ? request.query.slug : requestUrl.searchParams.get('slug');
   const slug = slugValue?.trim();
   if (!slug || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/i.test(slug)) { response.status(400).send('Invalid product slug'); return; }
   const [shellResponse, productResponse] = await Promise.all([
-    fetch(`${SITE_URL}/index.html`, { cache: 'no-store' }),
-    fetch(`${PRODUCT_API_BASE_URL}/api/products/${encodeURIComponent(slug)}`, { headers: { accept: 'application/json' }, cache: 'no-store' }),
+    fetch(`${SITE_URL}/index.html`, { signal: AbortSignal.timeout(10_000), cache: 'no-store' }),
+    fetch(`${PRODUCT_API_BASE_URL}/api/products/${encodeURIComponent(slug)}`, { signal: AbortSignal.timeout(10_000), headers: { accept: 'application/json' }, cache: 'no-store' }),
   ]);
   if (!shellResponse.ok || !productResponse.ok) { response.status(productResponse.status === 404 ? 404 : 502).send('Product page unavailable'); return; }
   const product = (await productResponse.json())?.data;
