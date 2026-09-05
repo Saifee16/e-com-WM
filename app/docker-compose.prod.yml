@@ -55,7 +55,7 @@ services:
       REDIS_URL: redis://redis:6379
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?Set JWT_ACCESS_SECRET in .env}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?Set JWT_REFRESH_SECRET in .env}
-      TRUST_PROXY_HOPS: "1"
+      TRUST_PROXY: ${TRUST_PROXY:?Set TRUST_PROXY to the exact reverse-proxy IP or CIDR in .env}
       COOKIE_DOMAIN: ${COOKIE_DOMAIN:-}
       COOKIE_SECURE: "true"
       COOKIE_SAME_SITE: lax

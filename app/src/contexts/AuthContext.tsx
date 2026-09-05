@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useContext, useState, useEffect, typ
 import type { User, LoginCredentials, RegisterData } from '../types';
 import { authAPI, cartAPI, clearGuestCartId } from '../services/api';
 import { getApiErrorMessage } from '../utils/api-error';
+import { useToast } from './ToastContext';
 
 interface AuthContextType {
   user: User | null;
@@ -9,7 +10,7 @@ interface AuthContextType {
   isLoading: boolean;
   login: (credentials: LoginCredentials) => Promise<void>;
   register: (data: RegisterData) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<boolean>;
   updateUser: (data: Partial<User>) => Promise<void>;
   refreshAuth: () => Promise<User | null>;
 }
@@ -29,6 +30,7 @@ interface AuthProviderProps {
 }
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
+  const { showToast } = useToast();
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -81,11 +83,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  const logout = () => {
-    void authAPI.logout?.();
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    setUser(null);
+  const logout = async () => {
+    try {
+      await authAPI.logout();
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      setUser(null);
+      return true;
+    } catch (error) {
+      showToast(getApiErrorMessage(error, 'Logout failed. Please try again.'), 'error');
+      return false;
+    }
   };
 
   const updateUser = async (data: Partial<User>) => {

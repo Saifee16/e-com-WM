@@ -24,9 +24,8 @@ const AccountLayout = () => {
     { name: 'Settings', path: '/account/settings', icon: Settings },
   ];
 
-  const handleLogout = () => {
-    logout();
-    navigate('/');
+  const handleLogout = async () => {
+    if (await logout()) navigate('/');
   };
 
   return (

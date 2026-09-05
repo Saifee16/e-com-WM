@@ -42,7 +42,7 @@ const envSchema = z.object({
   }).default('redis://localhost:6379'),
   JWT_ACCESS_SECRET: z.string().min(24),
   JWT_REFRESH_SECRET: z.string().min(24),
-  TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(5).default(0),
+  TRUST_PROXY: optionalTrimmedString,
   ACCESS_TOKEN_TTL_SECONDS: z.coerce.number().int().positive().default(900),
   REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().positive().default(30),
   PASSWORD_RESET_TOKEN_TTL_MINUTES: z.coerce.number().int().positive().default(30),

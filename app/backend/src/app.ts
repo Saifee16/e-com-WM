@@ -26,11 +26,11 @@ import { requestIdPlugin } from './plugins/request-id.js';
 import { csrfPreHandler } from './plugins/csrf.js';
 import { fail } from './utils/responses.js';
 
-export const buildApp = async (options: { trustProxy?: number; uploadDirectory?: string } = {}) => {
-  const trustProxy = options.trustProxy ?? env.TRUST_PROXY_HOPS;
+export const buildApp = async (options: { trustProxy?: string | string[]; uploadDirectory?: string } = {}) => {
+  const trustProxy = options.trustProxy ?? env.TRUST_PROXY;
   const uploadDirectory = options.uploadDirectory ?? path.resolve(process.cwd(), 'uploads');
   const app = Fastify({
-    ...(trustProxy > 0 ? { trustProxy } : {}),
+    ...(trustProxy ? { trustProxy } : {}),
     logger: {
       level: env.NODE_ENV === 'development' ? 'debug' : 'info',
     },

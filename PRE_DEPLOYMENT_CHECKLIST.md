@@ -107,7 +107,7 @@ The repository builds, lints, type-checks, and passes all automated tests. Check
 | `REDIS_URL` | Yes | Redis/BullMQ connection | Redis provider or Compose | Production Redis URL |
 | `JWT_ACCESS_SECRET` | Yes | Access-token signing | Cryptographic secret generator | Unique random value, at least 32 bytes; 64+ characters recommended |
 | `JWT_REFRESH_SECRET` | Yes | Refresh-token signing | Cryptographic secret generator | Different unique random value, at least 32 bytes |
-| `TRUST_PROXY_HOPS` | Yes | Trusted proxy-chain depth | Hosting topology | `1` for supplied Nginx-only hop; adjust exactly to provider topology |
+| `TRUST_PROXY` | Yes | Trusted proxy IP/CIDR | Hosting topology | Set the exact reverse-proxy IP or CIDR; never use a hop count or trust-all value |
 | `ACCESS_TOKEN_TTL_SECONDS` | Yes/default | Access session lifetime | Security policy | `900` unless policy differs |
 | `REFRESH_TOKEN_TTL_DAYS` | Yes/default | Refresh session lifetime | Security policy | `30` unless policy differs |
 | `PASSWORD_RESET_TOKEN_TTL_MINUTES` | Yes/default | Reset link expiry | Security policy | `30` |

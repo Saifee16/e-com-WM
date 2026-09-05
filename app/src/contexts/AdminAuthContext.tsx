@@ -2,13 +2,14 @@ import React, { createContext, useCallback, useContext, useEffect, useState, typ
 import type { LoginCredentials, User } from '../types';
 import { adminAuthAPI } from '../services/api';
 import { getApiErrorMessage } from '../utils/api-error';
+import { useToast } from './ToastContext';
 
 interface AdminAuthContextType {
   adminUser: User | null;
   isAdminAuthenticated: boolean;
   isAdminLoading: boolean;
   adminLogin: (credentials: LoginCredentials) => Promise<void>;
-  adminLogout: () => void;
+  adminLogout: () => Promise<boolean>;
   refreshAdminAuth: () => Promise<User | null>;
 }
 
@@ -23,6 +24,7 @@ export const useAdminAuth = () => {
 };
 
 export const AdminAuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  const { showToast } = useToast();
   const [adminUser, setAdminUser] = useState<User | null>(null);
   const [isAdminLoading, setIsAdminLoading] = useState(true);
 
@@ -56,9 +58,15 @@ export const AdminAuthProvider: React.FC<{ children: ReactNode }> = ({ children 
     }
   };
 
-  const adminLogout = () => {
-    void adminAuthAPI.logout();
-    setAdminUser(null);
+  const adminLogout = async () => {
+    try {
+      await adminAuthAPI.logout();
+      setAdminUser(null);
+      return true;
+    } catch (error) {
+      showToast(getApiErrorMessage(error, 'Admin logout failed. Please try again.'), 'error');
+      return false;
+    }
   };
 
   return (

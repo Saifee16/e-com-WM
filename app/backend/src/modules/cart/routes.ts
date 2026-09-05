@@ -8,6 +8,7 @@ import { fail, ok } from '../../utils/responses.js';
 import { authenticateCustomer, GUEST_CART_COOKIE, getAuthenticatedUser, getGuestId, getSignedGuestId } from '../auth/session.js';
 import { mapProduct, productInclude } from '../products/routes.js';
 import { CSRF_COOKIE, issueCsrfToken } from '../../plugins/csrf.js';
+import { promoUsageWhere } from '../promo-usage.js';
 
 const cartItemInclude = {
   variant: {
@@ -353,20 +354,17 @@ export const cartRoutes: FastifyPluginAsync = async (app) => {
 
     const totals = calculateTotals(await loadCartItems(cart.id));
     const now = new Date();
-    const userUsage = owner.user && promo.perUserLimit
+    const buyer = owner.user ? { userId: owner.user.id } : { guestId: owner.guestId! };
+    const buyerUsage = promo.perUserLimit
       ? await prisma.order.count({
-          where: {
-            userId: owner.user.id,
-            promoCodeId: promo.id,
-            status: { notIn: ['CANCELLED', 'REFUNDED'] },
-          },
+          where: promoUsageWhere(buyer, promo.id),
         })
       : 0;
     if (
       (promo.startsAt && promo.startsAt > now)
       || (promo.expiresAt && promo.expiresAt <= now)
       || (promo.usageLimit !== null && promo.usageCount >= promo.usageLimit)
-      || (promo.perUserLimit !== null && owner.user !== null && userUsage >= promo.perUserLimit)
+      || (promo.perUserLimit !== null && buyerUsage >= promo.perUserLimit)
       || totals.subtotal < promo.minOrderAmount
     ) {
       return fail(reply, 409, {

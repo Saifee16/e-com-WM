@@ -12,6 +12,7 @@ import {
 import { fail, ok } from '../../utils/responses.js';
 import { authenticateCustomer, getAuthenticatedUser, getGuestId, requireChangedAdminPassword } from '../auth/session.js';
 import { sendOrderPlacedEmails, sendOrderStatusEmail, type OrderEmailDetails } from './mailer.js';
+import { promoUsageWhere } from '../promo-usage.js';
 
 const orderInclude = {
   items: true,
@@ -294,13 +295,10 @@ export const orderRoutes: FastifyPluginAsync = async (app) => {
         await tx.$queryRaw`SELECT id FROM promo_codes WHERE id = ${lockedCart.promoCodeId}::uuid FOR UPDATE`;
         const promo = await tx.promoCode.findUnique({ where: { id: lockedCart.promoCodeId } });
         const now = new Date();
-        const userUsage = user && promo?.perUserLimit
+        const buyer = user ? { userId: user.id } : { guestId: guestId! };
+        const buyerUsage = promo?.perUserLimit
           ? await tx.order.count({
-              where: {
-                userId: user.id,
-                promoCodeId: lockedCart.promoCodeId,
-                status: { notIn: ['CANCELLED', 'REFUNDED'] },
-              },
+              where: promoUsageWhere(buyer, lockedCart.promoCodeId),
             })
           : 0;
         const isEligible = Boolean(
@@ -308,7 +306,7 @@ export const orderRoutes: FastifyPluginAsync = async (app) => {
           && (!promo.startsAt || promo.startsAt <= now)
           && (!promo.expiresAt || promo.expiresAt > now)
           && (promo.usageLimit === null || promo.usageCount < promo.usageLimit)
-          && (promo.perUserLimit === null || userUsage < promo.perUserLimit)
+          && (promo.perUserLimit === null || buyerUsage < promo.perUserLimit)
           && subtotal >= promo.minOrderAmount,
         );
         if (!promo || !isEligible) throw new Error('PROMO_NOT_ELIGIBLE');

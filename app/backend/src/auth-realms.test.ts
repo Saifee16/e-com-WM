@@ -139,7 +139,7 @@ describe('customer and admin auth realms', () => {
       },
     }));
 
-    app = await buildApp({ trustProxy: 1 });
+    app = await buildApp({ trustProxy: '127.0.0.1' });
   }, 30000);
 
   afterAll(async () => {

@@ -37,9 +37,8 @@ const AdminLayout = () => {
     { name: 'Returns', path: '/admin/returns', icon: RotateCcw },
   ];
 
-  const handleLogout = () => {
-    adminLogout();
-    navigate('/admin/login');
+  const handleLogout = async () => {
+    if (await adminLogout()) navigate('/admin/login');
   };
 
   const handlePasswordChange = async (event: FormEvent) => {
