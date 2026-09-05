@@ -483,10 +483,10 @@ const legacyVariantPayload = (body: z.infer<typeof productPayloadSchema>): Produ
   isActive: true,
 });
 
-const getOrCreateBrand = async (name: string) => {
+const getOrCreateBrand = async (name: string, db: Prisma.TransactionClient = prisma) => {
   const slug = slugify(name);
 
-  return prisma.brand.upsert({
+  return db.brand.upsert({
     where: { slug },
     update: { name, isActive: true },
     create: { name, slug },
@@ -915,64 +915,70 @@ export const adminProductRoutes: FastifyPluginAsync<AdminProductRoutesOptions> =
 
   app.post('/', async (request, reply) => {
     const body = productCreateSchema.parse(request.body);
-    const brand = await getOrCreateBrand(body.brand);
     const category = await findCategoryByIdentity(body.category);
     if (!category) return fail(reply, 400, { code: 'INVALID_CATEGORY', message: 'Select an existing category' });
     const slug = await getUniqueProductSlug(body.name);
     const imageUrls = body.images?.length ? body.images : body.imageUrl ? [body.imageUrl] : [];
     const variantPayloads = body.variants?.length ? body.variants : [legacyVariantPayload(body)];
-    const variantData = variantPayloads.map((variant, index) => createVariantData(variant, slug, index));
+    const variantData = variantPayloads.map((variant, index) => ({
+      ...createVariantData(variant, slug, index),
+      id: randomUUID(),
+    }));
 
-    const product = await prisma.product.create({
-      data: {
-        name: body.name,
-        slug,
-        brand: { connect: { id: brand.id } },
-        category: { connect: { id: category.id } },
-        description: body.description,
-        shortDescription: body.description.slice(0, 140),
-        status: body.status,
-        isFeatured: body.isFeatured,
-        ptaApproved: body.ptaApproved,
-        ...(body.specifications ? { specifications: body.specifications } : {}),
-        variants: {
-          create: variantData,
+    const createdProduct = await prisma.$transaction(async (tx) => {
+      const brand = await getOrCreateBrand(body.brand, tx);
+      const product = await tx.product.create({
+        data: {
+          name: body.name,
+          slug,
+          brand: { connect: { id: brand.id } },
+          category: { connect: { id: category.id } },
+          description: body.description,
+          shortDescription: body.description.slice(0, 140),
+          status: body.status,
+          isFeatured: body.isFeatured,
+          ptaApproved: body.ptaApproved,
+          ...(body.specifications ? { specifications: body.specifications } : {}),
+          variants: {
+            create: variantData,
+          },
+          ...(imageUrls.length > 0
+            ? {
+                images: {
+                  create: imageUrls.map((url, index) => ({
+                    url,
+                    altText: body.name,
+                    sortOrder: index,
+                    isPrimary: index === 0,
+                  })),
+                },
+              }
+            : {}),
         },
-        ...(imageUrls.length > 0
-          ? {
-              images: {
-                create: imageUrls.map((url, index) => ({
-                  url,
-                  altText: body.name,
-                  sortOrder: index,
-                  isPrimary: index === 0,
-                })),
-              },
-            }
-          : {}),
-      },
-      include: productInclude,
-    });
-    const variantImageData = variantPayloads.flatMap((variant, index) =>
-      variant.imageUrl
-        ? [{ productId: product.id, variantId: product.variants[index]!.id, url: variant.imageUrl, altText: body.name }]
-        : [],
-    );
-    if (variantImageData.length) {
-      await prisma.productImage.createMany({ data: variantImageData });
-    }
-    const createdProduct = variantImageData.length
-      ? await prisma.product.findUniqueOrThrow({ where: { id: product.id }, include: productInclude })
-      : product;
+        include: productInclude,
+      });
+      const variantImageData = variantPayloads.flatMap((variant, index) =>
+        variant.imageUrl
+          ? [{ productId: product.id, variantId: variantData[index]!.id, url: variant.imageUrl, altText: body.name }]
+          : [],
+      );
+      if (variantImageData.length) {
+        await tx.productImage.createMany({ data: variantImageData });
+      }
+      const createdProduct = variantImageData.length
+        ? await tx.product.findUniqueOrThrow({ where: { id: product.id }, include: productInclude })
+        : product;
 
-    await prisma.auditLog.create({
-      data: {
-        actorUserId: request.authUser!.id,
-        action: 'CREATE',
-        entityType: 'Product',
-        entityId: createdProduct.id,
-        after: mapProduct(createdProduct, true),
-      },
+      await tx.auditLog.create({
+        data: {
+          actorUserId: request.authUser!.id,
+          action: 'CREATE',
+          entityType: 'Product',
+          entityId: createdProduct.id,
+          after: mapProduct(createdProduct, true),
+        },
+      });
+      return createdProduct;
     });
 
     return ok(reply.status(201), mapProduct(createdProduct, true));
