@@ -36,12 +36,8 @@ const Footer = () => (
   <footer className="bg-[#061f43] text-white">
     <div className="mx-auto grid max-w-[1400px] gap-10 px-4 py-11 sm:px-6 md:grid-cols-2 lg:grid-cols-[1.45fr_.8fr_.8fr_1fr] lg:px-8 lg:py-14">
       <div>
-        <Link to="/" className="inline-flex items-center gap-3">
-          <img src="/assets/wahab-logo.jpg" alt="Wahab Mobiles logo" className="h-12 w-12 rounded-xl border border-white/15 object-cover" />
-          <div>
-            <p className="text-xl font-extrabold tracking-tight">Wahab Mobiles</p>
-            <p className="mt-0.5 text-xs font-semibold text-blue-200">Cell phones in Hyderabad</p>
-          </div>
+        <Link to="/" className="inline-flex items-center">
+          <img src="/assets/wahab-mobiles-logo.png" alt="Wahab Mobiles logo" className="h-14 w-auto" />
         </Link>
         <p className="mt-5 max-w-sm text-sm leading-6 text-blue-100">
           Shop current phones online from a physical mobile store in Saddar Cantt Hyderabad.

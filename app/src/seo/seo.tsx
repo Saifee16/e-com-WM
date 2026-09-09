@@ -213,7 +213,7 @@ export const buildOrganizationJsonLd = (): JsonLd => ({
   '@id': `${SITE_URL}/#organization`,
   name: BUSINESS_NAME,
   url: SITE_URL,
-  logo: `${SITE_URL}/assets/wahab-logo.jpg`,
+  logo: `${SITE_URL}/assets/wahab-mobiles-logo.png`,
   email: CONTACT_EMAIL,
   telephone: CONTACT_PHONE_NUMBERS[0].label,
   address: { '@type': 'PostalAddress', ...SHOP_STRUCTURED_ADDRESS },
