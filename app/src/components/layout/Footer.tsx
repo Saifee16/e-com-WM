@@ -37,7 +37,7 @@ const Footer = () => (
     <div className="mx-auto grid max-w-[1400px] gap-10 px-4 py-11 sm:px-6 md:grid-cols-2 lg:grid-cols-[1.45fr_.8fr_.8fr_1fr] lg:px-8 lg:py-14">
       <div>
         <Link to="/" className="inline-flex items-center">
-          <img src="/assets/wahab-mobiles-logo-dark.png" alt="Wahab Mobiles logo" className="h-20 w-64 object-cover object-center" />
+          <img src="/assets/wahab-mobiles-logo-dark-768.png" alt="Wahab Mobiles logo" className="h-20 w-64 object-cover object-center" />
         </Link>
         <p className="mt-5 max-w-sm text-sm leading-6 text-blue-100">
           Shop current phones online from a physical mobile store in Saddar Cantt Hyderabad.

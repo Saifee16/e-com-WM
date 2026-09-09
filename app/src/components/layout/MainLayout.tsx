@@ -7,8 +7,8 @@ import Seo, { buildStaticMetadata } from '../../seo/seo';
 
 const staticMetadataByPath: Record<string, ReturnType<typeof buildStaticMetadata>> = {
   '/': buildStaticMetadata(
-    'Wahab Mobiles - Phones in Hyderabad',
-    'Browse current phones from Wahab Mobiles in Hyderabad.',
+    'Wahab Mobiles | New & Used Phones in Pakistan',
+    'Shop new and used smartphones, accessories, and selected warranty-backed devices from Wahab Mobiles. Nationwide delivery across Pakistan. Trusted since 2009.',
     '/',
   ),
   '/products': buildStaticMetadata(

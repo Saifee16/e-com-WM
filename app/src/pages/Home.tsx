@@ -128,8 +128,8 @@ const Home = () => {
     <div className="min-h-[100dvh] overflow-x-hidden bg-[#f5f8fc] text-slate-950">
       <Seo
         metadata={buildStaticMetadata(
-          'Wahab Mobiles - Phones in Hyderabad',
-          'Browse current phones from Wahab Mobiles in Hyderabad.',
+          'Wahab Mobiles | New & Used Phones in Pakistan',
+          'Shop new and used smartphones, accessories, and selected warranty-backed devices from Wahab Mobiles. Nationwide delivery across Pakistan. Trusted since 2009.',
           '/',
         )}
         structuredData={[buildOrganizationJsonLd(), buildWebSiteJsonLd()]}

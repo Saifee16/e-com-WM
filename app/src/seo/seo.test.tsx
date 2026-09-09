@@ -4,6 +4,7 @@ import type { Category, Product } from '../types';
 import Seo, {
   buildCategoryMetadata,
   buildLocalBusinessJsonLd,
+  buildOrganizationJsonLd,
   buildProductJsonLd,
   buildProductMetadata,
   serializeJsonLd,
@@ -134,6 +135,18 @@ describe('SEO metadata and structured data', () => {
     });
     expect(structuredData).not.toHaveProperty('aggregateRating');
     expect(structuredData).not.toHaveProperty('review');
+  });
+
+  it('keeps verified social profiles on organization and store entities', () => {
+    const sameAs = [
+      'https://www.facebook.com/profile.php?id=100063650661893',
+      'https://www.instagram.com/mobileswahab',
+      'https://www.youtube.com/@wahabmobiles662',
+      'https://www.tiktok.com/@wahabmobilespak',
+    ];
+
+    expect(buildOrganizationJsonLd()).toHaveProperty('sameAs', sameAs);
+    expect(buildLocalBusinessJsonLd()).toHaveProperty('sameAs', sameAs);
   });
 
   it('serializes user-provided text without a script-closing sequence', () => {
