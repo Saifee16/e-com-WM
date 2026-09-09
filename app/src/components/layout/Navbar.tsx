@@ -17,7 +17,7 @@ import {
 import { useAuth } from '../../contexts/AuthContext';
 import { useCart } from '../../contexts/CartContext';
 import CartDrawer from '../cart/CartDrawer';
-import { CONTACT_PHONE_NUMBERS, SHOP_LOCATION_LABEL } from '../../config/contact';
+import { CONTACT_PHONE_NUMBERS, SHOP_LOCATION_LABEL, SHOP_MAPS_URL } from '../../config/contact';
 import { priceRanges } from '../../data/products';
 import type { Category, Product } from '../../types';
 import { productsAPI } from '../../services/api';
@@ -243,7 +243,7 @@ const Navbar = () => {
 
   return (
     <>
-      <div className="hidden bg-[#082f63] text-white md:block"><div className="mx-auto flex h-8 max-w-[1400px] items-center justify-between px-6 text-xs lg:px-8"><div className="flex items-center gap-5">{CONTACT_PHONE_NUMBERS.map((phone) => <a key={phone.href} href={phone.href} className="inline-flex items-center gap-1.5 text-blue-50 hover:text-white"><Phone className="h-3.5 w-3.5" aria-hidden="true" />{phone.label}</a>)}</div><span className="inline-flex items-center gap-1.5 text-blue-100"><MapPin className="h-3.5 w-3.5" aria-hidden="true" />{SHOP_LOCATION_LABEL}</span></div></div>
+      <div className="hidden bg-[#082f63] text-white md:block"><div className="mx-auto flex h-8 max-w-[1400px] items-center justify-between px-6 text-xs lg:px-8"><div className="flex items-center gap-5">{CONTACT_PHONE_NUMBERS.map((phone) => <a key={phone.href} href={phone.href} className="inline-flex items-center gap-1.5 text-blue-50 hover:text-white"><Phone className="h-3.5 w-3.5" aria-hidden="true" />{phone.label}</a>)}</div><a href={SHOP_MAPS_URL} target="_blank" rel="noopener noreferrer" aria-label="View Wahab Mobiles location on Google Maps" className="inline-flex items-center gap-1.5 text-blue-100"><MapPin className="h-3.5 w-3.5" aria-hidden="true" />{SHOP_LOCATION_LABEL}</a></div></div>
       <header ref={navigationRef} className="relative sticky top-0 z-50 border-b border-slate-200 bg-white/95 shadow-[0_4px_20px_rgba(15,46,82,0.06)] backdrop-blur-xl">
         <div className="mx-auto max-w-[1400px] px-4 sm:px-6 lg:px-8"><div className="flex h-16 items-center gap-3 md:h-[74px] md:gap-5">
           <Link to="/" onClick={closeMenus} className="flex shrink-0 items-center" aria-label="Wahab Mobiles home"><img src="/assets/wahab-mobiles-logo.png" alt="Wahab Mobiles logo" className="h-10 w-auto sm:h-11" /></Link>
