@@ -7,6 +7,7 @@ import Seo, {
   buildOrganizationJsonLd,
   buildProductJsonLd,
   buildProductMetadata,
+  buildStaticMetadata,
   serializeJsonLd,
 } from './seo';
 
@@ -63,6 +64,11 @@ const product: Product = {
 };
 
 describe('SEO metadata and structured data', () => {
+  it('uses a dedicated landscape social card for static pages', () => {
+    expect(buildStaticMetadata('Title', 'Description', '/').ogImage)
+      .toBe('https://wahabmobiles.com/assets/wahab-mobiles-social.jpg');
+  });
+
   it('uses the product slug as the canonical URL', () => {
     expect(buildProductMetadata(product).canonical).toBe('https://wahabmobiles.com/products/phone-script');
   });

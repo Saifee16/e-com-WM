@@ -87,6 +87,13 @@ describe('Navbar data-driven navigation', () => {
     });
   });
 
+  it('uses the optimized above-the-fold logo asset', () => {
+    renderNavbar();
+    const logo = screen.getByRole('img', { name: 'Wahab Mobiles logo' });
+
+    expect(logo).toHaveAttribute('src', '/assets/wahab-mobiles-logo-320.webp');
+  });
+
   it('exposes the requested phone destinations and dynamic brands', async () => {
     const user = userEvent.setup();
     renderNavbar();

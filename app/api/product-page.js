@@ -103,7 +103,7 @@ const renderProductShell = (shell, product) => {
   const canonical = `${SITE_URL}${productPath(product.slug)}`;
   const title = product.name + ' Price in Pakistan | Wahab Mobiles';
   const description = String(product.description || `${product.name} from ${product.brand}.`).trim().replace(/\s+/g, ' ').slice(0, 159);
-  const image = product.images?.find(Boolean) || `${SITE_URL}/assets/wahab-shop.jpg`;
+  const image = product.images?.find(Boolean) || `${SITE_URL}/assets/wahab-mobiles-social.jpg`;
   const headEnd = shell.toLowerCase().indexOf('</head>');
   if (headEnd === -1) throw new Error('Frontend shell has no head element');
   const cleanedHead = shell.slice(0, headEnd)

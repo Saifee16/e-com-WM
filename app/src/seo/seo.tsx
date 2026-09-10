@@ -14,7 +14,7 @@ import { getProductPath } from '../utils/product-url';
 import type { SeoLandingPage } from './landing-pages';
 
 export const SITE_URL = 'https://wahabmobiles.com';
-export const DEFAULT_OG_IMAGE = `${SITE_URL}/assets/wahab-shop.jpg`;
+export const DEFAULT_OG_IMAGE = `${SITE_URL}/assets/wahab-mobiles-social.jpg`;
 
 export interface SeoMetadata {
   title: string;

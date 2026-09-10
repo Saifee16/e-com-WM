@@ -1,6 +1,6 @@
 const SITE_URL = 'https://wahabmobiles.com';
 const PRODUCT_API_BASE_URL = (process.env.PRODUCT_API_BASE_URL || 'https://api.wahabmobiles.com').replace(/\/+$/, '');
-const DEFAULT_OG_IMAGE = `${SITE_URL}/assets/wahab-shop.jpg`;
+const DEFAULT_OG_IMAGE = `${SITE_URL}/assets/wahab-mobiles-social.jpg`;
 const LOCAL_BUSINESS_JSON_LD = {
   '@context': 'https://schema.org',
   '@type': 'MobilePhoneStore',
