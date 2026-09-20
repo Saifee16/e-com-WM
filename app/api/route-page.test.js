@@ -288,16 +288,107 @@ describe('raw route metadata', () => {
 });
 
 describe('Vercel route policy', () => {
-  it('keeps product rendering, adds raw catalogue routes, and redirects the legacy smartphones path', () => {
+  it('preserves server-rendered routes, explicit SPA deep links, and true unknown-route fallback', () => {
     const config = JSON.parse(readFileSync('vercel.json', 'utf8'));
 
-    expect(config.redirects).toContainEqual({ source: '/smartphones', destination: '/phones', permanent: true });
-    expect(config.rewrites).toContainEqual({ source: '/products/:slug', destination: '/api/product-page?slug=:slug' });
-    expect(config.rewrites).toContainEqual({ source: '/search', destination: '/api/route-page?route=search' });
-    expect(config.rewrites).toContainEqual({ source: '/phones', destination: '/api/route-page?route=category&root=phones&slug=phones' });
-    expect(config.rewrites).toContainEqual({ source: '/tablets', destination: '/api/route-page?route=category&root=tablets&slug=tablets' });
-    for (const slug of ['about', 'services', 'support', 'returns', 'privacy', 'terms', 'data-deletion', 'hyderabad']) {
-      expect(config.rewrites).toContainEqual({ source: `/${slug}`, destination: `/api/route-page?route=static&slug=${slug}` });
+    expect(config.redirects).toContainEqual({
+      source: '/smartphones',
+      destination: '/phones',
+      permanent: true,
+    });
+
+    expect(config.rewrites).toContainEqual({
+      source: '/products/:slug',
+      destination: '/api/product-page?slug=:slug',
+    });
+
+    expect(config.rewrites).toContainEqual({
+      source: '/search',
+      destination: '/api/route-page?route=search',
+    });
+
+    expect(config.rewrites).toContainEqual({
+      source: '/phones',
+      destination: '/api/route-page?route=category&root=phones&slug=phones',
+    });
+
+    expect(config.rewrites).toContainEqual({
+      source: '/tablets',
+      destination: '/api/route-page?route=category&root=tablets&slug=tablets',
+    });
+
+    for (const slug of [
+      'about',
+      'services',
+      'support',
+      'returns',
+      'privacy',
+      'terms',
+      'data-deletion',
+      'hyderabad',
+    ]) {
+      expect(config.rewrites).toContainEqual({
+        source: `/${slug}`,
+        destination: `/api/route-page?route=static&slug=${slug}`,
+      });
     }
+
+    const spaRoutes = [
+      '/cart',
+      '/compare',
+      '/help',
+      '/checkout',
+      '/login',
+      '/register',
+      '/forgot-password',
+      '/reset-password',
+      '/auth/google/callback',
+      '/auth/facebook/callback',
+      '/account',
+      '/account/dashboard',
+      '/account/orders',
+      '/account/orders/:id',
+      '/account/wishlist',
+      '/account/addresses',
+      '/account/settings',
+      '/account/support',
+      '/admin/login',
+      '/admin',
+      '/admin/dashboard',
+      '/admin/products',
+      '/admin/orders',
+      '/admin/users',
+      '/admin/account-management',
+      '/admin/contact',
+      '/admin/returns',
+    ];
+
+    for (const source of spaRoutes) {
+      expect(config.rewrites).toContainEqual({
+        source,
+        destination: '/index.html',
+      });
+    }
+
+    const catchAlls = config.rewrites.filter(
+      ({ source }) => source === '/(.*)',
+    );
+
+    expect(catchAlls).toEqual([
+      {
+        source: '/(.*)',
+        destination: '/api/not-found',
+      },
+    ]);
+
+    expect(config.rewrites).not.toContainEqual({
+      source: '/(.*)',
+      destination: '/index.html',
+    });
+
+    expect(config.rewrites.at(-1)).toEqual({
+      source: '/(.*)',
+      destination: '/api/not-found',
+    });
   });
 });
