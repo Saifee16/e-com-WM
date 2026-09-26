@@ -428,9 +428,9 @@ const FeaturedHeroProduct = ({
 
   return (
     <article className="grid min-h-[310px] overflow-hidden rounded-xl border border-white/15 bg-white text-slate-950 shadow-[0_24px_70px_rgba(0,20,52,0.32)] sm:min-h-[340px] sm:grid-cols-[.92fr_1.08fr]">
-      <div className="flex min-h-52 items-center justify-center bg-slate-50 p-5 sm:min-h-full sm:p-7">
+      <div className="flex min-h-52 items-center justify-center bg-slate-50 p-4 sm:min-h-full sm:p-6">
         {image ? (
-          <img src={image} alt={product.name} className="h-48 w-full object-contain sm:h-64" loading="eager" />
+          <img src={image} alt={product.name} className="h-56 w-full object-contain sm:h-[19rem]" loading="eager" />
         ) : (
           <div className="flex h-full min-h-44 w-full items-center justify-center text-blue-700">
             <Smartphone className="h-12 w-12" aria-hidden="true" />
@@ -447,8 +447,8 @@ const FeaturedHeroProduct = ({
             </span>
           ))}
         </p>
-        <h2 className="mt-3 line-clamp-2 text-2xl font-extrabold leading-tight tracking-tight sm:text-3xl">{product.name}</h2>
-        <div className="mt-5 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <h2 className="mt-2 line-clamp-2 text-2xl font-extrabold leading-tight tracking-tight sm:text-3xl">{product.name}</h2>
+        <div className="mt-4 flex flex-wrap items-baseline gap-x-3 gap-y-1">
           {product.price > 0 ? (
             <strong className="text-2xl font-extrabold text-slate-950">{formatPrice(product.price)}</strong>
           ) : (
@@ -461,7 +461,7 @@ const FeaturedHeroProduct = ({
             <span className="text-xs font-bold text-emerald-700">Save {discount}%</span>
           )}
         </div>
-        <Link to={getProductPath(product)} className="mt-6 inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-blue-700 px-5 text-sm font-bold text-white hover:bg-blue-800">
+        <Link to={getProductPath(product)} className="mt-5 inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-blue-700 px-5 text-sm font-bold text-white hover:bg-blue-800">
           View phone
           <ArrowRight className="h-4 w-4" aria-hidden="true" />
         </Link>
