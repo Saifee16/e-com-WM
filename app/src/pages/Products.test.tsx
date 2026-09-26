@@ -1,5 +1,5 @@
 import React, { forwardRef } from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -98,6 +98,58 @@ beforeEach(() => {
 });
 
 describe('Products category routes', () => {
+  it('keeps phone shortcuts in one keyboard-scrollable row and selects the current route', () => {
+    renderProducts('/phones/samsung');
+
+    const title = screen.getByRole('heading', { level: 1 });
+    const search = screen.getAllByRole('searchbox', { name: 'Search the catalogue' })[0]!;
+    const phoneNav = screen.getByRole('navigation', { name: 'Phone shopping pages' });
+    const controls = screen.getByRole('group', { name: 'Sort, filter, and view controls' });
+    const sort = within(controls).getByRole('combobox', { name: 'Sort products' });
+    const filters = within(controls).getByRole('button', { name: /Filters/ });
+    const listView = within(controls).getByRole('button', { name: 'List view' });
+
+    expect(title.compareDocumentPosition(search) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(search.compareDocumentPosition(phoneNav) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(phoneNav).toHaveAttribute('tabindex', '0');
+    expect(phoneNav).toHaveClass('flex-nowrap', 'overflow-x-auto');
+    expect(within(phoneNav).getByRole('link', { name: 'Samsung' })).toHaveClass('shrink-0', 'whitespace-nowrap');
+    expect(within(phoneNav).getByRole('link', { name: 'Samsung' })).toHaveAttribute('aria-current', 'page');
+    expect(within(phoneNav).getByRole('link', { name: /30,000/ })).toHaveClass('shrink-0', 'whitespace-nowrap');
+    expect(sort.compareDocumentPosition(filters) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(filters.compareDocumentPosition(listView) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    expect(within(phoneNav).getByRole('link', { name: 'Samsung' })).toHaveAttribute('href', '/phones/samsung');
+  });
+
+  it('keeps search, sort, view, and budget filters working in the compact controls', async () => {
+    const user = userEvent.setup();
+    renderProducts('/phones');
+
+    const search = screen.getAllByRole('searchbox', { name: 'Search the catalogue' })[0]!;
+    const controls = screen.getByRole('group', { name: 'Sort, filter, and view controls' });
+    const sort = within(controls).getByRole('combobox', { name: 'Sort products' });
+
+    await user.type(search, 'iPhone');
+    await waitFor(() => expect(apiMocks.getProducts).toHaveBeenCalledWith(expect.objectContaining({ search: 'iPhone' })), { timeout: 2000 });
+
+    await user.selectOptions(sort, 'price-low');
+    await waitFor(() => expect(apiMocks.getProducts).toHaveBeenCalledWith(expect.objectContaining({ sort: 'price-low' })));
+
+    const listView = within(controls).getByRole('button', { name: 'List view' });
+    await user.click(listView);
+    expect(listView).toHaveAttribute('aria-pressed', 'true');
+
+    await user.click(within(controls).getByRole('button', { name: /Filters/ }));
+    const drawer = screen.getByRole('button', { name: 'Close filters' }).closest('[aria-label="Product filters"]') as HTMLElement;
+    await user.click(within(drawer).getByLabelText('Under Rs. 30,000'));
+    await waitFor(() => expect(apiMocks.getProducts).toHaveBeenCalledWith(expect.objectContaining({ maxPrice: 30000 })));
+    expect(screen.getByRole('button', { name: 'Remove Under Rs. 30,000 filter' })).toBeInTheDocument();
+
+    await user.click(within(drawer).getByRole('button', { name: 'Clear' }));
+    await waitFor(() => expect(apiMocks.getProducts.mock.calls.at(-1)?.[0]).toMatchObject({ maxPrice: undefined }));
+  }, 15_000);
+
   it('parses top-level and child catalogue routes', () => {
     expect(getRouteCategory('/phones')).toBe('phones');
     expect(getRouteCategory('/phones/iphone')).toBe('iphone');

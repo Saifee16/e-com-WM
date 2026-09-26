@@ -504,6 +504,26 @@ const Products = () => {
     selectedCategory === routeCategory &&
     !hasOptionalFilters;
 
+  const renderCatalogueSearch = () => (
+    <label className="relative block">
+      <span className="sr-only">Search the catalogue</span>
+      <Search
+        className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400"
+        aria-hidden="true"
+      />
+      <input
+        type="search"
+        value={searchQuery}
+        onChange={(event) => {
+          setSearchQuery(event.target.value);
+          setCurrentPage(1);
+        }}
+        placeholder="Search by model, brand or keyword"
+        className="h-12 w-full rounded-lg border border-slate-300 bg-slate-50 pl-11 pr-4 text-sm placeholder:text-slate-500 focus:border-blue-600 focus:bg-white focus:ring-blue-600"
+      />
+    </label>
+  );
+
   const renderFilters = () => (
     <div className="space-y-6">
       <FilterGroup title="Condition">
@@ -681,6 +701,10 @@ const Products = () => {
                   : location.pathname === '/products' ? 'Shop all products' : routeCategoryData?.name ?? 'Phones in Pakistan'}
             </h1>
 
+            <div className="mt-4 lg:hidden">
+              {renderCatalogueSearch()}
+            </div>
+
         {routeLanding && (
           <p className='mt-3 max-w-3xl text-sm leading-6 text-slate-600'>{routeLanding.intro}</p>
         )}
@@ -722,40 +746,31 @@ const Products = () => {
         )}
 
         {routeCategory === 'phones' && (
-          <nav className='mt-4 flex flex-wrap gap-2' aria-label='Phone shopping pages'>
-            {SEO_LANDING_PAGES.filter((page) => page.path !== location.pathname).map((page) => (
-              <Link key={page.path} to={page.path} className='rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 hover:border-blue-300 hover:text-blue-700'>
-                {landingLabel(page.slug)}
-              </Link>
-            ))}
+          <nav tabIndex={0} className='mt-4 flex flex-nowrap gap-2 overflow-x-auto pb-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-700 lg:flex-wrap lg:overflow-visible lg:pb-0' aria-label='Phone shopping pages'>
+            {SEO_LANDING_PAGES.map((page) => {
+              const isCurrentPage = location.pathname === page.path;
+
+              return (
+                <Link
+                  key={page.path}
+                  to={page.path}
+                  aria-current={isCurrentPage ? 'page' : undefined}
+                  className={`shrink-0 whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-bold ${isCurrentPage ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-slate-200 bg-white text-slate-600 hover:border-blue-300 hover:text-blue-700'} lg:shrink lg:whitespace-normal`}
+                >
+                  {landingLabel(page.slug)}
+                </Link>
+              );
+            })}
           </nav>
         )}
 
-        <div className="mt-6 rounded-xl border border-slate-200 bg-white p-3 shadow-[0_10px_30px_rgba(15,46,82,0.05)] sm:p-4">
-          <div className="grid gap-3 lg:grid-cols-[1fr_auto_auto]">
-            <label className="relative block">
-              <span className="sr-only">
-                Search the catalogue
-              </span>
+        <div className="mt-5 rounded-xl border border-slate-200 bg-white p-2 shadow-[0_10px_30px_rgba(15,46,82,0.05)] lg:mt-6 lg:p-4">
+          <div className="grid gap-2 lg:grid-cols-[1fr_auto_auto] lg:gap-3">
+            <div className="hidden lg:block">
+              {renderCatalogueSearch()}
+            </div>
 
-              <Search
-                className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400"
-                aria-hidden="true"
-              />
-
-              <input
-                type="search"
-                value={searchQuery}
-                onChange={(event) => {
-                  setSearchQuery(event.target.value);
-                  setCurrentPage(1);
-                }}
-                placeholder="Search by model, brand or keyword"
-                className="h-12 w-full rounded-lg border border-slate-300 bg-slate-50 pl-11 pr-4 text-sm placeholder:text-slate-500 focus:border-blue-600 focus:bg-white focus:ring-blue-600"
-              />
-            </label>
-
-            <div className="grid grid-cols-[1fr_auto] gap-2">
+            <div role="group" aria-label="Sort, filter, and view controls" className="col-span-full grid min-w-0 grid-cols-[minmax(0,1fr)_auto_auto] gap-2 lg:col-span-1 lg:grid-cols-[minmax(0,1fr)_auto]">
               <label
                 className="sr-only"
                 htmlFor="sort-products"
@@ -776,7 +791,7 @@ const Products = () => {
 
                   setCurrentPage(1);
                 }}
-                className="h-12 min-w-0 rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 focus:border-blue-600 focus:ring-blue-600 sm:min-w-48"
+                className="h-12 min-w-0 rounded-lg border border-slate-300 bg-white px-2 text-xs font-semibold text-slate-700 focus:border-blue-600 focus:ring-blue-600 sm:px-3 sm:text-sm sm:min-w-48"
               >
                 <option value="newest">
                   Newest first
@@ -795,6 +810,25 @@ const Products = () => {
                 </option>
               </select>
 
+              <button
+                type="button"
+                onClick={() => setIsFilterOpen(true)}
+                className="inline-flex h-12 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg bg-blue-700 px-2 text-xs font-bold text-white hover:bg-blue-800 sm:gap-2 sm:px-4 sm:text-sm lg:hidden"
+              >
+                <SlidersHorizontal
+                  className="h-4 w-4"
+                  aria-hidden="true"
+                />
+
+                Filters
+
+                {activeFiltersCount > 0 && (
+                  <span className="rounded-md bg-white px-1.5 py-0.5 text-[10px] text-blue-700">
+                    {activeFiltersCount}
+                  </span>
+                )}
+              </button>
+
               <div className="flex h-12 overflow-hidden rounded-lg border border-slate-300 bg-white">
                 <ViewButton
                   label="Grid view"
@@ -812,24 +846,6 @@ const Products = () => {
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={() => setIsFilterOpen(true)}
-              className="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-blue-700 px-4 text-sm font-bold text-white hover:bg-blue-800 lg:hidden"
-            >
-              <SlidersHorizontal
-                className="h-4 w-4"
-                aria-hidden="true"
-              />
-
-              Filters
-
-              {activeFiltersCount > 0 && (
-                <span className="rounded-md bg-white px-1.5 py-0.5 text-[10px] text-blue-700">
-                  {activeFiltersCount}
-                </span>
-              )}
-            </button>
           </div>
         </div>
 
