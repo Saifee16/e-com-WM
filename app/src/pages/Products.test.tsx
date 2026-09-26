@@ -103,6 +103,7 @@ describe('Products category routes', () => {
 
     const title = screen.getByRole('heading', { level: 1 });
     const search = screen.getAllByRole('searchbox', { name: 'Search the catalogue' })[0]!;
+    const titleHeader = title.parentElement?.parentElement;
     const phoneNav = screen.getByRole('navigation', { name: 'Phone shopping pages' });
     const controls = screen.getByRole('group', { name: 'Sort, filter, and view controls' });
     const sort = within(controls).getByRole('combobox', { name: 'Sort products' });
@@ -110,6 +111,8 @@ describe('Products category routes', () => {
     const listView = within(controls).getByRole('button', { name: 'List view' });
 
     expect(title.compareDocumentPosition(search) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(titleHeader).toHaveClass('lg:flex-row');
+    expect(titleHeader).not.toHaveClass('sm:flex-row');
     expect(search.compareDocumentPosition(phoneNav) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(phoneNav).toHaveAttribute('tabindex', '0');
     expect(phoneNav).toHaveClass('flex-nowrap', 'overflow-x-auto');

@@ -691,7 +691,7 @@ const Products = () => {
         metadata={routeLanding ? { ...buildLandingMetadata(routeLanding, location.pathname), ...((searchParams.toString() || (!isLoadingProducts && !landingIsEligible)) ? { robots: 'noindex,follow' } : {}) } : isSearchRoute ? buildSearchMetadata(debouncedSearch) : { ...buildCategoryMetadata(routeCategoryData, location.pathname), robots: searchParams.toString() ? 'noindex,follow' : undefined }}
       />
       <div className="mx-auto max-w-[1400px] px-3 sm:px-6 lg:px-8">
-        <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+        <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
           <div>
             <h1 className="text-3xl font-extrabold tracking-tight text-slate-950 sm:text-4xl">
               {routeLanding ? routeLanding.h1 : isSearchRoute && debouncedSearch
