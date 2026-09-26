@@ -374,8 +374,8 @@ const FeaturedHeroProduct = ({
 }) => {
   if (isLoading) {
     return (
-      <div className="min-h-[310px] rounded-xl border border-white/15 bg-white p-5 shadow-[0_24px_70px_rgba(0,20,52,0.32)] sm:min-h-[340px]" aria-label="Loading featured phone">
-        <div className="grid h-full gap-5 sm:grid-cols-[.92fr_1.08fr] sm:items-center">
+      <div className="min-h-[300px] rounded-xl border border-white/15 bg-white p-5 shadow-[0_24px_70px_rgba(0,20,52,0.32)] sm:min-h-[320px]" aria-label="Loading featured phone">
+        <div className="grid h-full gap-5 sm:grid-cols-[.85fr_1.15fr] sm:items-center">
           <div className="min-h-44 animate-pulse rounded-lg bg-slate-100" />
           <div>
             <div className="h-3 w-24 animate-pulse rounded bg-slate-100" />
@@ -427,10 +427,10 @@ const FeaturedHeroProduct = ({
   ].filter(Boolean);
 
   return (
-    <article className="grid min-h-[310px] overflow-hidden rounded-xl border border-white/15 bg-white text-slate-950 shadow-[0_24px_70px_rgba(0,20,52,0.32)] sm:min-h-[340px] sm:grid-cols-[.92fr_1.08fr]">
-      <div className="flex min-h-52 items-center justify-center bg-slate-50 p-4 sm:min-h-full sm:p-6">
+    <article className="grid min-h-[300px] overflow-hidden rounded-xl border border-white/15 bg-white text-slate-950 shadow-[0_24px_70px_rgba(0,20,52,0.32)] sm:min-h-[320px] sm:grid-cols-[.85fr_1.15fr]">
+      <div className="flex min-h-52 items-center justify-center overflow-hidden bg-slate-50 p-4 sm:min-h-full">
         {image ? (
-          <img src={image} alt={product.name} className="h-56 w-full object-contain sm:h-[19rem]" loading="eager" />
+          <img src={image} alt={product.name} className="h-56 w-full object-contain sm:h-72 sm:scale-[1.2] lg:scale-[1.35] xl:scale-[1.55]" loading="eager" />
         ) : (
           <div className="flex h-full min-h-44 w-full items-center justify-center text-blue-700">
             <Smartphone className="h-12 w-12" aria-hidden="true" />
@@ -461,7 +461,7 @@ const FeaturedHeroProduct = ({
             <span className="text-xs font-bold text-emerald-700">Save {discount}%</span>
           )}
         </div>
-        <Link to={getProductPath(product)} className="mt-5 inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-blue-700 px-5 text-sm font-bold text-white hover:bg-blue-800">
+        <Link to={getProductPath(product)} className="mt-5 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-blue-700 px-5 text-sm font-bold text-white hover:bg-blue-800 sm:w-auto sm:min-w-[200px] sm:self-start">
           View phone
           <ArrowRight className="h-4 w-4" aria-hidden="true" />
         </Link>
