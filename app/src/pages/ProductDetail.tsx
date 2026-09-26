@@ -25,6 +25,7 @@ import AuthModal from '../components/auth/AuthModal';
 import ProductRating from '../components/product/ProductRating';
 import Seo, { buildBreadcrumbJsonLd, buildProductJsonLd, buildProductMetadata } from '../seo/seo';
 import { getProductPath } from '../utils/product-url';
+import { NATIONWIDE_SHIPPING_COSTS } from '../config/order-policy';
 
 const ProductDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -400,7 +401,7 @@ const ProductDetail = () => {
                 </div>
                 <div className="text-center">
                   <Truck className="w-6 h-6 mx-auto mb-2 text-blue-600" />
-                  <span className="text-xs text-gray-600">Shipping at checkout</span>
+                  <span className="text-xs text-gray-600">Standard shipping {formatPrice(NATIONWIDE_SHIPPING_COSTS.standard)}</span>
                 </div>
                 <div className="text-center">
                   <RotateCcw className="w-6 h-6 mx-auto mb-2 text-blue-600" />
