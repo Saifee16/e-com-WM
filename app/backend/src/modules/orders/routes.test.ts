@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   cartFindFirst: vi.fn(),
+  cartUpdate: vi.fn(),
   orderFindFirst: vi.fn(),
   transaction: vi.fn(),
   getAuthenticatedUser: vi.fn(),
@@ -12,7 +13,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('../../db/prisma.js', () => ({
   prisma: {
-    cart: { findFirst: mocks.cartFindFirst },
+    cart: { findFirst: mocks.cartFindFirst, update: mocks.cartUpdate },
     order: { findFirst: mocks.orderFindFirst },
     $transaction: mocks.transaction,
   },
@@ -39,9 +40,9 @@ const baseOrder = {
   paymentStatus: 'UNPAID',
   subtotalAmount: 100_000,
   discountAmount: 0,
-  shippingAmount: 500,
+  shippingAmount: 300,
   taxAmount: 0,
-  totalAmount: 100_500,
+  totalAmount: 100_300,
   shippingAddressSnapshot: {
     fullName: 'Customer Name',
     email: 'customer@example.com',
@@ -304,5 +305,159 @@ describe('order notification route behavior', () => {
       expect.objectContaining({ orderId: baseOrder.id, status: 'CONFIRMED' }),
       'order status notification email failed',
     );
+  });
+});
+
+const setupShippingCheckout = (priceAmount: number, promo?: Record<string, unknown>, variantId = 'ce8c5528-346d-4cbc-9799-568521a51f86') => {
+  const variant = {
+    id: variantId,
+    productId: 'a0c87135-332c-4f2d-972d-f94e89450c92',
+    title: '256GB Blue',
+    storage: '256GB',
+    color: 'Blue',
+    options: null,
+    sku: 'SKU-256-BLUE',
+    priceAmount,
+    stockQuantity: 5,
+    reservedQuantity: 0,
+    isActive: true,
+    product: { name: 'Phone', status: 'ACTIVE', images: [] },
+  };
+  const lockedCart = {
+    id: '9bbcc93a-990b-4910-8b58-5d7ec1089172',
+    items: [{ variantId: variant.id, quantity: 1 }],
+    promoCodeId: promo ? 'promo-id' : null,
+  };
+  const orderCreate = vi.fn(async ({ data }: { data: Record<string, unknown> }) => ({
+    ...baseOrder,
+    userId: data.user ? baseOrder.userId : null,
+    guestId: data.guestId ?? null,
+    guestEmail: data.guestEmail ?? null,
+    subtotalAmount: data.subtotalAmount,
+    discountAmount: data.discountAmount,
+    shippingAmount: data.shippingAmount,
+    totalAmount: data.totalAmount,
+    shippingAddressSnapshot: data.shippingAddressSnapshot,
+  }));
+  const tx = {
+    $queryRaw: vi.fn(),
+    order: { findFirst: vi.fn().mockResolvedValue(null), create: orderCreate, count: vi.fn().mockResolvedValue(0) },
+    cart: { findUnique: vi.fn().mockResolvedValue(lockedCart) },
+    productVariant: { findUniqueOrThrow: vi.fn().mockResolvedValue(variant), update: vi.fn() },
+    promoCode: { findUnique: vi.fn().mockResolvedValue(promo), update: vi.fn() },
+    cartItem: { deleteMany: vi.fn() },
+  };
+  mocks.cartFindFirst.mockResolvedValue(lockedCart);
+  mocks.transaction.mockImplementation(async (callback) => callback(tx));
+  return { orderCreate, tx };
+};
+
+describe('authoritative shipping at order creation', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.orderFindFirst.mockResolvedValue(null);
+    mocks.sendOrderPlacedEmails.mockResolvedValue(undefined);
+    mocks.getAuthenticatedUser.mockResolvedValue(null);
+    mocks.getGuestId.mockReturnValue('guest-id');
+  });
+
+  it.each([
+    ['Hyderabad', 20_000, 'standard', 300],
+    ['Hyderabad', 79_999, 'standard', 300],
+    ['Hyderabad', 100_000, 'standard', 300],
+    ['Hyderabad', 680_000, 'standard', 300],
+    ['Karachi', 79_999, 'standard', 300],
+    ['Lahore', 20_000, 'standard', 300],
+    ['Hyderabad', 20_000, 'pickup', 0],
+    ['Hyderabad', 20_000, 'express', 1_500],
+    ['Karachi', 20_000, 'express', 1_000],
+  ])('persists %s Rs %i %s shipping at Rs %i', async (city, subtotal, method, shipping) => {
+    const { orderCreate } = setupShippingCheckout(subtotal);
+    const route = await registerOrderRoute();
+    const result = await route({
+      body: {
+        ...checkoutPayload,
+        shippingInfo: { ...checkoutPayload.shippingInfo, city },
+        shippingMethod: method,
+        shippingCost: 1,
+        total: 1,
+      },
+      headers: { 'idempotency-key': '0f7f6b35-b5a2-4d87-9372-ea2df213b524' },
+      log: { error: vi.fn() },
+    }, makeReply());
+
+    expect(result).toMatchObject({ success: true, data: { subtotal, shippingCost: shipping, total: subtotal + shipping } });
+    expect(orderCreate).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ subtotalAmount: subtotal, shippingAmount: shipping, totalAmount: subtotal + shipping }),
+    }));
+  });
+
+  it.each([
+    'ce8c5528-346d-4cbc-9799-568521a51f86',
+    '53719979-f8e9-478f-9795-056378a69d81',
+  ])('keeps standard shipping at Rs 300 for selected variant %s', async (variantId) => {
+    const { orderCreate } = setupShippingCheckout(79_999, undefined, variantId);
+    const route = await registerOrderRoute();
+    const result = await route({
+      body: checkoutPayload,
+      headers: { 'idempotency-key': '0f7f6b35-b5a2-4d87-9372-ea2df213b524' },
+      log: { error: vi.fn() },
+    }, makeReply());
+
+    expect(result).toMatchObject({ success: true, data: { shippingCost: 300, total: 80_299 } });
+    expect(orderCreate).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        items: expect.objectContaining({
+          create: expect.arrayContaining([
+            expect.objectContaining({ variant: { connect: { id: variantId } } }),
+          ]),
+        }),
+      }),
+    }));
+  });
+  it('uses the same standard rate for an authenticated checkout', async () => {
+    mocks.getAuthenticatedUser.mockResolvedValue({ id: baseOrder.userId });
+    mocks.getGuestId.mockReturnValue(undefined);
+    const { orderCreate } = setupShippingCheckout(100_000);
+    const route = await registerOrderRoute();
+    const result = await route({
+      body: { ...checkoutPayload, shippingInfo: { ...checkoutPayload.shippingInfo, city: 'Hyderabad' } },
+      headers: { 'idempotency-key': '0f7f6b35-b5a2-4d87-9372-ea2df213b524' },
+      authUser: { id: baseOrder.userId },
+      log: { error: vi.fn() },
+    }, makeReply());
+
+    expect(result).toMatchObject({ success: true, data: { shippingCost: 300, total: 100_300 } });
+    expect(orderCreate).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ shippingAmount: 300, totalAmount: 100_300 }),
+    }));
+  });
+
+  it('rejects a legacy attached FREE_SHIPPING promo before persisting an order', async () => {
+    const { orderCreate } = setupShippingCheckout(20_000, {
+      id: 'promo-id',
+      type: 'FREE_SHIPPING',
+      isActive: true,
+      startsAt: null,
+      expiresAt: null,
+      usageLimit: null,
+      usageCount: 0,
+      perUserLimit: null,
+      minOrderAmount: 0,
+    });
+    const route = await registerOrderRoute();
+    const reply = makeReply();
+    const result = await route({
+      body: checkoutPayload,
+      headers: { 'idempotency-key': '0f7f6b35-b5a2-4d87-9372-ea2df213b524' },
+      log: { error: vi.fn() },
+    }, reply);
+
+    expect(reply.status).toHaveBeenCalledWith(409);
+    expect(result).toMatchObject({ error: { code: 'PROMO_NOT_ELIGIBLE' } });
+    expect(orderCreate).not.toHaveBeenCalled();
+    expect(mocks.cartUpdate).toHaveBeenCalledWith(expect.objectContaining({
+      data: { promoCodeId: null },
+    }));
   });
 });

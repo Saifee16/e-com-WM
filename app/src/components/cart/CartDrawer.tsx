@@ -155,9 +155,9 @@ const CartDrawer = ({ open, onOpenChange }: CartDrawerProps) => {
                     <span className="font-medium text-gray-950">{formatPrice(totals.subtotal)}</span>
                   </div>
                   <div className="flex items-center justify-between text-gray-600">
-                    <span>Shipping</span>
+                    <span>Standard Shipping</span>
                     <span className="font-medium text-gray-950">
-                      {totals.shipping === 0 ? 'Free' : formatPrice(totals.shipping)}
+                      {formatPrice(totals.shipping)}
                     </span>
                   </div>
                 </div>

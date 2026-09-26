@@ -190,10 +190,10 @@ describe('checkout transaction routes', () => {
       data: {
         totals: {
           subtotal: 100_000,
-          shipping: 0,
+          shipping: 300,
           tax: 0,
           discount: 0,
-          total: 100_000,
+          total: 100_300,
         },
       },
     });
@@ -211,6 +211,7 @@ describe('checkout transaction routes', () => {
         subtotal: 1,
         tax: 999_999,
         total: 1,
+        shippingCost: 1,
         items: [{ variantId: randomUUID(), price: 1, quantity: 99 }],
       },
     });

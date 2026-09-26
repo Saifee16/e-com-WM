@@ -1,9 +1,7 @@
 export type CheckoutShippingMethod = 'standard' | 'express' | 'pickup';
 
-export const FREE_STANDARD_SHIPPING_SUBTOTAL = 100_000;
-
 export const LOCAL_SHIPPING_COSTS: Record<CheckoutShippingMethod, number> = {
-  standard: 500,
+  standard: 300,
   express: 1_500,
   pickup: 0,
 };

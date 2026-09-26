@@ -16,7 +16,6 @@ import { ordersAPI } from '../services/api';
 import { useToast } from '../contexts/ToastContext';
 import { getApiErrorMessage } from '../utils/api-error';
 import {
-  FREE_STANDARD_SHIPPING_SUBTOTAL,
   getShippingCosts,
   isHyderabadCity,
   NATIONWIDE_ORDER_NOTICE,
@@ -51,12 +50,12 @@ const Checkout = () => {
 
   const isHyderabadOrder = isHyderabadCity(shippingInfo.city);
   const shippingCosts = getShippingCosts(shippingInfo.city);
-  const qualifiesForFreeStandardShipping = isHyderabadOrder
-    && shippingMethod === 'standard'
-    && totals.subtotal >= FREE_STANDARD_SHIPPING_SUBTOTAL;
-  const selectedShipping = totals.freeShipping || qualifiesForFreeStandardShipping
-    ? 0
-    : shippingCosts[shippingMethod];
+  const selectedShipping = shippingCosts[shippingMethod];
+  const selectedShippingLabel = {
+    standard: 'Standard Shipping',
+    express: 'Fast Shipping',
+    pickup: 'Store Pickup',
+  }[shippingMethod];
   const finalTotal = totals.subtotal + selectedShipping - (totals.discount ?? 0);
 
   const handleShippingSubmit = (e: React.FormEvent) => {
@@ -292,7 +291,7 @@ const Checkout = () => {
                     </label>
                     <div className="space-y-3">
                       {([
-                        { key: 'standard', label: 'Standard Shipping', detail: 'Free for qualifying Hyderabad orders' },
+                        { key: 'standard', label: 'Standard Shipping', detail: 'Flat delivery fee' },
                         { key: 'express', label: 'Fast Shipping', detail: 'Confirm timing with the shop' },
                         { key: 'pickup', label: 'Store Pickup', detail: 'Coordinate collection with the shop' },
                       ] as const).map((method) => (
@@ -416,7 +415,7 @@ const Checkout = () => {
                   <span>{formatPrice(totals.subtotal)}</span>
                 </div>
                 <div className="flex justify-between text-gray-600">
-                  <span>Shipping</span>
+                  <span>{selectedShippingLabel}</span>
                   <span>{selectedShipping === 0 ? 'Free' : formatPrice(selectedShipping)}</span>
                 </div>
                 {(totals.discount ?? 0) > 0 && (

@@ -1,7 +1,7 @@
 import React, { forwardRef } from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('framer-motion', () => {
   const Motion = forwardRef<HTMLElement, Record<string, unknown>>((props, ref) => {
@@ -12,13 +12,15 @@ vi.mock('framer-motion', () => {
   return { motion: new Proxy({}, { get: () => Motion }) };
 });
 
+const checkoutState = vi.hoisted(() => ({ subtotal: 50_000, freeShipping: false }));
+
 vi.mock('../contexts/AuthContext', () => ({
   useAuth: () => ({ user: null }),
 }));
 vi.mock('../contexts/CartContext', () => ({
   useCart: () => ({
-    items: [{ product: 'product-1', variantId: 'variant-1', name: 'Guest phone', image: '', price: 50_000, quantity: 1 }],
-    totals: { subtotal: 50_000, tax: 10_000, discount: 0, freeShipping: false },
+    items: [{ product: 'product-1', variantId: 'variant-1', name: 'Guest phone', image: 'https://example.com/phone.jpg', price: checkoutState.subtotal, quantity: 1 }],
+    totals: { subtotal: checkoutState.subtotal, shipping: 300, total: checkoutState.subtotal + 300, tax: 10_000, discount: 0, freeShipping: checkoutState.freeShipping },
     clearCart: vi.fn(),
   }),
 }));
@@ -26,6 +28,7 @@ vi.mock('../contexts/ToastContext', () => ({ useToast: () => ({ showToast: vi.fn
 vi.mock('../services/api', () => ({ ordersAPI: { createOrder: vi.fn() } }));
 
 import { NATIONWIDE_ORDER_NOTICE } from '../config/order-policy';
+import { formatPrice } from '../utils/format';
 import Checkout from './Checkout';
 
 const fillShippingInfo = (city: string) => {
@@ -38,6 +41,10 @@ const fillShippingInfo = (city: string) => {
 };
 
 describe('guest checkout', () => {
+  beforeEach(() => {
+    checkoutState.subtotal = 50_000;
+    checkoutState.freeShipping = false;
+  });
   it('renders checkout for an unauthenticated visitor instead of redirecting to login', () => {
     render(<MemoryRouter initialEntries={['/checkout']}><Checkout /></MemoryRouter>);
 
@@ -63,5 +70,59 @@ describe('guest checkout', () => {
 
     expect(screen.getByText('Available for Hyderabad deliveries; our team may contact you to confirm the order.')).toBeInTheDocument();
     expect(screen.queryByText(NATIONWIDE_ORDER_NOTICE)).not.toBeInTheDocument();
+  });
+});
+
+const summary = () => within(screen.getByText('Order Summary').parentElement!);
+const price = (amount: number) => formatPrice(amount).replace(/\s/g, ' ');
+
+describe('checkout shipping summary', () => {
+  beforeEach(() => {
+    checkoutState.subtotal = 50_000;
+    checkoutState.freeShipping = false;
+  });
+
+  it('shows Rs 300 standard shipping before an address and after Hyderabad is entered', () => {
+    render(<MemoryRouter initialEntries={['/checkout']}><Checkout /></MemoryRouter>);
+
+    expect(summary().getByText('Standard Shipping')).toBeInTheDocument();
+    expect(summary().getByText(price(300))).toBeInTheDocument();
+    expect(summary().getByText(price(50_300))).toBeInTheDocument();
+    expect(summary().queryByText('Free')).not.toBeInTheDocument();
+
+    fillShippingInfo('Hyderabad');
+
+    expect(summary().getByText(price(300))).toBeInTheDocument();
+    expect(summary().getByText(price(50_300))).toBeInTheDocument();
+  });
+
+  it('keeps high-value standard shipping at Rs 300 despite a stale freeShipping cart flag', () => {
+    checkoutState.subtotal = 680_000;
+    checkoutState.freeShipping = true;
+    render(<MemoryRouter initialEntries={['/checkout']}><Checkout /></MemoryRouter>);
+
+    fillShippingInfo('Hyderabad');
+
+    expect(summary().getByText('Standard Shipping')).toBeInTheDocument();
+    expect(summary().getByText(price(300))).toBeInTheDocument();
+    expect(summary().getByText(price(680_300))).toBeInTheDocument();
+    expect(summary().queryByText('Free')).not.toBeInTheDocument();
+  });
+
+  it('changes the summary only after pickup or express is explicitly selected', () => {
+    render(<MemoryRouter initialEntries={['/checkout']}><Checkout /></MemoryRouter>);
+    fillShippingInfo('Hyderabad');
+
+    expect(summary().getByText(price(300))).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('radio', { name: /Store Pickup/ }));
+    expect(summary().getByText('Store Pickup')).toBeInTheDocument();
+    expect(summary().getByText('Free')).toBeInTheDocument();
+    expect(within(summary().getByText('Total').parentElement!).getByText(price(50_000))).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('radio', { name: /Fast Shipping/ }));
+    expect(summary().getByText('Fast Shipping')).toBeInTheDocument();
+    expect(summary().getByText(price(1_500))).toBeInTheDocument();
+    expect(summary().getByText(price(51_500))).toBeInTheDocument();
   });
 });

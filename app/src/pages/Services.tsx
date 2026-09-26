@@ -32,7 +32,7 @@ const Services = () => {
       icon: Truck,
       title: 'Checkout options',
       description: 'Choose standard shipping, express shipping or store pickup during checkout.',
-      features: ['Standard: Rs. 500', 'Express: Rs. 1,500', 'Store pickup: free', 'Order total shown'],
+      features: ['Standard: Rs. 300', 'Express: Rs. 1,000–1,500', 'Store pickup: free', 'Order total shown'],
     },
     {
       icon: RotateCcw,
@@ -57,8 +57,8 @@ const Services = () => {
   const shippingInfo = [
     {
       method: 'Standard Shipping',
-      cost: `PKR ${NATIONWIDE_SHIPPING_COSTS.standard.toLocaleString('en-PK')} outside Hyderabad`,
-      detail: 'Free for qualifying Hyderabad orders; outside-Hyderabad orders require advance payment before dispatch.',
+      cost: `PKR ${NATIONWIDE_SHIPPING_COSTS.standard.toLocaleString('en-PK')} nationwide`,
+      detail: 'Flat standard shipping rate; outside-Hyderabad orders require advance payment before dispatch.',
     },
     {
       method: 'Fast Shipping',

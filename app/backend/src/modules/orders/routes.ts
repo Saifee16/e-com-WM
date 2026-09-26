@@ -4,11 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { prisma } from '../../db/prisma.js';
 import { env } from '../../config/env.js';
-import {
-  FREE_STANDARD_SHIPPING_SUBTOTAL,
-  getShippingCost,
-  isHyderabadCity,
-} from '../../config/order-policy.js';
+import { getShippingCost } from '../../config/order-policy.js';
 import { fail, ok } from '../../utils/responses.js';
 import { authenticateCustomer, getAuthenticatedUser, getGuestId, requireChangedAdminPassword } from '../auth/session.js';
 import { sendOrderPlacedEmails, sendOrderStatusEmail, type OrderEmailDetails } from './mailer.js';
@@ -283,11 +279,7 @@ export const orderRoutes: FastifyPluginAsync = async (app) => {
         (total, item) => total + item.variant.priceAmount * item.cartItem.quantity,
         0,
       );
-      let shipping = body.shippingMethod === 'standard'
-        && isHyderabadCity(body.shippingInfo.city)
-        && subtotal >= FREE_STANDARD_SHIPPING_SUBTOTAL
-        ? 0
-        : getShippingCost(body.shippingInfo.city, body.shippingMethod);
+      const shipping = getShippingCost(body.shippingInfo.city, body.shippingMethod);
       let discount = 0;
       let appliedPromoId: string | null = null;
 
@@ -303,6 +295,7 @@ export const orderRoutes: FastifyPluginAsync = async (app) => {
           : 0;
         const isEligible = Boolean(
           promo?.isActive
+          && promo.type !== 'FREE_SHIPPING'
           && (!promo.startsAt || promo.startsAt <= now)
           && (!promo.expiresAt || promo.expiresAt > now)
           && (promo.usageLimit === null || promo.usageCount < promo.usageLimit)
@@ -312,9 +305,7 @@ export const orderRoutes: FastifyPluginAsync = async (app) => {
         if (!promo || !isEligible) throw new Error('PROMO_NOT_ELIGIBLE');
 
         appliedPromoId = promo.id;
-        if (promo.type === 'FREE_SHIPPING') {
-          shipping = 0;
-        } else if (promo.type === 'PERCENTAGE') {
+        if (promo.type === 'PERCENTAGE') {
           discount = Math.min(
             Math.round((subtotal * (promo.valuePercent ?? 0)) / 100),
             promo.maxDiscountAmount ?? subtotal,

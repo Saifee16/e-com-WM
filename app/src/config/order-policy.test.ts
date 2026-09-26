@@ -8,14 +8,15 @@ import {
 } from './order-policy';
 
 describe('order policy', () => {
-  it('keeps the existing local Hyderabad shipping behavior', () => {
+  it('charges standard shipping in Hyderabad while preserving express and pickup', () => {
     expect(getShippingCosts('Hyderabad')).toEqual(LOCAL_SHIPPING_COSTS);
-    expect(LOCAL_SHIPPING_COSTS).toMatchObject({ standard: 500, express: 1_500, pickup: 0 });
+    expect(LOCAL_SHIPPING_COSTS).toMatchObject({ standard: 300, express: 1_500, pickup: 0 });
   });
 
   it('uses the owner-confirmed nationwide shipping fees', () => {
     expect(getShippingCosts('Karachi')).toEqual(NATIONWIDE_SHIPPING_COSTS);
     expect(NATIONWIDE_SHIPPING_COSTS).toMatchObject({ standard: 300, express: 1_000, pickup: 0 });
+    expect(getShippingCosts('Lahore').standard).toBe(300);
   });
 
   it('keeps the outside-Hyderabad order notice explicit', () => {

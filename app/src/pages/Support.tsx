@@ -49,8 +49,8 @@ const Support = () => {
           a: 'Checkout offers standard shipping, express shipping and store pickup. Contact the shop to confirm timing for a specific order.',
         },
         {
-          q: 'Do you offer free shipping?',
-          a: 'For Hyderabad orders, standard shipping may be free when the order subtotal is Rs. 100,000 or more. Orders outside Hyderabad can be placed online; checkout shows the applicable charge before the order is placed.',
+          q: 'How much does shipping cost?',
+          a: 'Standard shipping is Rs. 300 on every shipped order. Store pickup has no shipping charge. Express shipping is Rs. 1,500 in Hyderabad or Rs. 1,000 elsewhere.',
         },
         {
           q: 'Can I track my order?',

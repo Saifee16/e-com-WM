@@ -9,6 +9,7 @@ import { authenticateCustomer, GUEST_CART_COOKIE, getAuthenticatedUser, getGuest
 import { mapProduct, productInclude } from '../products/routes.js';
 import { CSRF_COOKIE, issueCsrfToken } from '../../plugins/csrf.js';
 import { promoUsageWhere } from '../promo-usage.js';
+import { getShippingCost } from '../../config/order-policy.js';
 
 const cartItemInclude = {
   variant: {
@@ -29,11 +30,10 @@ type CartPromo = {
   maxDiscountAmount: number | null;
 };
 
-const calculateTotals = (items: CartItemWithRelations[], promo?: CartPromo | null) => {
+export const calculateTotals = (items: CartItemWithRelations[], promo?: CartPromo | null) => {
   const subtotal = items.reduce((total, item) => total + item.variant.priceAmount * item.quantity, 0);
   const itemCount = items.reduce((total, item) => total + item.quantity, 0);
-  const freeShipping = promo?.type === 'FREE_SHIPPING';
-  const shipping = freeShipping || subtotal >= 100_000 || subtotal === 0 ? 0 : 500;
+  const shipping = itemCount === 0 ? 0 : getShippingCost('', 'standard');
   const discount = promo?.type === 'PERCENTAGE'
     ? Math.min(
         Math.round((subtotal * (promo.valuePercent ?? 0)) / 100),
@@ -49,8 +49,8 @@ const calculateTotals = (items: CartItemWithRelations[], promo?: CartPromo | nul
     shipping,
     tax: 0,
     discount,
-    freeShipping,
-    promoCode: promo?.code,
+    freeShipping: false,
+    promoCode: promo?.type === 'FREE_SHIPPING' ? undefined : promo?.code,
     total: subtotal + shipping - discount,
   };
 };
@@ -345,7 +345,7 @@ export const cartRoutes: FastifyPluginAsync = async (app) => {
       where: { code: body.code, isActive: true },
     });
 
-    if (!cart || !promo) {
+    if (!cart || !promo || promo.type === 'FREE_SHIPPING') {
       return fail(reply, 404, {
         code: 'PROMO_NOT_FOUND',
         message: 'Invalid promo code',
@@ -387,7 +387,7 @@ export const cartRoutes: FastifyPluginAsync = async (app) => {
     return ok(reply, {
       discount,
       discountRate: promo.valuePercent ?? 0,
-      freeShipping: promo.type === 'FREE_SHIPPING',
+      freeShipping: false,
     });
   });
 
