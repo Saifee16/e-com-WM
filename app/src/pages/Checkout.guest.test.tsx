@@ -1,6 +1,6 @@
 import React, { forwardRef } from 'react';
 import { fireEvent, render, screen, within } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('framer-motion', () => {
@@ -12,14 +12,14 @@ vi.mock('framer-motion', () => {
   return { motion: new Proxy({}, { get: () => Motion }) };
 });
 
-const checkoutState = vi.hoisted(() => ({ subtotal: 50_000, freeShipping: false }));
+const checkoutState = vi.hoisted(() => ({ subtotal: 50_000, freeShipping: false, emptyCart: false }));
 
 vi.mock('../contexts/AuthContext', () => ({
   useAuth: () => ({ user: null }),
 }));
 vi.mock('../contexts/CartContext', () => ({
   useCart: () => ({
-    items: [{ product: 'product-1', variantId: 'variant-1', name: 'Guest phone', image: 'https://example.com/phone.jpg', price: checkoutState.subtotal, quantity: 1 }],
+    items: checkoutState.emptyCart ? [] : [{ product: 'product-1', variantId: 'variant-1', name: 'Guest phone', image: 'https://example.com/phone.jpg', price: checkoutState.subtotal, quantity: 1 }],
     totals: { subtotal: checkoutState.subtotal, shipping: 300, total: checkoutState.subtotal + 300, tax: 10_000, discount: 0, freeShipping: checkoutState.freeShipping },
     clearCart: vi.fn(),
   }),
@@ -44,6 +44,7 @@ describe('guest checkout', () => {
   beforeEach(() => {
     checkoutState.subtotal = 50_000;
     checkoutState.freeShipping = false;
+    checkoutState.emptyCart = false;
   });
   it('renders checkout for an unauthenticated visitor instead of redirecting to login', () => {
     render(<MemoryRouter initialEntries={['/checkout']}><Checkout /></MemoryRouter>);
@@ -71,6 +72,19 @@ describe('guest checkout', () => {
     expect(screen.getByText('Available for Hyderabad deliveries; our team may contact you to confirm the order.')).toBeInTheDocument();
     expect(screen.queryByText(NATIONWIDE_ORDER_NOTICE)).not.toBeInTheDocument();
   });
+
+  it('preserves the empty-cart checkout guard and its browse-products action', () => {
+    checkoutState.emptyCart = true;
+    render(<MemoryRouter initialEntries={['/checkout']}><Routes>
+      <Route path="/checkout" element={<Checkout />} />
+      <Route path="/products" element={<p>Products page</p>} />
+    </Routes></MemoryRouter>);
+
+    expect(screen.getByText('Your cart is empty')).toBeInTheDocument();
+    expect(screen.queryByText('Shipping Information')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Browse Products' }));
+    expect(screen.getByText('Products page')).toBeInTheDocument();
+  });
 });
 
 const summary = () => within(screen.getByText('Order Summary').parentElement!);
@@ -80,6 +94,7 @@ describe('checkout shipping summary', () => {
   beforeEach(() => {
     checkoutState.subtotal = 50_000;
     checkoutState.freeShipping = false;
+    checkoutState.emptyCart = false;
   });
 
   it('shows Rs 300 standard shipping before an address and after Hyderabad is entered', () => {

@@ -1,4 +1,4 @@
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Minus, Plus, ShieldCheck, ShoppingBag, Trash2 } from 'lucide-react';
 import {
   Sheet,
@@ -28,10 +28,11 @@ const getProductPath = (item: CartItem) =>
 const CartDrawer = ({ open, onOpenChange }: CartDrawerProps) => {
   const { items, totals, isLoading, updateQuantity, removeFromCart, refreshCart } = useCart();
   const navigate = useNavigate();
+  const location = useLocation();
   const hasItems = items.length > 0;
 
   const goToCheckout = () => {
-    onOpenChange(false);
+    if (location.pathname !== '/cart') onOpenChange(false);
     navigate('/checkout');
   };
 
