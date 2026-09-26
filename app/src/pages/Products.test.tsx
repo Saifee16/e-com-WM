@@ -151,6 +151,20 @@ describe('Products category routes', () => {
 
     await user.click(within(drawer).getByRole('button', { name: 'Clear' }));
     await waitFor(() => expect(apiMocks.getProducts.mock.calls.at(-1)?.[0]).toMatchObject({ maxPrice: undefined }));
+    await waitFor(() => {
+      const location = screen.getByTestId('location').textContent ?? '';
+      const query = new URLSearchParams(location.split('?')[1] ?? '');
+
+      expect(search).toHaveValue('');
+      expect(query.has('search')).toBe(false);
+      expect(query.has('price')).toBe(false);
+      expect(query.get('sort')).toBe('price-low');
+      expect(apiMocks.getProducts.mock.calls.at(-1)?.[0]).toMatchObject({
+        search: undefined,
+        maxPrice: undefined,
+        sort: 'price-low',
+      });
+    });
   }, 15_000);
 
   it('parses top-level and child catalogue routes', () => {

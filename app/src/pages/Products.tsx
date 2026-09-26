@@ -472,6 +472,7 @@ const Products = () => {
     setSelectedCondition('');
     setSelectedCategory(routeCategory);
     setSearchQuery('');
+    setDebouncedSearch('');
     setFeaturedOnly(false);
     setDiscountedOnly(false);
     setPtaApprovedOnly(false);
