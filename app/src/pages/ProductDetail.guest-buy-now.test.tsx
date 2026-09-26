@@ -110,17 +110,36 @@ describe('guest-compatible product detail Buy Now', () => {
     const user = userEvent.setup();
     renderProduct();
 
+    const purchaseActions = await screen.findByRole('group', { name: 'Purchase actions' });
+    const addToCartButton = within(purchaseActions).getByRole('button', { name: 'Add to Cart' });
+    const buyNowButton = within(purchaseActions).getByRole('button', { name: 'Buy Now' });
+    expect(addToCartButton).toBeDisabled();
+    expect(buyNowButton).toBeDisabled();
+
     await user.click(await screen.findByRole('button', { name: '256GB' }));
+    expect(addToCartButton).toBeEnabled();
+    expect(buyNowButton).toBeEnabled();
     const quantityControl = screen.getByText('1').parentElement!;
     await user.click(within(quantityControl).getAllByRole('button')[1]!);
     await user.click(within(quantityControl).getAllByRole('button')[1]!);
-    await user.click(screen.getByRole('button', { name: 'Buy Now' }));
+    await user.click(buyNowButton);
 
     await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/checkout'));
     expect(addToCart).toHaveBeenCalledWith(product, 3, 'variant-256');
     expect(screen.queryByText('Buy Now requires a customer account.')).not.toBeInTheDocument();
     expect(screen.queryByText('Sign in to continue')).not.toBeInTheDocument();
   }, 10_000);
+
+  it('adds the selected variant through the grouped Add to Cart action', async () => {
+    const user = userEvent.setup();
+    renderProduct();
+
+    const purchaseActions = await screen.findByRole('group', { name: 'Purchase actions' });
+    await user.click(await screen.findByRole('button', { name: '256GB' }));
+    await user.click(within(purchaseActions).getByRole('button', { name: 'Add to Cart' }));
+
+    expect(addToCart).toHaveBeenCalledWith(product, 1, 'variant-256');
+  });
 
   it('keeps authenticated Buy Now behavior intact', async () => {
     authState.isAuthenticated = true;

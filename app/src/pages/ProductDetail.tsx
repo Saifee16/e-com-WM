@@ -367,28 +367,32 @@ const ProductDetail = () => {
               </div>
 
               {/* Action Buttons */}
-              <div className="flex gap-4 mb-8">
-                <button
-                  onClick={handleAddToCart}
-                  disabled={currentStock === 0 || (requiresVariantSelection && !selectedVariant)}
-                  className="flex-1 flex items-center justify-center gap-2 px-6 py-4 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
-                >
-                  <ShoppingCart className="w-5 h-5" />
-                  Add to Cart
-                </button>
-                <button
-                  onClick={handleBuyNow}
-                  disabled={currentStock === 0 || (requiresVariantSelection && !selectedVariant)}
-                  className="flex-1 px-6 py-4 border-2 border-blue-600 text-blue-600 rounded-xl font-semibold hover:bg-blue-50 transition-colors disabled:border-gray-300 disabled:text-gray-300 disabled:cursor-not-allowed"
-                >
-                  Buy Now
-                </button>
-                <button onClick={handleWishlist} aria-label="Toggle wishlist" className="p-4 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
-                  <Heart className={`w-6 h-6 ${isWishlisted ? 'fill-red-500 text-red-500' : 'text-gray-600'}`} />
-                </button>
-                <button className="p-4 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
-                  <Share2 className="w-6 h-6 text-gray-600" />
-                </button>
+              <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-center">
+                <div role="group" aria-label="Purchase actions" className="grid min-w-0 flex-1 grid-cols-1 gap-2 min-[360px]:grid-cols-2 sm:flex sm:gap-4">
+                  <button
+                    onClick={handleAddToCart}
+                    disabled={currentStock === 0 || (requiresVariantSelection && !selectedVariant)}
+                    className="flex min-h-12 min-w-0 items-center justify-center gap-1 whitespace-nowrap rounded-xl bg-blue-600 px-2 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-300 sm:flex-1 sm:gap-2 sm:px-6 sm:py-4 sm:text-base"
+                  >
+                    <ShoppingCart className="w-5 h-5" />
+                    Add to Cart
+                  </button>
+                  <button
+                    onClick={handleBuyNow}
+                    disabled={currentStock === 0 || (requiresVariantSelection && !selectedVariant)}
+                    className="flex min-h-12 min-w-0 items-center justify-center whitespace-nowrap rounded-xl border-2 border-blue-600 px-2 py-3 text-sm font-semibold text-blue-600 transition-colors hover:bg-blue-50 disabled:cursor-not-allowed disabled:border-gray-300 disabled:text-gray-300 sm:flex-1 sm:px-6 sm:py-4 sm:text-base"
+                  >
+                    Buy Now
+                  </button>
+                </div>
+                <div className="flex justify-end gap-2 sm:gap-4">
+                  <button onClick={handleWishlist} aria-label="Toggle wishlist" className="p-4 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
+                    <Heart className={`w-6 h-6 ${isWishlisted ? 'fill-red-500 text-red-500' : 'text-gray-600'}`} />
+                  </button>
+                  <button className="p-4 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
+                    <Share2 className="w-6 h-6 text-gray-600" />
+                  </button>
+                </div>
               </div>
 
               {/* Trust Badges */}
