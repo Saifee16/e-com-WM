@@ -33,6 +33,45 @@ type Brand = {
 
 const brandFallbacks = ['iPhone', 'Samsung', 'Honor', 'Xiaomi', 'Redmi'];
 
+const brandLogos: Record<string, string> = {
+  apple: '/assets/brands/apple.svg',
+  honor: '/assets/brands/honor.svg',
+  itel: '/assets/brands/itel.svg',
+  motorola: '/assets/brands/motorola.png',
+  oppo: '/assets/brands/oppo.png',
+  samsung: '/assets/brands/samsung.png',
+};
+
+export const BrandCard = ({ brand }: { brand: Brand }) => {
+  const [logoFailed, setLogoFailed] = useState(false);
+  const key = brand.name.trim().toLowerCase();
+  const logo = brandLogos[key];
+
+  return (
+    <Link
+      to={brand.path}
+      aria-label={`Shop ${brand.name} phones`}
+      className="group flex h-[88px] min-w-0 flex-col items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2 transition-colors hover:border-blue-300 hover:bg-blue-50/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 sm:h-24"
+    >
+      <span className="flex h-9 w-28 max-w-full items-center justify-center overflow-hidden">
+        {logo && !logoFailed ? (
+          <img
+            src={logo}
+            alt=""
+            onError={() => setLogoFailed(true)}
+            className={key === 'samsung' ? 'w-[158px] max-w-none shrink-0' : key === 'apple' ? 'h-8 w-auto' : key === 'motorola' ? 'h-9 w-9 object-contain' : 'max-h-8 max-w-[104px] object-contain'}
+          />
+        ) : (
+          <span className="truncate text-center text-base font-semibold text-[#0b3f82]">{brand.name}</span>
+        )}
+      </span>
+      <span className="text-xs font-medium text-slate-500">
+        {brand.count === null ? 'Browse' : `${brand.count} ${brand.count === 1 ? 'phone' : 'phones'}`}
+      </span>
+    </Link>
+  );
+};
+
 const businessStats = [
   { value: 'Since 2009', label: 'Serving Hyderabad' },
   { value: '20,000+', label: 'Customers served' },
@@ -211,25 +250,19 @@ const Home = () => {
 
       <section className="border-y border-slate-200 bg-white py-11 sm:py-14">
         <div className="mx-auto max-w-[1400px] px-4 sm:px-6 lg:px-8">
-          <div className="flex items-end justify-between gap-5">
-            <SectionHeading title="Shop by brand" description="Open a brand catalogue without digging through menus." />
-            <Link to="/products" className="hidden shrink-0 items-center gap-2 text-sm font-bold text-blue-700 hover:text-blue-800 sm:inline-flex">
+          <div className="flex items-start justify-between gap-3 sm:items-end">
+            <SectionHeading title="Shop by brand" description="Choose your preferred smartphone brand." />
+            <Link to="/products" className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap pt-1 text-xs font-bold text-blue-700 hover:text-blue-800 sm:gap-2 sm:pt-0 sm:text-sm">
               All phones
               <ArrowRight className="h-4 w-4" aria-hidden="true" />
             </Link>
           </div>
-          <div className="mt-7 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
+          <div className="mt-7 grid grid-cols-2 gap-2.5 sm:grid-cols-4 sm:gap-3 lg:grid-cols-8">
             {displayedBrands.map((brand) => (
-              <Link
-                key={brand.name}
-                to={brand.path}
-                className="group flex min-h-24 flex-col justify-between rounded-xl border border-slate-200 bg-slate-50 p-4 transition hover:border-blue-300 hover:bg-blue-50"
-              >
-                <span className="font-extrabold text-slate-950 group-hover:text-blue-700">{brand.name}</span>
-                <span className="mt-4 text-xs font-semibold text-slate-500">
-                  {brand.count === null ? 'Browse' : `${brand.count} ${brand.count === 1 ? 'phone' : 'phones'}`}
-                </span>
-              </Link>
+              <BrandCard key={brand.name} brand={brand} />
+            ))}
+            {isHomeLoading && Array.from({ length: 8 - displayedBrands.length }, (_, index) => (
+              <div key={`brand-placeholder-${index}`} className="h-[88px] rounded-xl border border-slate-200 bg-slate-50 sm:h-24" aria-hidden="true" />
             ))}
           </div>
         </div>
