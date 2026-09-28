@@ -164,11 +164,23 @@ const ProductDetail = () => {
   const activeVariants = (product.variants ?? []).filter((variant) => variant.isActive);
   const requiresVariantSelection = activeVariants.length > 1;
   const selectedVariant = activeVariants.find((variant) => variant.id === selectedVariantId);
-  const currentPrice = selectedVariant?.price ?? product.price;
-  const currentOriginalPrice = selectedVariant?.originalPrice ?? product.originalPrice;
+  const matchingVariants = activeVariants.filter((variant) => variantMatchesOptions(variant, selectedOptions));
+  const purchasableVariants = matchingVariants.filter((variant) => getVariantAvailableStock(variant) > 0);
+  const startingVariant = (purchasableVariants.length ? purchasableVariants : matchingVariants)
+    .reduce<typeof activeVariants[number] | undefined>((lowest, variant) =>
+      !lowest || variant.price < lowest.price ? variant : lowest, undefined);
+  const isStartingPrice = !selectedVariant && purchasableVariants.some((variant) => variant.price !== startingVariant?.price);
+  const currentPrice = selectedVariant?.price ?? startingVariant?.price ?? product.price;
+  const currentOriginalPrice = selectedVariant?.originalPrice ?? (!selectedVariant && startingVariant
+    && (isStartingPrice || activeVariants.every((variant) => variant.originalPrice === startingVariant.originalPrice))
+    ? startingVariant.originalPrice : undefined) ?? (activeVariants.length ? undefined : product.originalPrice);
   const currentStock = selectedVariant?.availableCountInStock ?? selectedVariant?.countInStock ?? product.countInStock;
   const currentCondition = selectedVariant?.condition ?? product.condition;
   const currentImages = selectedVariant?.images.length ? selectedVariant.images : product.images;
+  const selectedConfiguration = selectedVariant && [selectedVariant.title,
+    ...[selectedVariant.storage, selectedVariant.color, ...Object.values(selectedVariant.options)]
+      .filter((value): value is string => !!value && !selectedVariant.title.toLowerCase().includes(value.toLowerCase()))]
+    .join(' · ');
   const optionGroups = getVariantOptionGroups(activeVariants);
   const chooseOption = (name: string, value: string) => {
     const selection = resolveVariantSelection(activeVariants, selectedOptions, name, value);
@@ -293,9 +305,9 @@ const ProductDetail = () => {
                 </span>
               </div>
 
-              <div className="flex items-baseline gap-4 mb-6">
-                <span className="text-4xl font-bold text-gray-900">
-                  {formatPrice(currentPrice)}
+              <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 mb-6" aria-live="polite">
+                <span className="text-2xl min-[390px]:text-3xl sm:text-4xl font-bold text-gray-900 whitespace-nowrap">
+                  {isStartingPrice ? 'From ' : ''}{formatPrice(currentPrice)}
                 </span>
                 {currentOriginalPrice && (
                   <span className="text-xl text-gray-400 line-through">
@@ -307,8 +319,10 @@ const ProductDetail = () => {
               <p className="text-gray-600 mb-8">{product.description}</p>
 
               {selectedVariant && (
-                <p className="mb-6 text-sm text-gray-500">
-                  {selectedVariant.title} / SKU {selectedVariant.sku}
+                <p className="mb-6 text-sm text-gray-700">
+                  <span className="font-semibold">Selected: </span>
+                  {selectedConfiguration}
+                  <span className="text-gray-500"> · SKU {selectedVariant.sku}</span>
                 </p>
               )}
 
@@ -324,14 +338,15 @@ const ProductDetail = () => {
                           if (!matchingVariants.length) return null;
                           const available = matchingVariants.some((variant) => getVariantAvailableStock(variant) > 0);
                           const soldOut = matchingVariants.length > 0 && !available;
-                          const selected = selectedOptions[name] === value;
+                          const selected = selectedOptions[name] === value || !!selectedVariant && variantMatchesOptions(selectedVariant, { [name]: value });
                           return (
                             <button
                               key={value}
                               type="button"
+                              aria-pressed={selected}
                               disabled={!available}
                               onClick={() => chooseOption(name, value)}
-                              className={`rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+                              className={`min-h-11 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
                                 selected ? 'border-blue-600 bg-blue-600 text-white' : 'border-gray-300 bg-white text-gray-700 hover:border-blue-400'
                               } disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400`}
                             >

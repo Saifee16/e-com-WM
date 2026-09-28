@@ -106,6 +106,60 @@ beforeEach(() => {
 });
 
 describe('guest-compatible product detail Buy Now', () => {
+  it('shows a starting price without mixing another variant discount, then the selected price and configuration', async () => {
+    const user = userEvent.setup();
+    apiMocks.getProductById.mockResolvedValue({ data: { data: {
+      ...product,
+      originalPrice: 1500,
+      variants: [
+        { ...product.variants![0], originalPrice: 1100 },
+        { ...product.variants![1], originalPrice: undefined, color: 'Black', title: '256GB / Black / Factory Unlocked' },
+      ],
+    } } });
+    renderProduct();
+
+    expect(await screen.findByText('From Rs 1,000')).toBeInTheDocument();
+    expect(screen.getByText('Rs 1,100')).toBeInTheDocument();
+    expect(screen.queryByText('Rs 1,500')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '256GB' }));
+    expect(screen.getByText('Rs 1,200')).toBeInTheDocument();
+    expect(screen.queryByText('From Rs 1,000')).not.toBeInTheDocument();
+    expect(screen.queryByText('Rs 1,100')).not.toBeInTheDocument();
+    expect(screen.getByText('Selected:').parentElement).toHaveTextContent('256GB');
+    expect(screen.getByText('Selected:').parentElement).toHaveTextContent('Black');
+    expect(screen.getByText('Selected:').parentElement).toHaveTextContent('Factory Unlocked');
+    await user.click(screen.getByRole('button', { name: 'Add to Cart' }));
+    expect(addToCart).toHaveBeenCalledWith(expect.objectContaining({ _id: product._id }), 1, 'variant-256');
+  });
+
+  it('does not say From when active variants have one price', async () => {
+    apiMocks.getProductById.mockResolvedValue({ data: { data: {
+      ...product,
+      variants: product.variants!.map((variant) => ({ ...variant, price: 1000 })),
+    } } });
+    renderProduct();
+    expect(await screen.findByText('Rs 1,000')).toBeInTheDocument();
+    expect(screen.queryByText(/From Rs/)).not.toBeInTheDocument();
+  });
+
+  it('limits a partial selection starting price to matching purchasable variants', async () => {
+    const user = userEvent.setup();
+    apiMocks.getProductById.mockResolvedValue({ data: { data: {
+      ...product,
+      variants: [
+        product.variants![0],
+        { ...product.variants![1], color: 'Black' },
+        { ...product.variants![1], id: 'variant-256-blue', sku: 'PHONE-256-BLUE', color: 'Blue', price: 1300 },
+      ],
+    } } });
+    renderProduct();
+    expect(await screen.findByText('From Rs 1,000')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '256GB' }));
+    expect(screen.getByText('From Rs 1,200')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Blue' }));
+    expect(screen.getByText('Rs 1,300')).toBeInTheDocument();
+  });
+
   it('adds the selected variant and quantity for a guest without opening AuthModal', async () => {
     const user = userEvent.setup();
     renderProduct();
