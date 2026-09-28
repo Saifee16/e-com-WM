@@ -34,15 +34,15 @@ const supportLinks = [
 
 const Footer = () => (
   <footer className="bg-[#061f43] text-white">
-    <div className="mx-auto grid max-w-[1400px] gap-8 px-4 py-10 sm:px-6 md:grid-cols-2 lg:grid-cols-[1.45fr_.8fr_.8fr_1fr] lg:px-8">
+    <div className="mx-auto grid max-w-[1400px] gap-8 px-4 py-9 sm:px-6 md:grid-cols-2 lg:grid-cols-[1.45fr_.8fr_.8fr_1fr] lg:px-8">
       <div>
         <Link to="/" className="inline-flex items-center">
-          <img src="/assets/wahab-mobiles-logo-dark-768.png" alt="Wahab Mobiles logo" className="h-16 w-52 object-cover object-center" />
+          <img src="/assets/wahab-mobiles-logo-dark-768.png" alt="Wahab Mobiles logo" className="h-14 w-44 object-cover object-center" />
         </Link>
-        <p className="mt-4 max-w-sm text-sm leading-6 text-blue-100">
+        <p className="mt-3 max-w-sm text-sm leading-6 text-blue-100">
           Shop current phones online from a physical mobile store in Saddar Cantt Hyderabad.
         </p>
-        <div className="mt-4 space-y-2.5 text-sm text-blue-100">
+        <div className="mt-3 space-y-2.5 text-sm text-blue-100">
           <div className="flex items-start gap-3">
             <Phone className="mt-0.5 h-4 w-4 shrink-0 text-blue-300" aria-hidden="true" />
             <div className="flex flex-col gap-1">
@@ -60,7 +60,7 @@ const Footer = () => (
             {SHOP_ADDRESS}
           </a>
         </div>
-        <a href={SHOP_WHATSAPP_URL} className="mt-5 inline-flex min-h-11 items-center justify-center rounded-lg bg-white px-4 text-sm font-bold text-[#0b3f82] hover:bg-blue-50">
+        <a href={SHOP_WHATSAPP_URL} className="mt-4 inline-flex min-h-11 items-center justify-center rounded-lg bg-white px-4 text-sm font-bold text-[#0b3f82] hover:bg-blue-50">
           Message on WhatsApp
         </a>
       </div>

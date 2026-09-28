@@ -245,7 +245,7 @@ const Home = () => {
         </section>
       )}
 
-      <section className="border-y border-slate-200 bg-white pb-8 pt-8 sm:pb-8 sm:pt-8">
+      <section className="border-y border-slate-200 bg-white pb-5 pt-8 sm:pb-5 sm:pt-8">
         <div className="mx-auto max-w-[1400px] px-4 sm:px-6 lg:px-8">
           <div className="flex items-start justify-between gap-3 sm:items-end">
             <SectionHeading title="Shop by brand" description="Choose your preferred smartphone brand." />
@@ -265,7 +265,7 @@ const Home = () => {
         </div>
       </section>
 
-      <section className="border-b border-slate-200 bg-white pb-8 pt-4">
+      <section className="border-b border-slate-200 bg-white pb-8 pt-3">
         <div className="mx-auto grid max-w-[1400px] gap-6 px-4 sm:px-6 lg:grid-cols-[.72fr_1.28fr] lg:items-center lg:px-8">
           <div>
             <Banknote className="h-6 w-6 text-blue-700" aria-hidden="true" />
