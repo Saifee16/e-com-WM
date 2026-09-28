@@ -75,7 +75,6 @@ export const BrandCard = ({ brand }: { brand: Brand }) => {
 const businessStats = [
   { value: 'Since 2009', label: 'Serving Hyderabad' },
   { value: '20,000+', label: 'Customers served' },
-  { value: '95%', label: 'Customer satisfaction' },
 ];
 
 const conditionLinks = [
@@ -199,14 +198,12 @@ const Home = () => {
       </section>
 
       <section className="border-b border-slate-200 bg-white" aria-label="Shop current phones">
-        <div className="mx-auto grid max-w-[1400px] grid-cols-2 px-4 py-3 sm:grid-cols-4 sm:px-6 lg:px-8">
+        <div className="mx-auto grid max-w-[1400px] grid-cols-2 px-4 py-3 sm:px-6 lg:px-8">
           {conditionLinks.map((condition, index) => (
             <Link
               key={condition.label}
               to={condition.to}
-              className={`group flex min-h-14 items-center justify-between gap-3 px-3 py-2 transition hover:bg-blue-50 sm:px-4 ${
-                index % 2 === 1 ? 'border-l border-slate-200' : ''
-              } ${index > 1 ? 'border-t border-slate-200 sm:border-t-0' : ''} ${index > 0 ? 'sm:border-l sm:border-slate-200' : ''}`}
+              className={`group flex min-h-14 items-center justify-between gap-3 px-3 py-2 transition hover:bg-blue-50 sm:px-4 ${index === 1 ? 'border-l border-slate-200' : ''}`}
             >
               <span>
                 <span className="block text-sm font-extrabold text-slate-950 group-hover:text-blue-700">{condition.label}</span>
@@ -219,7 +216,7 @@ const Home = () => {
       </section>
 
       <section className="border-b border-slate-200 bg-white">
-        <div className="mx-auto grid max-w-[1400px] grid-cols-1 divide-y divide-slate-200 px-4 sm:grid-cols-3 sm:divide-x sm:divide-y-0 sm:px-6 lg:px-8">
+        <div className="mx-auto grid max-w-[1400px] grid-cols-1 divide-y divide-slate-200 px-4 sm:grid-cols-2 sm:divide-x sm:divide-y-0 sm:px-6 lg:px-8">
           {businessStats.map((stat) => (
             <div key={stat.value} className="flex items-baseline gap-3 py-4 sm:justify-center sm:px-4">
               <strong className="text-lg font-extrabold text-[#0b3f82]">{stat.value}</strong>
@@ -230,7 +227,7 @@ const Home = () => {
       </section>
 
       {remainingFeaturedProducts.length > 0 && (
-        <section className="py-11 sm:py-14">
+        <section className="pb-8 pt-11 sm:pb-8 sm:pt-14">
           <div className="mx-auto max-w-[1400px] px-4 sm:px-6 lg:px-8">
             <div className="flex items-end justify-between gap-5">
               <SectionHeading title="More featured phones" description="More picks from the live Wahab Mobiles catalogue." />
@@ -241,14 +238,14 @@ const Home = () => {
             </div>
             <div className="mt-7 grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-5">
               {remainingFeaturedProducts.map((product) => (
-                <StorefrontProductCard key={product._id} product={product} />
+                <StorefrontProductCard key={product._id} product={product} stretch />
               ))}
             </div>
           </div>
         </section>
       )}
 
-      <section className="border-y border-slate-200 bg-white py-11 sm:py-14">
+      <section className="border-y border-slate-200 bg-white pb-8 pt-8 sm:pb-8 sm:pt-8">
         <div className="mx-auto max-w-[1400px] px-4 sm:px-6 lg:px-8">
           <div className="flex items-start justify-between gap-3 sm:items-end">
             <SectionHeading title="Shop by brand" description="Choose your preferred smartphone brand." />
@@ -268,7 +265,7 @@ const Home = () => {
         </div>
       </section>
 
-      <section className="border-y border-slate-200 bg-white py-10">
+      <section className="border-b border-slate-200 bg-white pb-8 pt-4">
         <div className="mx-auto grid max-w-[1400px] gap-6 px-4 sm:px-6 lg:grid-cols-[.72fr_1.28fr] lg:items-center lg:px-8">
           <div>
             <Banknote className="h-6 w-6 text-blue-700" aria-hidden="true" />
@@ -285,7 +282,7 @@ const Home = () => {
         </div>
       </section>
 
-      <section className="bg-[#082f63] py-11 text-white sm:py-14">
+      <section className="bg-[#082f63] py-10 text-white">
         <div className="mx-auto max-w-[1400px] px-4 sm:px-6 lg:px-8">
           <div className="grid gap-8 lg:grid-cols-[.72fr_1.28fr]">
             <div>

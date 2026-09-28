@@ -15,6 +15,7 @@ type StorefrontProductCardProps = {
   view?: 'grid' | 'list';
   onAddToCart?: ProductActionHandler;
   onBuyNow?: ProductActionHandler;
+  stretch?: boolean;
 };
 
 const conditionLabels: Record<Product['condition'], string> = {
@@ -30,6 +31,7 @@ const StorefrontProductCard = ({
   view = 'grid',
   onAddToCart,
   onBuyNow,
+  stretch = false,
 }: StorefrontProductCardProps) => {
   const image = getPrimaryImage(product);
 
@@ -117,7 +119,7 @@ const StorefrontProductCard = ({
   return (
     <Link
       to={getProductPath(product)}
-      className="group flex h-fit min-w-0 self-start flex-col overflow-hidden rounded-xl border border-slate-200 bg-white transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-[0_16px_40px_rgba(15,46,82,0.09)]"
+      className={`group flex min-w-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-[0_16px_40px_rgba(15,46,82,0.09)] ${stretch ? 'h-full' : 'h-fit self-start'}`}
     >
       <div className="relative">
         <ProductImage
@@ -133,7 +135,7 @@ const StorefrontProductCard = ({
         )}
       </div>
 
-      <div className="flex flex-col p-3 sm:p-3.5">
+      <div className={`flex flex-col p-3 sm:p-3.5 ${stretch ? 'flex-1' : ''}`}>
         <ProductMeta product={product} compact />
 
         <h3 className="mt-2 line-clamp-2 text-[15px] font-bold leading-5 text-slate-950 transition group-hover:text-blue-700 sm:text-base">
@@ -146,7 +148,7 @@ const StorefrontProductCard = ({
           compact
         />
 
-        <div className="pt-1.5">
+        <div className={stretch ? 'mt-auto pt-1.5' : 'pt-1.5'}>
           <PriceBlock product={product} discount={null} />
 
           {isOutOfStock ? (
@@ -305,11 +307,11 @@ const AddToCartButton = ({
       void onAddToCart(event, product);
     }}
     className={`inline-flex w-full shrink-0 items-center justify-center gap-1.5 rounded-lg bg-blue-700 font-semibold text-white transition hover:bg-blue-800 active:translate-y-px disabled:cursor-not-allowed disabled:bg-slate-300 ${
-      compact ? 'h-9 px-2 text-xs' : 'px-4 py-2.5 text-sm'
+      compact ? 'min-h-11 whitespace-nowrap px-1 text-[11px] sm:px-2 sm:text-xs' : 'px-4 py-2.5 text-sm'
     }`}
     aria-label={`Add ${product.name} to cart`}
   >
-    <ShoppingCart className="h-4 w-4 shrink-0" aria-hidden="true" />
+    <ShoppingCart className={`h-4 w-4 shrink-0 ${compact ? 'hidden sm:block' : ''}`} aria-hidden="true" />
     <span>Add</span>
   </button>
 );
@@ -334,11 +336,11 @@ const BuyNowButton = ({
       void onBuyNow(event, product);
     }}
     className={`inline-flex w-full shrink-0 items-center justify-center gap-1.5 rounded-lg border border-blue-700 bg-white font-semibold text-blue-700 transition hover:bg-blue-50 active:translate-y-px disabled:cursor-not-allowed disabled:border-slate-300 disabled:text-slate-400 ${
-      compact ? 'h-9 px-2 text-xs' : 'px-4 py-2.5 text-sm'
+      compact ? 'min-h-11 whitespace-nowrap px-1 text-[11px] sm:px-2 sm:text-xs' : 'px-4 py-2.5 text-sm'
     }`}
     aria-label={`Buy ${product.name} now`}
   >
-    <Zap className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+    <Zap className={`h-3.5 w-3.5 shrink-0 ${compact ? 'hidden sm:block' : ''}`} aria-hidden="true" />
     <span>Buy now</span>
   </button>
 );
