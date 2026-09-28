@@ -24,6 +24,7 @@ import {
 } from '../config/contact';
 import Seo, { buildOrganizationJsonLd, buildStaticMetadata, buildWebSiteJsonLd } from '../seo/seo';
 import { getProductPath } from '../utils/product-url';
+import { prioritizeBrands } from './brand-priority';
 
 type Brand = {
   name: string;
@@ -156,7 +157,8 @@ const Home = () => {
           count: null,
           path: name === 'iPhone' ? '/products?search=iPhone' : `/products?brand=${encodeURIComponent(name)}`,
         }))
-  ).slice(0, 8);
+  );
+  const orderedBrands = prioritizeBrands(displayedBrands).slice(0, 8);
   const reviewCards = reviews?.reviews.filter((review) => review.text.trim()).slice(0, 3) ?? [];
   const reviewsUrl = reviews?.googleMapsUri ?? SHOP_MAPS_URL;
   const heroProduct = featuredProducts[0];
@@ -175,7 +177,7 @@ const Home = () => {
       <section className="bg-[#082f63] text-white">
         <div className="mx-auto grid max-w-[1400px] items-center gap-6 px-4 py-8 sm:gap-8 sm:px-6 sm:py-9 md:py-11 lg:grid-cols-[1.02fr_.98fr] lg:px-8">
           <div className="max-w-2xl">
-            <p className="text-sm font-bold text-blue-200">Wahab Mobiles, Hyderabad</p>
+            <p className="text-base font-bold text-blue-100">Wahab Mobiles, Hyderabad</p>
             <h1 className="mt-3 max-w-[12ch] text-4xl font-extrabold leading-[1.05] tracking-[-0.035em] sm:text-5xl lg:text-[58px]">
               Find the right phone, faster.
             </h1>
@@ -255,10 +257,10 @@ const Home = () => {
             </Link>
           </div>
           <div className="mt-7 grid grid-cols-2 gap-2.5 sm:grid-cols-4 sm:gap-3 lg:grid-cols-8">
-            {displayedBrands.map((brand) => (
+            {orderedBrands.map((brand) => (
               <BrandCard key={brand.name} brand={brand} />
             ))}
-            {isHomeLoading && Array.from({ length: 8 - displayedBrands.length }, (_, index) => (
+            {isHomeLoading && Array.from({ length: 8 - orderedBrands.length }, (_, index) => (
               <div key={`brand-placeholder-${index}`} className="h-[88px] rounded-xl border border-slate-200 bg-slate-50 sm:h-24" aria-hidden="true" />
             ))}
           </div>

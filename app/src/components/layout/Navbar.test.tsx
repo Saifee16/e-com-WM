@@ -92,6 +92,8 @@ describe('Navbar data-driven navigation', () => {
     const logo = screen.getByRole('img', { name: 'Wahab Mobiles logo' });
 
     expect(logo).toHaveAttribute('src', '/assets/wahab-mobiles-logo-320.webp');
+    expect(logo.closest('a')).toHaveAccessibleName('Wahab Mobiles home');
+    expect(logo).toHaveClass('h-12', 'md:h-14');
   });
 
   it('exposes the requested phone destinations and dynamic brands', async () => {

@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it } from 'vitest';
 import { BrandCard } from './Home';
+import { prioritizeBrands } from './brand-priority';
 
 const renderBrand = (name: string, count: number | null, path: string) =>
   render(
@@ -11,6 +12,25 @@ const renderBrand = (name: string, count: number | null, path: string) =>
   );
 
 describe('BrandCard', () => {
+  it('prioritizes known brands before slicing without changing API values or unknown order', () => {
+    const brands = [
+      { name: 'Zeta', count: 9, path: '/zeta' },
+      { name: ' samsung ', count: 8, path: '/samsung' },
+      { name: 'iPhone', count: 7, path: '/iphone' },
+      { name: 'Google Pixel', count: 6, path: '/pixel' },
+      { name: 'Honor', count: 5, path: '/honor' },
+      { name: 'Oppo', count: 4, path: '/oppo' },
+      { name: 'Realme', count: 3, path: '/realme' },
+      { name: 'Motorola', count: 2, path: '/motorola' },
+      { name: 'Itel', count: 1, path: '/itel' },
+      { name: 'Other', count: 0, path: '/other' },
+    ];
+    const ordered = prioritizeBrands(brands);
+    expect(ordered.map((brand) => brand.name)).toEqual(['iPhone', ' samsung ', 'Google Pixel', 'Honor', 'Oppo', 'Realme', 'Motorola', 'Itel', 'Zeta', 'Other']);
+    expect(ordered.map((brand) => [brand.count, brand.path])).toEqual([[7, '/iphone'], [8, '/samsung'], [6, '/pixel'], [5, '/honor'], [4, '/oppo'], [3, '/realme'], [2, '/motorola'], [1, '/itel'], [9, '/zeta'], [0, '/other']]);
+    expect(brands[0].name).toBe('Zeta');
+  });
+
   it('keeps the supplied route and count, with an accessible link name', () => {
     renderBrand('Apple', 5, '/products?brand=Apple');
     expect(screen.getByRole('link', { name: 'Shop Apple phones' })).toHaveAttribute('href', '/products?brand=Apple');
