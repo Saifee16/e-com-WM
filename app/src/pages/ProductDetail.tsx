@@ -180,14 +180,14 @@ const ProductDetail = () => {
   const selectedConfiguration = selectedVariant && [selectedVariant.title,
     ...[selectedVariant.storage, selectedVariant.color, ...Object.values(selectedVariant.options)]
       .filter((value): value is string => !!value && !selectedVariant.title.toLowerCase().includes(value.toLowerCase()))]
-    .join(' · ').replace(/Gb\b/g, 'GB').replace(/\bAll\b/g, 'Any color');
+    .join(' · ').replace(/Gb\b/g, 'GB').replace(/\bAll\b/g, 'Color to confirm');
   const optionGroups = getVariantOptionGroups(activeVariants);
   const variantStorageValues = new Set(activeVariants.map((variant) => variant.storage).filter(Boolean));
   const hasStaleStorageDescription = variantStorageValues.size > 1
     && [...variantStorageValues].some((storage) => product.description.includes(storage!));
   const description = hasStaleStorageDescription ? product.name : product.description;
   const summary = description.split(/\n\s*\n/).find((part) => !/^\s*(?:#|\*)/.test(part))
-    ?.replace(/\*\*/g, '').trim();
+    ?.replace(/\*\*/g, '').trim().match(/^[^.!?]+[.!?]/)?.[0];
   const chooseOption = (name: string, value: string) => {
     const selection = resolveVariantSelection(activeVariants, selectedOptions, name, value);
     setSelectedOptions(selection.options);
@@ -335,6 +335,7 @@ const ProductDetail = () => {
               {requiresVariantSelection && (
                 <div className="mb-8 space-y-5" aria-label="Product variants">
                   {Object.entries(optionGroups).map(([name, values]) => (
+                    name === 'RAM' && new Set(values.map((value) => value.replace(/Gb\b/, 'GB'))).size === 1 ? null :
                     <div key={name}>
                       <p className="mb-2 text-sm font-semibold text-gray-800">{name}</p>
                       <div className="flex flex-wrap gap-2">
@@ -356,7 +357,7 @@ const ProductDetail = () => {
                                 selected ? 'border-blue-600 bg-blue-600 text-white' : 'border-gray-300 bg-white text-gray-700 hover:border-blue-400'
                               } disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400`}
                             >
-                              {name === 'RAM' ? value.replace(/Gb\b/, 'GB') : name === 'Color' && value === 'All' ? 'Any color' : value}{soldOut ? ' (Sold out)' : ''}
+                              {name === 'RAM' ? value.replace(/Gb\b/, 'GB') : name === 'Color' && value === 'All' ? 'Color to confirm' : value}{soldOut ? ' (Sold out)' : ''}
                             </button>
                           );
                         })}
@@ -493,7 +494,7 @@ const ProductDetail = () => {
                     value && (
                       <div key={key} className="flex justify-between p-4 bg-gray-50 rounded-xl">
                         <span className="text-gray-500 capitalize">{key}</span>
-                        <span className="font-medium text-gray-900">{key === 'storage' && selectedVariant?.storage ? selectedVariant.storage : key === 'color' && selectedVariant?.color ? selectedVariant.color === 'All' ? 'Any color' : selectedVariant.color : value === 'All' && key === 'color' ? 'Any color' : value}</span>
+                        <span className="font-medium text-gray-900">{key === 'storage' && selectedVariant?.storage ? selectedVariant.storage : key === 'color' && selectedVariant?.color ? selectedVariant.color === 'All' ? 'Color to confirm' : selectedVariant.color : value === 'All' && key === 'color' ? 'Color to confirm' : value}</span>
                       </div>
                     )
                   ))}

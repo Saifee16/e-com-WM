@@ -123,11 +123,17 @@ describe('guest-compatible product detail Buy Now', () => {
     apiMocks.getProductById.mockResolvedValue({ data: { data: {
       ...product,
       description: '### Details\n\nA **well-kept** phone.\n\n* Box included\n* Charger included',
+      variants: [
+        { ...product.variants![0], options: { RAM: '12Gb' }, color: 'All' },
+        { ...product.variants![1], options: { RAM: '12GB' }, color: 'Sky Blue' },
+      ],
     } } });
     renderProduct();
     expect(await screen.findByRole('heading', { name: 'Details' })).toBeInTheDocument();
     expect(screen.getByText('well-kept')).toHaveProperty('tagName', 'STRONG');
     expect(screen.getByText('Box included')).toHaveProperty('tagName', 'LI');
+    expect(screen.queryByText('RAM')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Color to confirm' })).toBeInTheDocument();
   });
 
   it('shows a starting price without mixing another variant discount, then the selected price and configuration', async () => {
