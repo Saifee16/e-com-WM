@@ -1,5 +1,5 @@
 import React, { forwardRef } from 'react';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -106,6 +106,30 @@ beforeEach(() => {
 });
 
 describe('guest-compatible product detail Buy Now', () => {
+  it('formats Markdown once and keeps selected storage consistent with specifications', async () => {
+    const user = userEvent.setup();
+    apiMocks.getProductById.mockResolvedValue({ data: { data: {
+      ...product,
+      description: 'Guest Phone 128GB',
+      specifications: { storage: '128GB' },
+    } } });
+    renderProduct();
+    await user.click(await screen.findByRole('button', { name: '256GB' }));
+    expect(screen.queryByText('Guest Phone 128GB')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Specifications' }));
+    expect(screen.getByText('storage').parentElement).toHaveTextContent('256GB');
+
+    cleanup();
+    apiMocks.getProductById.mockResolvedValue({ data: { data: {
+      ...product,
+      description: '### Details\n\nA **well-kept** phone.\n\n* Box included\n* Charger included',
+    } } });
+    renderProduct();
+    expect(await screen.findByRole('heading', { name: 'Details' })).toBeInTheDocument();
+    expect(screen.getByText('well-kept')).toHaveProperty('tagName', 'STRONG');
+    expect(screen.getByText('Box included')).toHaveProperty('tagName', 'LI');
+  });
+
   it('shows a starting price without mixing another variant discount, then the selected price and configuration', async () => {
     const user = userEvent.setup();
     apiMocks.getProductById.mockResolvedValue({ data: { data: {

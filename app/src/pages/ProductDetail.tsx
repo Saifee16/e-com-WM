@@ -180,8 +180,14 @@ const ProductDetail = () => {
   const selectedConfiguration = selectedVariant && [selectedVariant.title,
     ...[selectedVariant.storage, selectedVariant.color, ...Object.values(selectedVariant.options)]
       .filter((value): value is string => !!value && !selectedVariant.title.toLowerCase().includes(value.toLowerCase()))]
-    .join(' · ');
+    .join(' · ').replace(/Gb\b/g, 'GB').replace(/\bAll\b/g, 'Any color');
   const optionGroups = getVariantOptionGroups(activeVariants);
+  const variantStorageValues = new Set(activeVariants.map((variant) => variant.storage).filter(Boolean));
+  const hasStaleStorageDescription = variantStorageValues.size > 1
+    && [...variantStorageValues].some((storage) => product.description.includes(storage!));
+  const description = hasStaleStorageDescription ? product.name : product.description;
+  const summary = description.split(/\n\s*\n/).find((part) => !/^\s*(?:#|\*)/.test(part))
+    ?.replace(/\*\*/g, '').trim();
   const chooseOption = (name: string, value: string) => {
     const selection = resolveVariantSelection(activeVariants, selectedOptions, name, value);
     setSelectedOptions(selection.options);
@@ -235,7 +241,7 @@ const ProductDetail = () => {
                   height={800}
                   fetchPriority="high"
                   alt={product.name + ' product image'}
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-contain p-4"
                 />
                 {discount > 0 && (
                   <div className="absolute top-4 left-4 px-4 py-2 bg-red-500 text-white font-bold rounded-full">
@@ -267,7 +273,7 @@ const ProductDetail = () => {
                         width={80}
                         height={80}
                         loading="lazy"
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-contain"
                       />
                     </button>
                   ))}
@@ -316,7 +322,7 @@ const ProductDetail = () => {
                 )}
               </div>
 
-              <p className="text-gray-600 mb-8">{product.description}</p>
+              {description.length > 200 && summary && <p className="mb-8 line-clamp-3 text-gray-600">{summary}</p>}
 
               {selectedVariant && (
                 <p className="mb-6 text-sm text-gray-700">
@@ -350,7 +356,7 @@ const ProductDetail = () => {
                                 selected ? 'border-blue-600 bg-blue-600 text-white' : 'border-gray-300 bg-white text-gray-700 hover:border-blue-400'
                               } disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400`}
                             >
-                              {value}{soldOut ? ' (Sold out)' : ''}
+                              {name === 'RAM' ? value.replace(/Gb\b/, 'GB') : name === 'Color' && value === 'All' ? 'Any color' : value}{soldOut ? ' (Sold out)' : ''}
                             </button>
                           );
                         })}
@@ -462,7 +468,7 @@ const ProductDetail = () => {
                 animate={{ opacity: 1 }}
                 className="prose max-w-none"
               >
-                <p className="text-gray-600 leading-relaxed">{product.description}</p>
+                <ProductDescription description={description} />
                 <div className="mt-6">
                   <h3 className="font-semibold text-gray-900 mb-4">Key Features</h3>
                   <ul className="grid sm:grid-cols-2 gap-3">
@@ -487,7 +493,7 @@ const ProductDetail = () => {
                     value && (
                       <div key={key} className="flex justify-between p-4 bg-gray-50 rounded-xl">
                         <span className="text-gray-500 capitalize">{key}</span>
-                        <span className="font-medium text-gray-900">{value}</span>
+                        <span className="font-medium text-gray-900">{key === 'storage' && selectedVariant?.storage ? selectedVariant.storage : key === 'color' && selectedVariant?.color ? selectedVariant.color === 'All' ? 'Any color' : selectedVariant.color : value === 'All' && key === 'color' ? 'Any color' : value}</span>
                       </div>
                     )
                   ))}
@@ -597,6 +603,18 @@ const ProductDetail = () => {
       />
     </div>
   );
+};
+
+const ProductDescription = ({ description }: { description: string }) => {
+  const inline = (text: string) => text.split(/(\*\*[^*]+\*\*)/g).map((part, index) =>
+    part.startsWith('**') && part.endsWith('**')
+      ? <strong key={index}>{part.slice(2, -2)}</strong>
+      : part);
+  return <div className="space-y-4 text-gray-600 leading-relaxed">{description.trim().split(/\n\s*\n/).map((block, index) => {
+    if (block.startsWith('### ')) return <h3 key={index} className="font-semibold text-gray-900">{inline(block.slice(4))}</h3>;
+    if (block.split('\n').every((line) => line.startsWith('* '))) return <ul key={index} className="list-disc space-y-1 pl-5">{block.split('\n').map((line, item) => <li key={item}>{inline(line.slice(2))}</li>)}</ul>;
+    return <p key={index}>{inline(block)}</p>;
+  })}</div>;
 };
 
 export default ProductDetail;
