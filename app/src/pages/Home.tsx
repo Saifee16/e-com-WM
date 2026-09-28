@@ -177,8 +177,8 @@ const Home = () => {
       <section className="bg-[#082f63] text-white">
         <div className="mx-auto grid max-w-[1400px] items-center gap-6 px-4 py-8 sm:gap-8 sm:px-6 sm:py-9 md:py-11 lg:grid-cols-[1.02fr_.98fr] lg:px-8">
           <div className="max-w-2xl">
-            <p className="text-base font-bold text-blue-100">Wahab Mobiles, Hyderabad</p>
-            <h1 className="mt-3 max-w-[12ch] text-4xl font-extrabold leading-[1.05] tracking-[-0.035em] sm:text-5xl lg:text-[58px]">
+            <p className="text-lg font-bold tracking-tight text-blue-50 sm:text-xl">Wahab Mobiles, Hyderabad</p>
+            <h1 className="mt-2 max-w-[12ch] text-4xl font-extrabold leading-[1.05] tracking-[-0.035em] sm:text-5xl lg:text-[58px]">
               Find the right phone, faster.
             </h1>
             <p className="mt-4 max-w-xl text-base leading-7 text-blue-100 sm:text-lg">
