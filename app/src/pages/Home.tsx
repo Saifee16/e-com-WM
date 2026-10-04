@@ -115,58 +115,55 @@ const Home = () => {
   const [featuredProducts, setFeaturedProducts] = useState<Product[]>([]);
   const [brands, setBrands] = useState<Brand[]>([]);
   const [reviews, setReviews] = useState<GoogleBusinessReviews | null>(null);
-  const [isHomeLoading, setIsHomeLoading] = useState(true);
+  const [isFeaturedLoading, setIsFeaturedLoading] = useState(true);
+  const [isBrandsLoading, setIsBrandsLoading] = useState(true);
   const [homeError, setHomeError] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
 
-    const loadHomeData = async () => {
+    const loadFeaturedProducts = async () => {
       try {
-        setIsHomeLoading(true);
-        setHomeError(null);
-        const [featuredResponse, brandsResponse, reviewsResponse] = await Promise.allSettled([
-          productsAPI.getFeaturedProducts(),
-          productsAPI.getBrands(),
-          businessAPI.getGoogleReviews(),
-        ]);
+        const response = await productsAPI.getFeaturedProducts();
+        if (active) setFeaturedProducts((response.data.data as Product[]).slice(0, 8));
+      } catch {
+        if (active) setHomeError('Live catalogue details could not be loaded.');
+      } finally {
+        if (active) setIsFeaturedLoading(false);
+      }
+    };
 
-        if (!active) return;
-
-        if (featuredResponse.status === 'fulfilled') {
-          setFeaturedProducts((featuredResponse.value.data.data as Product[]).slice(0, 8));
-        }
-
-        if (brandsResponse.status === 'fulfilled') {
+    const loadBrands = async () => {
+      try {
+        const response = await productsAPI.getBrands();
+        if (active) {
           setBrands(
-            brandsResponse.value.data.data.map((brand: { name: string; productCount: number }) => ({
+            response.data.data.map((brand: { name: string; productCount: number }) => ({
               name: brand.name,
               count: brand.productCount,
               path: `/products?brand=${encodeURIComponent(brand.name)}`,
             })),
           );
         }
-
-        if (reviewsResponse.status === 'fulfilled') {
-          setReviews(reviewsResponse.value.data.data);
-        }
-
-        if (featuredResponse.status === 'rejected' || brandsResponse.status === 'rejected') {
-          setHomeError('Live catalogue details could not be loaded.');
-        }
       } catch {
-        if (active) {
-          setFeaturedProducts([]);
-          setBrands([]);
-          setReviews(null);
-          setHomeError('Live catalogue details could not be loaded.');
-        }
+        if (active) setHomeError('Live catalogue details could not be loaded.');
       } finally {
-        if (active) setIsHomeLoading(false);
+        if (active) setIsBrandsLoading(false);
       }
     };
 
-    void loadHomeData();
+    const loadReviews = async () => {
+      try {
+        const response = await businessAPI.getGoogleReviews();
+        if (active) setReviews(response.data.data);
+      } catch {
+        // Optional reviews remain absent when the request fails.
+      }
+    };
+
+    void loadFeaturedProducts();
+    void loadBrands();
+    void loadReviews();
     return () => {
       active = false;
     };
@@ -218,7 +215,7 @@ const Home = () => {
             </div>
           </div>
 
-          <FeaturedHeroProduct product={heroProduct} isLoading={isHomeLoading} error={homeError} />
+          <FeaturedHeroProduct product={heroProduct} isLoading={isFeaturedLoading} error={homeError} />
         </div>
       </section>
 
@@ -283,7 +280,7 @@ const Home = () => {
             {orderedBrands.map((brand) => (
               <BrandCard key={brand.name} brand={brand} />
             ))}
-            {isHomeLoading && Array.from({ length: 8 - orderedBrands.length }, (_, index) => (
+            {isBrandsLoading && Array.from({ length: 8 - orderedBrands.length }, (_, index) => (
               <div key={`brand-placeholder-${index}`} className="h-[88px] rounded-xl border border-slate-200 bg-slate-50 sm:h-24" aria-hidden="true" />
             ))}
           </div>
@@ -485,7 +482,7 @@ const FeaturedHeroProduct = ({
     <article className="grid min-h-[300px] overflow-hidden rounded-xl border border-white/15 bg-white text-slate-950 shadow-[0_24px_70px_rgba(0,20,52,0.32)] sm:min-h-[320px] sm:grid-cols-[.85fr_1.15fr]">
       <div className="flex min-h-52 items-center justify-center overflow-hidden bg-slate-50 p-4 sm:min-h-full">
         {image ? (
-          <img src={image} alt={product.name} className="h-56 w-full object-contain sm:h-72 sm:scale-[1.2] lg:scale-[1.35] xl:scale-[1.55]" loading="eager" />
+          <img src={image} alt={product.name} className="h-56 w-full object-contain sm:h-72 sm:scale-[1.2] lg:scale-[1.35] xl:scale-[1.55]" loading="eager" fetchPriority="high" />
         ) : (
           <div className="flex h-full min-h-44 w-full items-center justify-center text-blue-700">
             <Smartphone className="h-12 w-12" aria-hidden="true" />
