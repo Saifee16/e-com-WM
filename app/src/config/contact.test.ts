@@ -12,7 +12,7 @@ describe('authoritative public business data', () => {
   it('uses the owner-confirmed NAP, hours, Maps link, and WhatsApp number', () => {
     expect(CONTACT_PHONE_NUMBERS).toEqual([
       { label: '+92 312 2995584', href: 'tel:+923122995584' },
-      { label: '+92 315 6914633', href: 'tel:+923156914633' },
+      { label: '+92 319 6641714', href: 'tel:+923196641714' },
     ]);
     expect(CONTACT_EMAIL).toBe('wahabmobiles@gmail.com');
     expect(SHOP_ADDRESS).toContain('Chandni Shopping Mall');

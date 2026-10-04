@@ -28,8 +28,8 @@ import Seo, {
 } from '../seo/seo';
 
 const metadata = buildStaticMetadata(
-  'Wahab Mobiles Hyderabad | Mobile Phones & Accessories',
-  'Visit Wahab Mobiles in Saddar Cantt Hyderabad for new and used phones, tablets, accessories, local pickup and same-day Hyderabad delivery.',
+  'Wahab Mobiles Hyderabad | Mobile Shop in Chandni Market',
+  'Visit Wahab Mobiles at Chandni Shopping Mall, Saddar Cantt, Hyderabad for new and used phones, accessories, local pickup and delivery. Trusted since 2009.',
   '/hyderabad',
 );
 

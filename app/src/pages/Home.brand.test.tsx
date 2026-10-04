@@ -31,16 +31,35 @@ describe('BrandCard', () => {
     expect(brands[0].name).toBe('Zeta');
   });
 
-  it('keeps the supplied route and count, with an accessible link name', () => {
+  it('uses the clean route for a stocked configured brand while preserving count and accessibility', () => {
     renderBrand('Apple', 5, '/products?brand=Apple');
-    expect(screen.getByRole('link', { name: 'Shop Apple phones' })).toHaveAttribute('href', '/products?brand=Apple');
+    expect(screen.getByRole('link', { name: 'Shop Apple phones' })).toHaveAttribute('href', '/phones/iphone');
     expect(screen.getByText('5 phones')).toBeInTheDocument();
     expect(document.querySelector('img')).toHaveAttribute('src', '/assets/brands/apple.svg');
   });
 
+  it.each([
+    ['Samsung', 8, '/products?brand=Samsung', '/phones/samsung'],
+    ['Google Pixel', 1, '/products?brand=Google%20Pixel', '/phones/google-pixel'],
+    ['Honor', 5, '/products?brand=Honor', '/phones/honor'],
+    ['Realme', 3, '/products?brand=Realme', '/phones/realme'],
+  ])('uses the configured route for stocked %s products', (name, count, filterPath, landingPath) => {
+    renderBrand(name, count, filterPath);
+    expect(screen.getByRole('link', { name: `Shop ${name} phones` })).toHaveAttribute('href', landingPath);
+  });
+
+  it.each([
+    ['Samsung', 0, '/products?brand=Samsung'],
+    ['iPhone', 0, '/products?search=iPhone'],
+    ['Unconfigured', 4, '/products?brand=Unconfigured'],
+  ])('preserves the existing filter route when %s is empty or unconfigured', (name, count, filterPath) => {
+    renderBrand(name, count, filterPath);
+    expect(screen.getByRole('link', { name: `Shop ${name} phones` })).toHaveAttribute('href', filterPath);
+  });
+
   it('shows the brand name when artwork is unavailable or fails to load', () => {
     const { rerender } = renderBrand('Google Pixel', 1, '/products?brand=Google%20Pixel');
-    expect(screen.getByRole('link', { name: 'Shop Google Pixel phones' })).toHaveAttribute('href', '/products?brand=Google%20Pixel');
+    expect(screen.getByRole('link', { name: 'Shop Google Pixel phones' })).toHaveAttribute('href', '/phones/google-pixel');
     expect(screen.getByText('Google Pixel')).toBeInTheDocument();
     expect(screen.getByText('1 phone')).toBeInTheDocument();
 
@@ -52,5 +71,6 @@ describe('BrandCard', () => {
     fireEvent.error(document.querySelector('img')!);
     expect(screen.getByText('Samsung')).toBeInTheDocument();
     expect(screen.getByText('8 phones')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Shop Samsung phones' })).toHaveAttribute('href', '/phones/samsung');
   });
 });

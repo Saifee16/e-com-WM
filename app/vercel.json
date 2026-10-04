@@ -90,114 +90,114 @@
 
     {
       "source": "/cart",
-      "destination": "/index.html"
+      "destination": "/api/route-page?route=app&path=/cart"
     },
     {
       "source": "/compare",
-      "destination": "/index.html"
+      "destination": "/api/route-page?route=app&path=/compare"
     },
     {
       "source": "/help",
-      "destination": "/index.html"
+      "destination": "/api/route-page?route=app&path=/help"
     },
     {
       "source": "/checkout",
-      "destination": "/index.html"
+      "destination": "/api/route-page?route=app&path=/checkout"
     },
 
     {
       "source": "/login",
-      "destination": "/index.html"
+      "destination": "/api/route-page?route=app&path=/login"
     },
     {
       "source": "/register",
-      "destination": "/index.html"
+      "destination": "/api/route-page?route=app&path=/register"
     },
     {
       "source": "/forgot-password",
-      "destination": "/index.html"
+      "destination": "/api/route-page?route=app&path=/forgot-password"
     },
     {
       "source": "/reset-password",
-      "destination": "/index.html"
+      "destination": "/api/route-page?route=app&path=/reset-password"
     },
     {
       "source": "/auth/google/callback",
-      "destination": "/index.html"
+      "destination": "/api/route-page?route=app&path=/auth/google/callback"
     },
     {
       "source": "/auth/facebook/callback",
-      "destination": "/index.html"
+      "destination": "/api/route-page?route=app&path=/auth/facebook/callback"
     },
 
     {
       "source": "/account",
-      "destination": "/index.html"
+      "destination": "/api/route-page?route=app&path=/account"
     },
     {
       "source": "/account/dashboard",
-      "destination": "/index.html"
+      "destination": "/api/route-page?route=app&path=/account/dashboard"
     },
     {
       "source": "/account/orders",
-      "destination": "/index.html"
+      "destination": "/api/route-page?route=app&path=/account/orders"
     },
     {
       "source": "/account/orders/:id",
-      "destination": "/index.html"
+      "destination": "/api/route-page?route=app&path=/account/orders/:id"
     },
     {
       "source": "/account/wishlist",
-      "destination": "/index.html"
+      "destination": "/api/route-page?route=app&path=/account/wishlist"
     },
     {
       "source": "/account/addresses",
-      "destination": "/index.html"
+      "destination": "/api/route-page?route=app&path=/account/addresses"
     },
     {
       "source": "/account/settings",
-      "destination": "/index.html"
+      "destination": "/api/route-page?route=app&path=/account/settings"
     },
     {
       "source": "/account/support",
-      "destination": "/index.html"
+      "destination": "/api/route-page?route=app&path=/account/support"
     },
 
     {
       "source": "/admin/login",
-      "destination": "/index.html"
+      "destination": "/api/route-page?route=app&path=/admin/login"
     },
     {
       "source": "/admin",
-      "destination": "/index.html"
+      "destination": "/api/route-page?route=app&path=/admin"
     },
     {
       "source": "/admin/dashboard",
-      "destination": "/index.html"
+      "destination": "/api/route-page?route=app&path=/admin/dashboard"
     },
     {
       "source": "/admin/products",
-      "destination": "/index.html"
+      "destination": "/api/route-page?route=app&path=/admin/products"
     },
     {
       "source": "/admin/orders",
-      "destination": "/index.html"
+      "destination": "/api/route-page?route=app&path=/admin/orders"
     },
     {
       "source": "/admin/users",
-      "destination": "/index.html"
+      "destination": "/api/route-page?route=app&path=/admin/users"
     },
     {
       "source": "/admin/account-management",
-      "destination": "/index.html"
+      "destination": "/api/route-page?route=app&path=/admin/account-management"
     },
     {
       "source": "/admin/contact",
-      "destination": "/index.html"
+      "destination": "/api/route-page?route=app&path=/admin/contact"
     },
     {
       "source": "/admin/returns",
-      "destination": "/index.html"
+      "destination": "/api/route-page?route=app&path=/admin/returns"
     },
 
     {

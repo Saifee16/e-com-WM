@@ -2,7 +2,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import handler from './route-page.js';
 
-const shell = '<!doctype html><html><head><meta name="description" content="Home" /><link rel="canonical" href="https://wahabmobiles.com/" /><meta property="og:title" content="Home" /><title>Wahab Mobiles - Home</title></head><body><div id="root"></div></body></html>';
+const ROOT_CONTENT_START = '<!-- wahab-mobiles-content:start -->';
+const ROOT_CONTENT_END = '<!-- wahab-mobiles-content:end -->';
+const HOME_FALLBACK = '<main><h1>Find the right phone, faster.</h1><p>Shop current phones with clear prices, condition details and PTA status.</p></main>';
+const homeSchema = '<script type="application/ld+json" id="wahab-mobiles-seo-jsonld">[{"@type":"Organization"},{"@type":"WebSite"}]</script>';
+const shell = `<!doctype html><html><head><meta name="description" content="Home" /><link rel="canonical" href="https://wahabmobiles.com/" /><meta property="og:title" content="Home" /><title>Wahab Mobiles - Home</title>${homeSchema}</head><body><div id="root">${ROOT_CONTENT_START}${HOME_FALLBACK}${ROOT_CONTENT_END}</div></body></html>`;
 
 const invoke = async (request) => {
   let statusCode;
@@ -28,6 +32,97 @@ afterEach(() => {
 });
 
 describe('raw route metadata', () => {
+  it('ships visible homepage fallback copy, stable links, and one managed Organization/WebSite schema', () => {
+    const index = readFileSync('index.html', 'utf8');
+    const contentSlot = index.match(/<!-- wahab-mobiles-content:start -->([\s\S]*?)<!-- wahab-mobiles-content:end -->/);
+    const links = [...(contentSlot?.[1] || '').matchAll(/<a\s+[^>]*href="([^"]+)"/g)].map((match) => match[1]);
+    const schemaScript = index.match(/<script\s+type="application\/ld\+json"\s+id="wahab-mobiles-seo-jsonld">([\s\S]*?)<\/script>/);
+
+    expect(contentSlot?.[1]).toMatch(/<h1\b[^>]*>Find the right phone, faster\.<\/h1>/);
+    expect(contentSlot?.[1]).toContain('Shop current phones with clear prices, condition details and PTA status.');
+    expect(links).toEqual(['/phones', '/phones/iphone', '/products', '/hyderabad', '/support']);
+    expect(index).not.toMatch(/href="\/products\?brand=/);
+    expect(index).not.toMatch(/display\s*:\s*none|aria-hidden="true"|<[^>]+\shidden(?:\s|>)/i);
+    expect(schemaScript).not.toBeNull();
+    expect(JSON.parse(schemaScript[1]).map(({ '@type': type }) => type)).toEqual(['Organization', 'WebSite']);
+  });
+
+  it('replaces the homepage fallback with the products page content and removes inherited homepage schema', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, text: async () => shell })));
+
+    const result = await invoke({ url: 'https://wahabmobiles.com/products', query: { route: 'products' } });
+    const content = result.body.match(/<!-- wahab-mobiles-content:start -->([\s\S]*?)<!-- wahab-mobiles-content:end -->/)?.[1] || '';
+
+    expect(content).toMatch(/<h1\b[^>]*>Shop all products<\/h1>/);
+    expect(content).toContain('href="/phones"');
+    expect(content).toContain('href="/phones/iphone"');
+    expect(content).not.toContain('Find the right phone, faster.');
+    expect(result.body.match(/id="wahab-mobiles-seo-jsonld"/g)).toBeNull();
+    expect(result.body).not.toContain('"@type":"Organization"');
+    expect(result.body).not.toContain('"@type":"WebSite"');
+  });
+
+  it('uses category and configured landing H1/intro content for catalogue routes', async () => {
+    const fetchMock = vi.fn(async (input) => {
+      if (String(input).endsWith('/index.html')) return { ok: true, text: async () => shell };
+      if (String(input).endsWith('/categories')) {
+        return { ok: true, json: async () => ({ data: [{ slug: 'phones', name: 'Phones', isActive: true, children: [] }] }) };
+      }
+      return {
+        ok: true,
+        json: async () => ({ data: { items: [{ brand: 'Samsung', brandSlug: 'samsung' }], pagination: { total: 1 } } }),
+      };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const phones = await invoke({
+      url: 'https://wahabmobiles.com/phones',
+      query: { route: 'category', root: 'phones', slug: 'phones' },
+    });
+    const phoneContent = phones.body.match(/<!-- wahab-mobiles-content:start -->([\s\S]*?)<!-- wahab-mobiles-content:end -->/)?.[1] || '';
+    expect(phoneContent).toMatch(/<h1\b[^>]*>Phones<\/h1>/);
+
+    const samsung = await invoke({
+      url: 'https://wahabmobiles.com/phones/samsung',
+      query: { route: 'category', root: 'phones', slug: 'samsung', categorySlug: 'samsung' },
+    });
+    const samsungContent = samsung.body.match(/<!-- wahab-mobiles-content:start -->([\s\S]*?)<!-- wahab-mobiles-content:end -->/)?.[1] || '';
+    expect(samsungContent).toMatch(/<h1\b[^>]*>Samsung Mobiles Price in Pakistan<\/h1>/);
+    expect(samsungContent).toContain('See the Samsung phones currently listed in the live Wahab Mobiles catalogue.');
+    expect(samsungContent).not.toContain('Find the right phone, faster.');
+  });
+
+  it('renders the Hyderabad H1 and only its intended LocalBusiness/Breadcrumb schema', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, text: async () => shell })));
+
+    const result = await invoke({
+      url: 'https://wahabmobiles.com/hyderabad',
+      query: { route: 'static', slug: 'hyderabad' },
+    });
+    const content = result.body.match(/<!-- wahab-mobiles-content:start -->([\s\S]*?)<!-- wahab-mobiles-content:end -->/)?.[1] || '';
+    const schemaScript = result.body.match(/<script\s+type="application\/ld\+json"\s+id="wahab-mobiles-seo-jsonld">([\s\S]*?)<\/script>/);
+    const schema = JSON.parse(schemaScript[1]);
+
+    expect(content).toMatch(/<h1\b[^>]*>Wahab Mobiles in Hyderabad<\/h1>/);
+    expect(schema.map(({ '@type': type }) => type)).toEqual(['MobilePhoneStore', 'BreadcrumbList']);
+    expect(result.body.match(/id="wahab-mobiles-seo-jsonld"/g)).toHaveLength(1);
+    expect(result.body).not.toContain('"@type":"Organization"');
+    expect(result.body).not.toContain('"@type":"WebSite"');
+  });
+
+  it('fails safely when the fetched shell has no marked root content slot', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      text: async () => '<!doctype html><html><head><title>Home</title></head><body><div id="root"></div></body></html>',
+    })));
+
+    const result = await invoke({ url: 'https://wahabmobiles.com/products', query: { route: 'products' } });
+
+    expect(result.statusCode).toBe(502);
+    expect(result.body).toBe('Route page unavailable');
+    expect(result.body).not.toContain('Find the right phone, faster.');
+  });
+
   it.each(['headers', 'body'])('fails safely when the shell stalls during %s', async (stage) => {
     const nativeTimeout = AbortSignal.timeout.bind(AbortSignal);
     const timeout = vi.spyOn(AbortSignal, 'timeout').mockImplementation(() => nativeTimeout(20));
@@ -94,9 +189,40 @@ describe('raw route metadata', () => {
     expect(result.body).toContain('name="robots" content="noindex,follow"');
     expect(result.body).toContain('rel="canonical" href="https://wahabmobiles.com/search"');
     expect(result.body).toContain('<title>Search products | Wahab Mobiles</title>');
-    expect(result.body).not.toContain('alert(1)');
+    expect(result.body).toContain('Search results for &quot;&lt;script&gt;alert(1)&lt;/script&gt;&quot;');
     expect(result.body).not.toContain('<script>');
     expect(result.body).not.toContain('href="https://wahabmobiles.com/"');
+  });
+
+  it('renders search without a query and matches React q/search query handling', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, text: async () => shell })));
+
+    const empty = await invoke({ url: 'https://wahabmobiles.com/search', query: { route: 'search' } });
+    const alias = await invoke({
+      url: 'https://wahabmobiles.com/search?search=Samsung',
+      query: { route: 'search' },
+    });
+
+    expect(empty.statusCode).toBe(200);
+    expect(empty.body).toContain('<h1 class="text-3xl font-extrabold tracking-tight text-slate-950 sm:text-4xl">Search products</h1>');
+    expect(alias.statusCode).toBe(200);
+    expect(alias.body).toContain('Search results for &quot;Samsung&quot;');
+  });
+
+  it('serves private SPA routes without homepage content or schema', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, text: async () => shell })));
+
+    const result = await invoke({ url: '/api/route-page?route=app&path=%2Fcart', query: { route: 'app', path: '/cart' } });
+    const content = result.body.match(/<!-- wahab-mobiles-content:start -->([\s\S]*?)<!-- wahab-mobiles-content:end -->/)?.[1] || '';
+
+    expect(result.statusCode).toBe(200);
+    expect(content.trim()).toBe('');
+    expect(result.body).toContain('name="robots" content="noindex,follow"');
+    expect(result.body).toContain('rel="canonical" href="https://wahabmobiles.com/cart"');
+    expect(result.body).not.toContain('Find the right phone, faster.');
+    expect(result.body).not.toContain('wahab-mobiles-seo-jsonld');
+    expect(result.body).not.toContain('"@type":"Organization"');
+    expect(result.body).not.toContain('"@type":"WebSite"');
   });
 
   it('renders eligible brand landing metadata without a filter query', async () => {
@@ -136,7 +262,8 @@ describe('raw route metadata', () => {
     });
 
     expect(result.statusCode).toBe(200);
-    expect(result.body).toContain('<title>Wahab Mobiles Hyderabad | Mobile Phones &amp; Accessories</title>');
+    expect(result.body).toContain('<title>Wahab Mobiles Hyderabad | Mobile Shop in Chandni Market</title>');
+    expect(result.body).toContain('content="Visit Wahab Mobiles at Chandni Shopping Mall, Saddar Cantt, Hyderabad for new and used phones, accessories, local pickup and delivery. Trusted since 2009."');
     expect(result.body).toContain('name="robots" content="index,follow"');
     expect(result.body).toContain('rel="canonical" href="https://wahabmobiles.com/hyderabad"');
     expect(result.body).toContain('"@type":"MobilePhoneStore"');
@@ -366,7 +493,7 @@ describe('Vercel route policy', () => {
     for (const source of spaRoutes) {
       expect(config.rewrites).toContainEqual({
         source,
-        destination: '/index.html',
+        destination: `/api/route-page?route=app&path=${source}`,
       });
     }
 

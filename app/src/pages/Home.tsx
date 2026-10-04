@@ -23,6 +23,7 @@ import {
   SHOP_WHATSAPP_URL,
 } from '../config/contact';
 import Seo, { buildOrganizationJsonLd, buildStaticMetadata, buildWebSiteJsonLd } from '../seo/seo';
+import { getSeoLandingPage, isSeoLandingEligible } from '../seo/landing-pages';
 import { getProductPath } from '../utils/product-url';
 import { prioritizeBrands } from './brand-priority';
 
@@ -43,6 +44,28 @@ const brandLogos: Record<string, string> = {
   samsung: '/assets/brands/samsung.png',
 };
 
+const brandLandingSlugs: Record<string, string> = {
+  apple: 'iphone',
+  iphone: 'iphone',
+  samsung: 'samsung',
+  googlepixel: 'google-pixel',
+  honor: 'honor',
+  realme: 'realme',
+  xiaomi: 'xiaomi',
+  xiaomimi: 'xiaomi',
+};
+
+const getBrandHref = (brand: Brand) => {
+  if (typeof brand.count !== 'number' || !Number.isFinite(brand.count) || brand.count <= 0) return brand.path;
+
+  const slug = brandLandingSlugs[brand.name.trim().toLowerCase().replace(/[^a-z0-9]/g, '')];
+  if (!slug) return brand.path;
+
+  const path = `/phones/${slug}`;
+  const landing = getSeoLandingPage(path);
+  return landing && isSeoLandingEligible(landing, brand.count, 1) ? path : brand.path;
+};
+
 export const BrandCard = ({ brand }: { brand: Brand }) => {
   const [logoFailed, setLogoFailed] = useState(false);
   const key = brand.name.trim().toLowerCase();
@@ -50,7 +73,7 @@ export const BrandCard = ({ brand }: { brand: Brand }) => {
 
   return (
     <Link
-      to={brand.path}
+      to={getBrandHref(brand)}
       aria-label={`Shop ${brand.name} phones`}
       className="group flex h-[88px] min-w-0 flex-col items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2 transition-colors hover:border-blue-300 hover:bg-blue-50/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 sm:h-24"
     >

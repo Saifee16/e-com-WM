@@ -1,5 +1,7 @@
 const SITE_URL = 'https://wahabmobiles.com';
 const PRODUCT_API_BASE_URL = (process.env.PRODUCT_API_BASE_URL || 'https://api.wahabmobiles.com').replace(/\/+$/, '');
+const ROOT_CONTENT_START = '<!-- wahab-mobiles-content:start -->';
+const ROOT_CONTENT_END = '<!-- wahab-mobiles-content:end -->';
 
 const escapeHtml = (value) => String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;');
 const serializeJsonLd = (value) => JSON.stringify(value).replaceAll('&', '\\u0026').replaceAll('<', '\\u003c').replaceAll('>', '\\u003e');
@@ -99,14 +101,69 @@ const buildProductBreadcrumbJsonLd = (product, canonicalUrl) => {
     })),
   };
 };
+
+const renderProductFallback = (product, canonicalUrl) => {
+  const name = String(product.name || 'Product');
+  const rawDescription = typeof product.description === 'string' ? product.description.trim() : '';
+  const activeVariants = Array.isArray(product.variants)
+    ? product.variants.filter((variant) => variant.isActive !== false)
+    : [];
+  const storageValues = new Set(activeVariants.map((variant) => variant.storage).filter(Boolean));
+  const hasStaleStorageDescription = storageValues.size > 1
+    && [...storageValues].some((storage) => rawDescription.includes(storage));
+  const description = hasStaleStorageDescription ? name : rawDescription;
+  const brand = typeof product.brand === 'string' ? product.brand.trim() : '';
+  const purchasableVariants = activeVariants.filter((variant) =>
+    Number(variant.availableCountInStock ?? variant.countInStock ?? 0) > 0);
+  const priceVariants = purchasableVariants.length ? purchasableVariants : activeVariants;
+  const startingVariant = priceVariants.reduce((lowest, variant) => {
+    const price = Number(variant.price);
+    return Number.isFinite(price) && (!lowest || price < Number(lowest.price)) ? variant : lowest;
+  }, undefined);
+  const rawPrice = startingVariant?.price ?? product.price;
+  const numericPrice = Number(rawPrice);
+  const price = rawPrice !== null && rawPrice !== undefined && rawPrice !== '' && Number.isFinite(numericPrice)
+    ? `${purchasableVariants.some((variant) => Number(variant.price) !== Number(startingVariant?.price)) ? 'From ' : ''}PKR ${numericPrice.toLocaleString('en-PK')}`
+    : '';
+  const breadcrumbs = buildProductBreadcrumbJsonLd(product, canonicalUrl).itemListElement;
+  const breadcrumbLinks = breadcrumbs.slice(0, -1).map(({ name: label, item }) => {
+    const href = new URL(item).pathname;
+    return `<li><a class="text-blue-700" href="${escapeHtml(href)}">${escapeHtml(label)}</a></li>`;
+  }).join('<li aria-hidden="true">/</li>');
+  const currentBreadcrumb = breadcrumbs.at(-1)?.name || name;
+
+  return `
+    <main class="mx-auto max-w-[1400px] px-4 py-8 sm:px-6 lg:px-8">
+      <nav aria-label="Breadcrumb"><ol class="flex flex-wrap gap-2 text-sm">${breadcrumbLinks}<li aria-current="page">${escapeHtml(currentBreadcrumb)}</li></ol></nav>
+      <h1 class="mt-4 text-3xl font-extrabold tracking-tight text-slate-950 sm:text-4xl">${escapeHtml(name)}</h1>
+      ${description ? `<p class="mt-3 max-w-3xl leading-7 text-slate-600">${escapeHtml(description)}</p>` : ''}
+      ${brand ? `<p class="mt-3 text-sm text-slate-600">Brand: ${escapeHtml(brand)}</p>` : ''}
+      ${price ? `<p class="mt-2 text-lg font-bold text-slate-950">Price: ${escapeHtml(price)}</p>` : ''}
+    </main>`;
+};
+
+const replaceRootContent = (shell, fallbackHtml) => {
+  const startIndex = shell.indexOf(ROOT_CONTENT_START);
+  const endIndex = shell.indexOf(ROOT_CONTENT_END);
+  if (startIndex < 0 || endIndex < startIndex + ROOT_CONTENT_START.length
+    || shell.indexOf(ROOT_CONTENT_START, startIndex + ROOT_CONTENT_START.length) !== -1
+    || shell.indexOf(ROOT_CONTENT_END, endIndex + ROOT_CONTENT_END.length) !== -1) {
+    throw new Error('Frontend shell has no valid marked root content slot');
+  }
+
+  const contentStart = startIndex + ROOT_CONTENT_START.length;
+  return shell.slice(0, contentStart) + fallbackHtml + shell.slice(endIndex);
+};
+
 const renderProductShell = (shell, product) => {
   const canonical = `${SITE_URL}${productPath(product.slug)}`;
   const title = product.name + ' Price in Pakistan | Wahab Mobiles';
-  const description = String(product.description || `${product.name} from ${product.brand}.`).trim().replace(/\s+/g, ' ').slice(0, 159);
+  const description = String(product.description || (product.brand ? `${product.name} from ${product.brand}.` : '')).trim().replace(/\s+/g, ' ').slice(0, 159);
   const image = product.images?.find(Boolean) || `${SITE_URL}/assets/wahab-mobiles-social.jpg`;
-  const headEnd = shell.toLowerCase().indexOf('</head>');
+  const shellWithFallback = replaceRootContent(shell, renderProductFallback(product, canonical));
+  const headEnd = shellWithFallback.toLowerCase().indexOf('</head>');
   if (headEnd === -1) throw new Error('Frontend shell has no head element');
-  const cleanedHead = shell.slice(0, headEnd)
+  const cleanedHead = shellWithFallback.slice(0, headEnd)
     .replace(/<meta\s+name="description"[^>]*>\s*/gi, '').replace(/<meta\s+name="robots"[^>]*>\s*/gi, '').replace(/<link\s+rel="canonical"[^>]*>\s*/gi, '')
     .replace(/<meta\s+property="og:[^"]+"[^>]*>\s*/gi, '').replace(/<title>[\s\S]*?<\/title>\s*/gi, '')
     .replace(/<script\s+type="application\/ld\+json"[^>]*>[\s\S]*?<\/script>\s*/gi, '');
@@ -115,9 +172,9 @@ const renderProductShell = (shell, product) => {
     '<meta property="og:type" content="product" />', '<meta property="og:site_name" content="Wahab Mobiles" />',
     `<meta property="og:title" content="${escapeHtml(title)}" />`, `<meta property="og:description" content="${escapeHtml(description)}" />`,
     `<meta property="og:url" content="${escapeHtml(canonical)}" />`, `<meta property="og:image" content="${escapeHtml(image)}" />`,
-    '<title>' + escapeHtml(title) + '</title>', '<script type="application/ld+json">' + serializeJsonLd([buildProductJsonLd(product, canonical), buildProductBreadcrumbJsonLd(product, canonical)]) + '</script>',
+    '<title>' + escapeHtml(title) + '</title>', '<script type="application/ld+json" id="wahab-mobiles-seo-jsonld">' + serializeJsonLd([buildProductJsonLd(product, canonical), buildProductBreadcrumbJsonLd(product, canonical)]) + '</script>',
   ].join('');
-  return `${cleanedHead}${metadata}</head>${shell.slice(headEnd + '</head>'.length)}`;
+  return `${cleanedHead}${metadata}</head>${shellWithFallback.slice(headEnd + '</head>'.length)}`;
 };
 
 export default async function handler(request, response) {

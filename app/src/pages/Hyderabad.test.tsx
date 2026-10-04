@@ -11,6 +11,11 @@ describe('Hyderabad landing page', () => {
     expect(screen.getByRole('heading', { name: 'Wahab Mobiles in Hyderabad' })).toBeInTheDocument();
     expect(screen.getByText(NATIONWIDE_SHIPPING_COPY)).toBeInTheDocument();
     expect(screen.getByText(/Same-day delivery is available in Hyderabad where applicable/)).toBeInTheDocument();
+    expect(document.title).toBe('Wahab Mobiles Hyderabad | Mobile Shop in Chandni Market');
+    expect(document.querySelector('meta[name="description"]')).toHaveAttribute(
+      'content',
+      'Visit Wahab Mobiles at Chandni Shopping Mall, Saddar Cantt, Hyderabad for new and used phones, accessories, local pickup and delivery. Trusted since 2009.',
+    );
 });
 
 });

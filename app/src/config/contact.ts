@@ -1,6 +1,6 @@
 export const CONTACT_PHONE_NUMBERS = [
   { label: '+92 312 2995584', href: 'tel:+923122995584' },
-  { label: '+92 315 6914633', href: 'tel:+923156914633' },
+  { label: '+92 319 6641714', href: 'tel:+923196641714' },
 ] as const;
 
 export const BUSINESS_NAME = 'Wahab Mobiles';
