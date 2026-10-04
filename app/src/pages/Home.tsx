@@ -124,6 +124,18 @@ const Home = () => {
 
     const loadFeaturedProducts = async () => {
       try {
+        const bootstrap = window.__WAHAB_HOME_FEATURED_PROMISE__;
+        if (bootstrap) {
+          const result = await bootstrap;
+          if (window.__WAHAB_HOME_FEATURED_PROMISE__ === bootstrap) {
+            delete window.__WAHAB_HOME_FEATURED_PROMISE__;
+          }
+          if (!active) return;
+          if (result.ok) {
+            setFeaturedProducts(result.products.slice(0, 8));
+            return;
+          }
+        }
         const response = await productsAPI.getFeaturedProducts();
         if (active) setFeaturedProducts((response.data.data as Product[]).slice(0, 8));
       } catch {

@@ -72,7 +72,71 @@ const setup = () => {
   return { featured, brands, reviews, ...view };
 };
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  delete window.__WAHAB_HOME_FEATURED_PROMISE__;
+});
+
+describe('Home featured bootstrap', () => {
+  it('waits without duplicating the request while brands and reviews load independently', async () => {
+    const bootstrap = deferred<{ ok: true; products: Product[] }>();
+    window.__WAHAB_HOME_FEATURED_PROMISE__ = bootstrap.promise;
+    const { brands, reviews } = setup();
+    expect(requests.featured).not.toHaveBeenCalled();
+    expect(screen.getByLabelText('Loading featured phone')).toBeInTheDocument();
+    await act(async () => {
+      brands.resolve({ data: { data: [{ name: 'Samsung', productCount: 9 }] } });
+      reviews.resolve({ data: { data: reviewData } });
+    });
+    expect(screen.getByText('9 phones')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Google customer reviews' })).toBeInTheDocument();
+    await act(async () => bootstrap.resolve({ ok: true, products: [featuredProduct] }));
+    expect(screen.getByRole('img', { name: 'Featured phone' })).toHaveAttribute('src', featuredProduct.images[0]);
+    expect(requests.featured).not.toHaveBeenCalled();
+    expect(window.__WAHAB_HOME_FEATURED_PROMISE__).toBeUndefined();
+  });
+
+  it('shares a successful bootstrap across StrictMode effect replay', async () => {
+    window.__WAHAB_HOME_FEATURED_PROMISE__ = Promise.resolve({ ok: true, products: [featuredProduct] });
+    requests.brands.mockReturnValue(new Promise(() => {}));
+    requests.reviews.mockReturnValue(new Promise(() => {}));
+    await act(async () => render(<StrictMode><MemoryRouter><Home /></MemoryRouter></StrictMode>));
+    expect(screen.getByRole('img', { name: 'Featured phone' })).toBeInTheDocument();
+    expect(requests.featured).not.toHaveBeenCalled();
+  });
+
+  it.each([false, true])('falls back transparently, including normal API failure: %s', async (fallbackFails) => {
+    window.__WAHAB_HOME_FEATURED_PROMISE__ = Promise.resolve({ ok: false });
+    const { featured } = setup();
+    await act(async () => {});
+    expect(requests.featured).toHaveBeenCalledExactlyOnceWith();
+    await act(async () => {
+      if (fallbackFails) featured.reject(new Error('Unavailable'));
+      else featured.resolve({ data: { data: [featuredProduct] } });
+    });
+    expect(fallbackFails
+      ? screen.getByRole('heading', { name: 'Catalogue preview unavailable' })
+      : screen.getByRole('img', { name: 'Featured phone' })).toBeInTheDocument();
+  });
+
+  it('preserves the empty catalogue without refetching', async () => {
+    window.__WAHAB_HOME_FEATURED_PROMISE__ = Promise.resolve({ ok: true, products: [] });
+    setup();
+    await act(async () => {});
+    expect(screen.getByRole('heading', { name: 'New phones arriving soon' })).toBeInTheDocument();
+    expect(requests.featured).not.toHaveBeenCalled();
+  });
+
+  it('does not start a fallback after unmount and fetches normally on a later visit', async () => {
+    const bootstrap = deferred<{ ok: false }>();
+    window.__WAHAB_HOME_FEATURED_PROMISE__ = bootstrap.promise;
+    setup().unmount();
+    await act(async () => bootstrap.resolve({ ok: false }));
+    expect(requests.featured).not.toHaveBeenCalled();
+    setup();
+    expect(requests.featured).toHaveBeenCalledExactlyOnceWith();
+  });
+});
 
 describe('Home resource loading', () => {
   it('renders featured products while brands and reviews remain pending without repeating requests', async () => {
